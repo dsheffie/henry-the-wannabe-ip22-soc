@@ -139,8 +139,14 @@ If real incoherent DMA is ever added, honor the invalidate-vs-writeback distinct
 
 ## The wirepda / wired-entry finding
 
-**MAME-confirmed (Q1, 2026-06-13): real HW takes NO miss at `wirepda`'s `jr $ra`; r9999 faults
-spuriously.** This is the live VM-init bug that strands r9999 ~805K cycles into boot.
+**MAME-confirmed (Q1, 2026-06-13): real HW takes NO miss at `wirepda`'s `jr $ra`; r9999 faulted
+spuriously.** This was the VM-init bug that stranded r9999 ~805K cycles into boot.
+
+!!! success "Resolved in RTL (r9999 `tlb.sv`, commit `e451d50`)"
+
+    The root cause was **suspect #2** (high-VA match), now fixed; **suspect #1** (Random clamp) was
+    refuted by RTL inspection. End-to-end confirmation ("IRIX boots past the 805K-cycle wall") is the
+    remaining check; unit coverage exists (`tests/cheri/tlb/test_tlb_xkseg.s`, `test_tlb_wired.s`).
 
 `wirepda` (@`0x881689b0`) `jal`s `tlbwired` (@`0x88004ba0`) to wire the per-CPU PDA. The golden wired
 entry captured at the `tlbwi` inside `tlbwired` (0x88004c28):
@@ -162,24 +168,33 @@ At the `jr $ra` (0x88168aec), single-stepped on real HW:
 - Returns to **`0x8814a184`** (= `mlsetup+0xb4`, **kseg0 / UNMAPPED**) — clean, **no exception vector,
   Cause=0, no BadVAddr**.
 
-**⇒ r9999 is faulting spuriously** — the fix is in r9999's TLB/Wired/segment/ASID handling, NOT a
-missing mapping. The wired mechanism is **untested** in r9999/tests/ (existing tests only R/W the Wired
-register, round-trip `tlbwr` with Wired=0, and test the global bit on a non-wired low-VA entry — never a
-global wired high-kseg3 entry resolving an access across ASID changes).
+**⇒ r9999 *was* faulting spuriously** — the fix was in r9999's TLB high-VA matching, NOT a missing
+mapping (see the resolution box above). Generic xkseg/wired unit tests now exist
+(`tests/cheri/tlb/test_tlb_xkseg.s`, `test_tlb_wired.s`), but a **directed regression test for the exact
+wirepda scenario** — a *global wired high-kseg3* entry resolving an access *across ASID changes and `tlbwr`
+churn* — is still worth adding, since the imported CHERI tests don't combine all three.
 
-**Two prime suspects:**
-1. **`tlbwr` not clamping Random to `[Wired..47]`** — a `tlbwr` between `wirepda` and the access
-   overwrites the wired PDA entry (slot 0); the access then misses and refill can't find it (no
-   page-table entry backs a wired-only mapping) → spins in EXL=1. *(Cross-check: CYAN's independent
-   haterMIPS explicitly resets `Random→47` on a `Wired` write and constrains `tlbwr` to `[Wired..47]` —
-   it implements exactly the behavior this suspect says r9999 may be missing, which raises the prior on #1.)*
-2. **Segment decode for the high kseg3 VA `0xFFFFFFFF_FFFFA000`** — r9999 may mis-handle the
-   sign-extended top-of-space mapped address (treat as unmapped / wrong region / 64-bit VA mishandling).
+**Root cause & fix (the two original suspects, resolved):**
+
+1. **Suspect #1 — `tlbwr` not clamping Random to `[Wired..47]`: REFUTED.** exec.sv resets `Random→47` on
+   a `Wired` write (`n_random='d47`), decrements with wrap at `Wired` (`r_random==r_wired ? 47 :
+   r_random-1`), and `TLBWR` writes index `r_random` (exec.sv:1965). So `Random ∈ [Wired..47]` always and
+   `tlbwr` can never overwrite the wired slots 0–7. *(CYAN's independent haterMIPS implements the same
+   clamp — confirming it's the correct behavior, which r9999 already has.)*
+2. **Suspect #2 — high kseg3 VA `0xFFFFFFFF_FFFFA000` never matched: ROOT CAUSE, FIXED (`e451d50`).** The
+   real asymmetry: `mtc0 EntryHi` stored `VPN2` **zero-extended**, while kseg VAs **sign-extend**
+   (`va[63:62]=11`, `va[39:32]=ff`). Comparing the full `va[39:13]`+region against the zero-extended stored
+   VPN2 → the wired high-VA entry never hit → spurious refill, EXL=1 spin. **Fix:** match only the low
+   19-bit VPN2 (`r_tlb[i].vpn[18:0] == va[31:13]`), ignoring region `R` and `va[39:32]` (tlb.sv:81–88).
+   ⚠️ This is a compare-side workaround valid under 32-bit addressing; the cleaner fix is sign-extending
+   `VPN2` at the `mtc0 EntryHi` source. Could alias only if true 64-bit/region-distinguished VAs are used —
+   not the case on the IRIX boot path.
 
 **Suggested directed test (golden values above):** set `Wired=8`; write the PDA entry
 (EntryHi=0xFFFFA000, EntryLo0=0x20E39F, EntryLo1=0x00000001, PageMask=0) at Index 0; churn the TLB with
 many `tlbwr` and change ASID; then **store to `0xFFFFFFFF_FFFFA240` and load it back** — must hit
-PA `0x0838E240` with no miss. Reproduces the bug if either suspect is real.
+PA `0x0838E240` with no miss. With `e451d50` in place this should now **pass**; it guards against a
+regression in the high-VA match (and would catch a re-introduction of the zero-extend asymmetry).
 
 ## CP0 timekeeping & misc
 
