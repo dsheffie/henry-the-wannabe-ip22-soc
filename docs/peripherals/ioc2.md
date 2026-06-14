@@ -1,0 +1,151 @@
+---
+title: IOC2 — I/O Controller (serial console)
+status: draft (MAME-validated)
+source: SGI IP22 IOC spec (ioc.pdf); MAME golden reference
+---
+
+# IOC2 — I/O Controller (Henry block spec)
+
+> Intro: IOC2 @ phys base 0x1FBD9800 — serial (Z8530 SCC), INT3 interrupt controller, 8254 timer, kbd/mouse,
+> parallel, boot-ID/power regs. THE serial console lives here and is the #1 Henry bring-up target. Legend ✅ = MAME-validated / must-have; ⚠️ = stub or not-yet-needed.
+>
+> The IOC2 is a single VTI ASIC ("Guinness" variant for Indy) holding six macrocells: VTI 85CX30 serial DUART,
+> SGI PI1 parallel, Intel 8042 kbd/mouse, Intel 8254 timer, SGI INT3 interrupt mux, and miscellaneous glue
+> (power/ID/reset). It hangs off the HPC3 P-bus (PBUS_CS_N<6>); registers are 64 word-spaced (×4) slots at base
+> 0x1FBD9800. All addresses below are absolute physical (k1seg uncached: OR 0xA0000000).
+
+## Role in Henry  (and why it's the first peripheral to implement)
+Henry is a headless, PROM-less r9999 SoC whose entire observable output during IRIX bring-up is the **serial
+console**. MEASURED (2026-06-13, IRIX 6.5 boot, `console=d`): the IRIX kernel does **NOT** route the console
+through ARCS — `arcs_write`=0, `romvec[Write]`=0 over a full boot. Both the PROM diagnostic phase
+("Running power-on diagnostics…") and the kernel phase ("IRIX Release 6.5 IP22…") write the **Z8530 SCC
+directly** via the `du_*` serial driver (`du_putchar`/`ducons_write`). The "free output via the ARCS Write
+hook" path therefore does **not** work — Henry must emulate a minimal Z8530 at the IOC2 SCC address or it boots
+blind. That makes IOC2 the first peripheral: get ~10 lines of polled TX working and Henry can print, after
+which every other bring-up step is observable. Ground truth for the stream was captured with a C++ hook on the
+SCC TX register (`scc_dc_w` in MAME `src/mame/sgi/ioc2.cpp`).
+
+## Serial console (Z8530 SCC) — THE priority
+The 85CX30 is a Zilog Z85230-class **dual-channel** ESCC. **Indy console = Port 1, channel A.** The macrocell
+uses Zilog **indirect addressing**: the IOC2 decodes two address lines into 4 byte addresses, where
+**addr bit1 = channel** (0 = Port1/chan A, 1 = Port2/chan B) and **addr bit0 = data/command** (0 = command/
+register, 1 = data). ✅ Confirmed against MAME `map(0x0c,0x0f) -> z80scc ab_dc_r/w`.
+
+| Addr (phys) | IOC word | Z8530 access | r9999 behavior |
+|-------------|----------|--------------|----------------|
+| `0x1FBD9830` | 0x0c | Port1 (chan A) **command/RR0** | **read → return `0x04`** (RR0 bit2 Tx Buffer Empty). write → swallow (WR pointer/select). ✅ |
+| `0x1FBD9834` | 0x0d | Port1 (chan A) **data** | **write[7:0] → emit byte to console sink (stdout).** read → 0 (no Rx). ✅ THIS is `du_putchar`'s store. |
+| `0x1FBD9838` | 0x0e | Port2 (chan B) command/RR0 | return `0x04`, swallow writes (2nd serial port — not console). ⚠️ |
+| `0x1FBD983C` | 0x0f | Port2 (chan B) data | swallow / 0. ⚠️ |
+
+Minimal TX recipe (the whole console for Henry):
+1. **Write `0x1FBD9834`** → take `data[7:0]`, append to the console output sink. That's the printed character.
+2. **Read `0x1FBD9830`** → always return **`0x04`** so the driver's "wait for Tx empty" poll (`while(!(RR0&4));`)
+   never stalls. (Real RR0: bit2 = Tx Buffer Empty, bit0 = Rx Char Available, bit3 = DCD, …; Henry only needs
+   bit2 = 1, rest 0.)
+3. **Write `0x1FBD9830`** → **swallow.** These are WR-pointer selects and WR-register loads (baud, mode, IE).
+   Henry models no internal SCC register file; a stateless drain ignores them. Baud (DMA_SEL `0x9868[5:4]`,
+   default 00 = 10 MHz internal) is irrelevant to a stdout drain.
+
+Note: IRIX talks to this register **directly**, not through ARCS — so emulating these 4 addresses is mandatory,
+not optional. ~10 lines of logic (decode 2 addrs, mux a constant, forward a byte) buys the entire boot log.
+
+## INT3 interrupt controller
+Base `0x1FBD9880`. INT3 multiplexes system interrupts onto **5 CPU interrupt outputs** CPU_INT_N<4:0>, wired to
+CP0 Cause IP2..IP6. INT3 does **no internal latching** except the two 8254 timer interrupts; it expects already-
+latched, level-triggered, **active-high** status (a `1` = active interrupt regardless of mask/polarity).
+
+5 output levels (priority): **Level0 = Local0 → IP2**, **Level1 = Local1 → IP3**, **Level2 = Timer0 → IP4**,
+**Level3 = Timer1 → IP5**, **Level4 = Bus Error → IP6** (bus-error is non-maskable).
+
+| Reg | Addr | Notable bits |
+|-----|------|--------------|
+| Local0 Status | `0x9880` | b0 FIFO-full, b1 SCSI0, b2 SCSI1, b3 ENET, b4 MC-DMA-done, **b5 Parallel**, b6 Graphics, b7 MAP_INT0 |
+| Local0 Mask | `0x9884` | RW, same bit order; `1`=enable, default 0 (masked) after reset |
+| Local1 Status | `0x9888` | b0 GP0, **b1 Panel** (power/vol), b2 GP_LOCAL1<2>, b3 MAP_INT1, b4 HPC-DMA-done, b5 AC-Fail, b6 Vsync, b7 Vretrace |
+| Local1 Mask | `0x988C` | RW, same order, default 0 |
+| Map Status | `0x9890` | mappable ints; **b5 = Serial DUART**, b4 = Kbd/Mouse, b<7:6>/b<3:0> general. Status unaffected by mask/pol |
+| Map Mask0 | `0x9894` | RW → routes to MAP_INT0 (Local0 b7); b5 reserved=serial, b4 reserved=kbd |
+| Map Mask1 | `0x9898` | RW → routes to MAP_INT1 (Local1 b3) |
+| Map Pol | `0x989C` | RW polarity; `1`=active-high, `0`=active-low (default). **Serial(b5)/Kbd(b4) are active-low → leave 0** |
+| Timer Clear | `0x98A0` | W; b0 clears Timer0 int, b1 clears Timer1 int |
+| Error Status | `0x98A4` | R; b0 EISA-err, b1 MC-bus-err, b2 HPC-bus-err (the 3 non-maskable bus errors → IP6) |
+
+**Serial IRQ path:** the SCC interrupt is a *mappable* int → Map Status `0x9890` **bit5**; routed via Map Mask0/1
+to a Local0/Local1 line, then to IP2/IP3. **Not needed for a polled-TX console** (IRIX's du driver polls RR0).
+Implement the registers as plain R/W storage first; wire real assertions only when adding Rx or interrupt-driven
+TX.
+
+## 8254 timer
+Standard Intel 82C54 PIT, 3 counters, fed by a divide-by-20 state machine off CLK_20MHz → **1 MHz / 1 µs tick**.
+Counter2 output clocks Counter0 and Counter1; Counter0 terminal count → Timer0 int (INT3 IP4, the system tick),
+Counter1 TC → Timer1 int (IP5). Registers at base `0x1FBD98B0`:
+
+| Reg | Addr |
+|-----|------|
+| Counter 0 | `0x98B0` |
+| Counter 1 | `0x98B4` |
+| Counter 2 | `0x98B8` |
+| Control Word | `0x98BC` |
+
+⚠️ Not on the critical console path. IRIX needs a working tick eventually (scheduler/`clock`), but the polled
+serial boot reaches its first console output before the timer matters. Implement as a real 82C54 (mode-3 square
+wave on C0) when chasing past early boot.
+
+## Boot-identification & power regs
+PROM/IRIX probe these during early init; Henry must return plausible values or init stalls/branches wrong. Most
+are simple constant-return or accept-and-store.
+
+| Reg | Addr | r9999 must return / accept | Notes |
+|-----|------|---------------------------|-------|
+| System ID | `0x9858` | **`0x26`** (Guinness) | b<7:5>=001 chip rev (≠0 = real IOC, not discrete), b<4:1>=board rev (0x3), **b0=0 = Sapphire/Guinness** (1 would = Full House). ✅ MAME `get_system_id()=0x26`. |
+| Read Reg | `0x9860` | power/PTC-good bits high, e.g. **`0xF0`** | b7 ENET-link, b6 ENET-pwr, b5 SCSI1-pwr (FH only), b4 SCSI0-pwr. High = power good; return upper bits set so PROM sees healthy rails. |
+| Front Panel | `0x9850` | reset value **`0xE1`** | b0 Power-State (1=on), b1 power-button-int (W1C), b4/b6 vol-down/up int (W1C), b5/b7 vol-down/up hold. PROM clears the power-button int by writing 1 to b1. Accept `0x03` to mean "power on." ✅ MAME init = VOL_UP_HOLD\|VOL_DOWN_HOLD\|POWER_STATE = 0xE1. |
+| GC Select | `0x9848` | RW storage (=0xFF ok) | configures GEN_CNTL<7:0> dir; b=1 output. Accept writes. |
+| General Control | `0x984C` | RW storage | GEN_CNTL<7:0> data lines, last-minute control. Accept. |
+| DMA Select | `0x9868` | **0** (default) | b<5:4> serial clk sel (00=10 MHz), b2 parallel-DMA, b<1:0> ISDN-DMA. Accept; 0 is fine. |
+| Reset | `0x9870` | RW, self-clearing | b0 parallel rst, b1 kbd/mouse rst, b<5:4> LED, b3 ISDN rst. Accept and read back 0. |
+| Write | `0x9878` | RW storage | margin (b7/b6), UART PC-mode (b5/b4), ENET select bits. Accept; defaults (0) are fine for console. |
+
+Henry rule of thumb: every "Not Used" slot and every unmodeled control reg → **accept writes (swallow), return 0
+on read** (except the four constants above). That keeps PROM/IRIX init walking forward.
+
+## Minimum for a Henry IRIX boot
+Implement, in order:
+1. **Polled serial TX (~10 lines, do this first):** decode `0x1FBD9830`/`0x34`; read 0x30 → `0x04`; write 0x34 →
+   emit byte; swallow 0x30 writes. This alone produces the entire boot console.
+2. **Boot-ID constants:** System ID `0x9858`→`0x26`; Read `0x9860`→`0xF0`; Front Panel `0x9850`→`0xE1` (W1C on
+   b1/b4/b6).
+3. **Accept-and-ignore the rest:** GC/General/DMA-Sel/Reset/Write regs and all INT3 regs as plain R/W storage;
+   reads of unmodeled/Not-Used → 0.
+4. (Later, post-first-output) 8254 Timer0 → IP4 tick; INT3 serial mappable int (b5) for interrupt-driven console.
+
+Everything past step 1 is "don't stall init"; step 1 is the actual deliverable.
+
+## Golden vectors (from MAME)
+- **SCC TX stream** captured via `scc_dc_w` hook (`SCCW off=1 data=XX c`): `off=1` (= addr 0x34, Port1 data) bytes
+  are the console chars. Full IRIX serial boot reconstructed at `~/code/mame/irix_serial_console.txt` (~972 bytes
+  through the SCC-write hook; the `du_putchar` entry-breakpoint undercounts because TX is buffered).
+- **RR0 read** (addr 0x30) golden value = `0x04` (Tx Buffer Empty) — the value that keeps the poll loop moving.
+- **System ID** (0x9858) golden for Guinness/Indy = **`0x26`** (`ioc2_guinness_device::get_system_id()`).
+- **Front Panel** (0x9850) power-on reset golden = **`0xE1`**; "power on" written value the PROM accepts = `0x03`.
+- **Address decode** golden: MAME `map(0x0c,0x0f)` = SCC (word 0x0c–0x0f = byte 0x30–0x3C); `map(0x14)` Front
+  Panel, `map(0x16)` System ID (word indices; ×4 → 0x50, 0x58 absolute).
+
+## Open / not-yet-needed
+- ⚠️ **Kbd/mouse (8042)** `0x9840/0x9844` — headless Henry has no console keyboard; stub (return 0).
+- ⚠️ **Parallel port (PI1)** `0x9800–0x982C` — no printer; stub.
+- ⚠️ **Port2 serial (chan B)** `0x9838/0x983C` — second UART, not the console; stub `0x04`/0.
+- ⚠️ **Interrupt-driven serial / Rx** — IRIX boot console is polled-TX; Rx and the INT3 serial mappable int
+  (Map Status b5) only needed for an interactive console (input echo, getty).
+- ⚠️ **8254 real timing** — needed for scheduler tick eventually, not for first boot output.
+- ⚠️ **Power/volume state machine, ISDN glue, EISA** — pure storage stubs; never exercised headless.
+
+## Sources
+- `~/code/sgi/docs/indy_docs/ip22/ioc.pdf` — VTI IOC2 spec (Vic Alessi, 1993): §2.1 85CX30 DUART, §2.5 INT3,
+  §4.0 register map (p.13), §4.5 INT3 reg bits (p.14–16), §4.6 misc/ID/power regs (p.16–18).
+- `~/code/r9999/IP22_CHIP_REGISTERS.md` — IOC2 section (absolute base 0x1FBD9800 correction; SCC console recipe).
+- `~/code/r9999/IRIX_KERNEL_GAPS.md` — console section (measured: IRIX boot console = Z8530 direct, arcs_write=0).
+- `~/code/mame/src/mame/sgi/ioc2.cpp` / `ioc2.h` — golden reference (`scc_dc_w` TX hook, `get_system_id()=0x26`,
+  Front Panel reset = 0xE1, `map(0x0c,0x0f)` SCC decode).
+- `~/code/mame/irix_serial_console.txt` — captured golden console stream.

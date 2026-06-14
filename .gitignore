@@ -1,0 +1,19 @@
+# mkdocs build output
+/site/
+
+# python / tooling
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# editor / OS
+*.swp
+*~
+.DS_Store
+
+# future RTL/sim build artifacts
+/rtl/**/build/
+/sim/**/work/
+*.vcd
+*.fst

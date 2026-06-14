@@ -1,0 +1,27 @@
+site_name: Henry — the wannabe IP22 SoC
+site_description: A from-scratch SoC that impersonates the SGI Indy (IP22) well enough to boot IRIX, built around the r9999 MIPS core.
+docs_dir: docs
+# Built-in theme (no extra pip deps). Swap to `material` if mkdocs-material is installed.
+theme:
+  name: readthedocs
+  highlightjs: true
+markdown_extensions:
+  - tables
+  - fenced_code
+  - admonition
+  - toc:
+      permalink: true
+nav:
+  - Overview: index.md
+  - Architecture: architecture.md
+  - CPU integration (r9999): cpu-integration.md
+  - Firmware (ARCS shim): firmware-arcs.md
+  - Boot & console: boot-and-console.md
+  - Cache, coherence & TLB: coherence-cache-tlb.md
+  - Peripherals:
+      - MC (memory controller): peripherals/mc.md
+      - IOC2 (serial console): peripherals/ioc2.md
+      - HPC3 (SCSI/enet/DMA, RTC): peripherals/hpc3.md
+      - GIO64 (bus): peripherals/gio64.md
+      - VDMA (virtual DMA): peripherals/vdma.md
+  - Methodology (MAME oracle): methodology.md
