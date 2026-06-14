@@ -11,24 +11,28 @@
       
       
       
+        <link rel="prev" href="../coherence-cache-tlb/">
+      
+      
+        <link rel="next" href="../peripherals/mc/">
       
       
         
       
       
-      <link rel="icon" href="/assets/images/favicon.png">
+      <link rel="icon" href="../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
-        <title>Henry — the wannabe IP22 SoC</title>
+        <title>FPU (COP1) — what IRIX boot needs - Henry — the wannabe IP22 SoC</title>
       
     
     
-      <link rel="stylesheet" href="/assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
       
         
-        <link rel="stylesheet" href="/assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
       
       
 
@@ -47,7 +51,7 @@
       
     
     
-    <script>__md_scope=new URL("/",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -71,6 +75,11 @@
     <label class="md-overlay" for="__drawer"></label>
     <div data-md-component="skip">
       
+        
+        <a href="#fpu-cop1-boot-requirements" class="md-skip">
+          Skip to content
+        </a>
+      
     </div>
     <div data-md-component="announce">
       
@@ -83,7 +92,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="/." title="Henry — the wannabe IP22 SoC" class="md-header__button md-logo" aria-label="Henry — the wannabe IP22 SoC" data-md-component="logo">
+    <a href=".." title="Henry — the wannabe IP22 SoC" class="md-header__button md-logo" aria-label="Henry — the wannabe IP22 SoC" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 4h12v1h3v2h-3v2h3v2h-3v2h3v2h-3v2h3v2h-3v1H6v-1H3v-2h3v-2H3v-2h3v-2H3V9h3V7H3V5h3zm5 11v3h1v-3zm2 0v3h1v-3zm2 0v3h1v-3z"/></svg>
@@ -103,7 +112,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              
+              FPU (COP1) — what IRIX boot needs
             
           </span>
         </div>
@@ -207,7 +216,7 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="/." title="Henry — the wannabe IP22 SoC" class="md-nav__button md-logo" aria-label="Henry — the wannabe IP22 SoC" data-md-component="logo">
+    <a href=".." title="Henry — the wannabe IP22 SoC" class="md-nav__button md-logo" aria-label="Henry — the wannabe IP22 SoC" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 4h12v1h3v2h-3v2h3v2h-3v2h3v2h-3v2h3v2h-3v1H6v-1H3v-2h3v-2H3v-2h3v-2H3V9h3V7H3V5h3zm5 11v3h1v-3zm2 0v3h1v-3zm2 0v3h1v-3z"/></svg>
@@ -225,7 +234,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/." class="md-nav__link">
+      <a href=".." class="md-nav__link">
         
   
   
@@ -259,7 +268,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/architecture/" class="md-nav__link">
+      <a href="../architecture/" class="md-nav__link">
         
   
   
@@ -293,7 +302,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/cpu-integration/" class="md-nav__link">
+      <a href="../cpu-integration/" class="md-nav__link">
         
   
   
@@ -327,7 +336,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/firmware-arcs/" class="md-nav__link">
+      <a href="../firmware-arcs/" class="md-nav__link">
         
   
   
@@ -361,7 +370,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/boot-and-console/" class="md-nav__link">
+      <a href="../boot-and-console/" class="md-nav__link">
         
   
   
@@ -395,7 +404,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/coherence-cache-tlb/" class="md-nav__link">
+      <a href="../coherence-cache-tlb/" class="md-nav__link">
         
   
   
@@ -426,10 +435,44 @@
       
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="/fpu-cop1/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FPU (COP1)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (MAME-validated)"></span>
+  
+
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -452,6 +495,109 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#why-the-fpu-is-on-the-boot-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why the FPU is on the boot path
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#boot-cop1-histogram-120-s-boot-131884-cop1-ops" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Boot COP1 histogram (120 s boot → 131,884 COP1 ops)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-op-set-r9999-must-implement-to-boot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The op set r9999 must implement to boot
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The op set r9999 must implement to boot">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#deferrable-past-boot-zero-hits-in-a-full-boot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deferrable past boot (zero hits in a full boot)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fp-loadsstores-cop1x-maddmsub" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        FP loads/stores &amp; COP1X (MADD/MSUB)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#methodology" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Methodology
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sources" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sources
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -529,7 +675,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/peripherals/mc/" class="md-nav__link">
+      <a href="../peripherals/mc/" class="md-nav__link">
         
   
   
@@ -564,7 +710,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/peripherals/ioc2/" class="md-nav__link">
+      <a href="../peripherals/ioc2/" class="md-nav__link">
         
   
   
@@ -599,7 +745,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/peripherals/hpc3/" class="md-nav__link">
+      <a href="../peripherals/hpc3/" class="md-nav__link">
         
   
   
@@ -634,7 +780,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/peripherals/gio64/" class="md-nav__link">
+      <a href="../peripherals/gio64/" class="md-nav__link">
         
   
   
@@ -669,7 +815,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/peripherals/vdma/" class="md-nav__link">
+      <a href="../peripherals/vdma/" class="md-nav__link">
         
   
   
@@ -704,7 +850,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/peripherals/dmux1/" class="md-nav__link">
+      <a href="../peripherals/dmux1/" class="md-nav__link">
         
   
   
@@ -779,7 +925,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="/graphics/" class="md-nav__link ">
+            <a href="../graphics/" class="md-nav__link ">
               
   
   
@@ -830,7 +976,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/graphics/rex3/" class="md-nav__link">
+      <a href="../graphics/rex3/" class="md-nav__link">
         
   
   
@@ -865,7 +1011,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/graphics/vc2/" class="md-nav__link">
+      <a href="../graphics/vc2/" class="md-nav__link">
         
   
   
@@ -900,7 +1046,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/graphics/xmap9/" class="md-nav__link">
+      <a href="../graphics/xmap9/" class="md-nav__link">
         
   
   
@@ -935,7 +1081,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/graphics/rb2-ro1/" class="md-nav__link">
+      <a href="../graphics/rb2-ro1/" class="md-nav__link">
         
   
   
@@ -970,7 +1116,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/graphics/express-xz/" class="md-nav__link">
+      <a href="../graphics/express-xz/" class="md-nav__link">
         
   
   
@@ -1012,7 +1158,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/methodology/" class="md-nav__link">
+      <a href="../methodology/" class="md-nav__link">
         
   
   
@@ -1056,6 +1202,99 @@
   
   
   
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#why-the-fpu-is-on-the-boot-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why the FPU is on the boot path
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#boot-cop1-histogram-120-s-boot-131884-cop1-ops" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Boot COP1 histogram (120 s boot → 131,884 COP1 ops)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-op-set-r9999-must-implement-to-boot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The op set r9999 must implement to boot
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The op set r9999 must implement to boot">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#deferrable-past-boot-zero-hits-in-a-full-boot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deferrable past boot (zero hits in a full boot)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fp-loadsstores-cop1x-maddmsub" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        FP loads/stores &amp; COP1X (MADD/MSUB)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#methodology" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Methodology
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sources" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sources
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
   
 </nav>
                   </div>
@@ -1068,8 +1307,172 @@
               
               <article class="md-content__inner md-typeset">
                 
-  <h1>404 - Not found</h1>
+                  
 
+
+
+<h1 id="fpu-cop1-boot-requirements">FPU (COP1) — boot requirements<a class="headerlink" href="#fpu-cop1-boot-requirements" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p>r9999 must present a working <strong>COP1</strong> (FPU). A full IRIX 6.5.22 boot to multiuser issues <strong>~132K COP1
+ops</strong> <em>plus</em> <strong>~453K FP load/stores</strong> (FP data movement is the bulk of FP work — see below). Of the COP1
+ops ~61% are register/control moves, but the remainder is <strong>real FP arithmetic</strong> (from userland —
+init/rc/daemons), so a multiuser boot needs a <strong>functioning FP datapath</strong>, not just the regfile
+plumbing. <strong>MADD/MSUB (COP1X) never appear</strong> → optional. Every number here was measured by booting real IRIX in MAME (<code>indy_4610</code>, <code>-nodrc</code>
+interpreter) with a COP1-instruction histogram compiled into <code>mips3.cpp</code>. This pairs with the
+<strong><code>Status.FR</code></strong> finding in <a href="../coherence-cache-tlb/#cp0-timekeeping-misc">Cache, coherence &amp; TLB</a>.</p>
+</blockquote>
+<h2 id="why-the-fpu-is-on-the-boot-path">Why the FPU is on the boot path<a class="headerlink" href="#why-the-fpu-is-on-the-boot-path" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong><code>Status.FR=1</code> is load-bearing.</strong> <code>DMTC1</code> (64-bit GPR→FPR move) is the single most-frequent COP1 op
+  (48,951 / 37%) — that's FR=1 context save/restore of the 32×64-bit register file. r9999's FP regfile
+  must implement FR=1 (32 independent 64-bit registers), with the <code>FR</code> bit switching regfile aliasing.</li>
+<li><strong>Early kernel = moves only; userland = real math.</strong> A 3 s (early-kernel) capture is ~100% MFC1/MTC1.
+  Once userland runs, genuine single/double arithmetic appears — so "boot to multiuser" cannot be done
+  with a move-only FPU stub.</li>
+</ul>
+<h2 id="boot-cop1-histogram-120-s-boot-131884-cop1-ops">Boot COP1 histogram (120 s boot → 131,884 COP1 ops)<a class="headerlink" href="#boot-cop1-histogram-120-s-boot-131884-cop1-ops" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Category</th>
+<th style="text-align: right;">Count</th>
+<th style="text-align: right;">%</th>
+<th>r9999 implication</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Moves / control</strong> — MTC1/MFC1/DMTC1/DMFC1/CFC1/CTC1</td>
+<td style="text-align: right;">80,306</td>
+<td style="text-align: right;">60.9%</td>
+<td>regfile + FCR31 plumbing, <strong>no datapath</strong></td>
+</tr>
+<tr>
+<td><strong>Single-precision</strong> (<code>fmt=S</code>) math + compare</td>
+<td style="text-align: right;">25,147</td>
+<td style="text-align: right;">19.1%</td>
+<td>FP datapath</td>
+</tr>
+<tr>
+<td><strong>Double-precision</strong> (<code>fmt=D</code>) math + compare</td>
+<td style="text-align: right;">15,347</td>
+<td style="text-align: right;">11.6%</td>
+<td>FP datapath</td>
+</tr>
+<tr>
+<td><strong>BC1</strong> FP conditional branches</td>
+<td style="text-align: right;">9,839</td>
+<td style="text-align: right;">7.5%</td>
+<td>FCR31 condition code → branch resolution</td>
+</tr>
+<tr>
+<td><strong>Int→FP converts</strong> (<code>fmt=W/L</code>)</td>
+<td style="text-align: right;">1,245</td>
+<td style="text-align: right;">0.9%</td>
+<td>CVT.D.W / CVT.S.W / CVT.D.L</td>
+</tr>
+</tbody>
+</table>
+<p>Moves dominate, but ~31% (40,333 ops) is real FP work.</p>
+<h2 id="the-op-set-r9999-must-implement-to-boot">The op set r9999 must implement to boot<a class="headerlink" href="#the-op-set-r9999-must-implement-to-boot" title="Permanent link">&para;</a></h2>
+<p>Union of all nonzero op funcs observed (with the hottest counts):</p>
+<ul>
+<li><strong>Arithmetic:</strong> <code>ADD.S</code> (12,974), <code>ADD.D</code> (702), <code>MUL.S</code> (2,757), <code>MUL.D</code> (439), <code>SUB.S/D</code>,
+  <strong><code>DIV.D</code> (128 — double divide is exercised)</strong>, <code>ABS.D</code>, <code>NEG.S</code>, <code>MOV.S</code> (287), <code>MOV.D</code> (10,083).</li>
+<li><strong>Convert / round:</strong> <code>CVT.D.S</code>, <code>CVT.S.D</code>, <code>CVT.D.W</code> (502), <code>CVT.D.L</code> (672), <code>CVT.S.W</code>,
+  <strong><code>TRUNC.W.D</code> (2,349)</strong>, <code>TRUNC.L.D</code> (538).</li>
+<li><strong>Compare:</strong> <code>C.LT.{S,D}</code> (C.LT.S = 6,819, the hottest compare), <code>C.LE.{S,D}</code> (C.LE.S = 2,070),
+  <code>C.EQ.{S,D}</code>.</li>
+<li><strong>Branch:</strong> <code>BC1{T,F}</code> (+ likely the <code>TL/FL</code> likely-variants).</li>
+</ul>
+<h3 id="deferrable-past-boot-zero-hits-in-a-full-boot">Deferrable past boot (zero hits in a full boot)<a class="headerlink" href="#deferrable-past-boot-zero-hits-in-a-full-boot" title="Permanent link">&para;</a></h3>
+<p><strong><code>SQRT.S/.D</code>, <code>DIV.S</code>, and <code>CEIL/FLOOR/ROUND.{W,L}</code></strong> never execute during boot. A minimal boot-capable
+FPU can omit square-root and single-precision divide and add them later for full userland coverage.</p>
+<h2 id="fp-loadsstores-cop1x-maddmsub">FP loads/stores &amp; COP1X (MADD/MSUB)<a class="headerlink" href="#fp-loadsstores-cop1x-maddmsub" title="Permanent link">&para;</a></h2>
+<p>Counted separately (different primary opcodes). <strong>FP load/store traffic dwarfs the COP1 ops</strong> — 452,790
+load/stores vs 131,951 COP1 ops over the same boot, i.e. moving FP data in/out of the register file is
+~3.4× all the arithmetic + moves + branches combined:</p>
+<table>
+<thead>
+<tr>
+<th>Op</th>
+<th style="text-align: right;">Count</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>LDC1</code> (64-bit FP load)</td>
+<td style="text-align: right;">207,182</td>
+<td>dominant</td>
+</tr>
+<tr>
+<td><code>SDC1</code> (64-bit FP store)</td>
+<td style="text-align: right;">183,519</td>
+<td></td>
+</tr>
+<tr>
+<td><code>LWC1</code> (32-bit FP load)</td>
+<td style="text-align: right;">43,459</td>
+<td></td>
+</tr>
+<tr>
+<td><code>SWC1</code> (32-bit FP store)</td>
+<td style="text-align: right;">18,630</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>total</strong></td>
+<td style="text-align: right;"><strong>452,790</strong></td>
+<td>64-bit (<code>LDC1</code>+<code>SDC1</code>) = <strong>86%</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong><code>COP1X</code> (MADD/MSUB, opcode <code>0x13</code>) = 0</strong> — never executes (R4600 / MIPS III target). <strong>r9999 can omit
+COP1X entirely</strong> for boot, and for IRIX userland compiled to the MIPS III baseline.</p>
+<p><strong>Combined picture.</strong> Of all <strong>~585K FP-related instructions</strong> on the boot path: <strong>~77% are load/stores</strong>
+(86% of them 64-bit), ~14% moves/control, ~7% arithmetic, ~2% branches. So the highest-volume,
+must-be-correct FP items for r9999 are the <strong>64-bit FP load/store datapath</strong> and the <strong>FR=1 64-bit register
+file</strong> — <em>not</em> the ALU. Arithmetic must work, but it is a small minority of the traffic.</p>
+<h2 id="methodology">Methodology<a class="headerlink" href="#methodology" title="Permanent link">&para;</a></h2>
+<p><code>mips3.cpp</code> (the <code>indy_4610</code> maincpu, legacy <code>mips3</code> interpreter) carries file-static histograms dumped at
+<code>device_stop()</code>:</p>
+<ul>
+<li><code>g_cop1_hist[fmt][func]</code> incremented at <code>case 0x11 /*COP1*/</code> — the table above.</li>
+<li><code>g_cop1x_hist[func]</code> at <code>case 0x13 /*COP1X*/</code>, and <code>g_fpls_hist[]</code> at the LWC1/LDC1/SWC1/SDC1 cases —
+  the section above.</li>
+</ul>
+<p>Reproduce: rebuild MAME (<code>make -j</code>), then boot to exit:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nb">cd</span><span class="w"> </span>~/code/chd-dumper/irix652_download
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nv">SDL_VIDEODRIVER</span><span class="o">=</span>dummy<span class="w"> </span><span class="nv">SDL_AUDIODRIVER</span><span class="o">=</span>dummy<span class="w"> </span>~/code/mame/mame<span class="w"> </span>indy_4610<span class="w"> </span>-gio64_gfx<span class="w"> </span>xl24<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span>-hard1<span class="w"> </span>irix65.chd<span class="w"> </span>-rompath<span class="w"> </span>indy_4610/<span class="w"> </span>-nodrc<span class="w"> </span>-video<span class="w"> </span>none<span class="w"> </span>-sound<span class="w"> </span>none<span class="w"> </span>-nothrottle<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span>-seconds_to_run<span class="w"> </span><span class="m">120</span><span class="w"> </span><span class="m">2</span>&gt;<span class="w"> </span>boot.log
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>grep<span class="w"> </span>-E<span class="w"> </span><span class="s1">&#39;COP1_HIST|COP1X_HIST|FPLS_HIST&#39;</span><span class="w"> </span>boot.log
+</code></pre></div>
+<p>See <a href="../methodology/">Methodology</a> for the broader MAME-oracle recipe.</p>
+<h2 id="sources">Sources<a class="headerlink" href="#sources" title="Permanent link">&para;</a></h2>
+<ul>
+<li>MAME <code>indy_4610</code> booting IRIX 6.5.22 (the oracle), COP1/COP1X/FP-load-store histogram hooks in
+  <code>~/code/mame/src/devices/cpu/mips/mips3.cpp</code> (uncommitted instrumentation).</li>
+<li>The <code>Status.FR</code> transition finding — <a href="../coherence-cache-tlb/">Cache, coherence &amp; TLB</a>.</li>
+<li>r9999 FPU RTL: <code>~/code/r9999/</code> (<code>exec.sv</code> FP regfile/FR handling; the FPU datapath).</li>
+</ul>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
               </article>
             </div>
           
@@ -1112,10 +1515,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "/", "features": ["navigation.sections", "navigation.top", "navigation.indexes", "navigation.tracking", "toc.follow", "content.code.copy"], "search": "/assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "navigation.indexes", "navigation.tracking", "toc.follow", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="/assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
       
     
   </body>
