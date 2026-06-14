@@ -1,0 +1,44 @@
+name: docs
+
+# Build the mkdocs site and publish it to the `gh-pages` branch via `mkdocs gh-deploy`.
+# One-time setup in the repo: Settings → Pages → Source = "Deploy from a branch" → branch `gh-pages` / `/ (root)`.
+# Site then serves at https://dsheffie.github.io/henry-the-wannabe-ip22-soc/
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - '.github/workflows/docs.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write          # needed for mkdocs gh-deploy to push the gh-pages branch
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The docs build is self-contained — do NOT fetch the r9999 submodule
+          # (its .gitmodules URL is SSH and CI can't clone it; the docs only
+          # reference r9999 by name/URL, not via relative links).
+          submodules: false
+          fetch-depth: 0          # gh-deploy needs history for the gh-pages branch
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install mkdocs
+        run: pip install mkdocs
+        # If you switch mkdocs.yml to the Material theme, also: pip install mkdocs-material
+
+      - name: Build & deploy to gh-pages
+        run: mkdocs gh-deploy --force --strict
