@@ -21,12 +21,16 @@ modes, plus double buffering for the 4- and 12-bit modes.
 
 Pixel path position in the Newport backend:
 
-```
-REX3 ──GIO64──┐ (DCB control)
-              ▼
-   RB2 ─ VRAM framebuffer ─ RO1 ──Pixel(24b)──► XMAP9 ──Pix_Out(24b)+Pix_Tag──► CMAP ─► RO1/RAMDAC ─► R/G/B
-   VC2 ──DID/Cursor/Blank──────────────────────►  ▲   ◄──CMAP_RGB(24b)──────────┘
-                                                   └──► (Video Expansion Board, bidir)
+```mermaid
+flowchart LR
+    REX3["REX3"] -.->|"GIO64 / DCB control"| XMAP9
+    RB2["RB2"] --- VRAM[("VRAM framebuffer")] --- RO1["RO1"]
+    RO1 -->|"Pixel (24b)"| XMAP9["<b>XMAP9</b><br/>pixel mode / mux"]
+    VC2["VC2"] -.->|"DID / cursor / blank"| XMAP9
+    XMAP9 -->|"Pix_Out (24b) + Pix_Tag"| CMAP["CMAP"]
+    CMAP -->|"CMAP_RGB (24b)"| XMAP9
+    CMAP --> OUT["RO1 / RAMDAC"] --> RGB([R/G/B])
+    XMAP9 <-->|bidir| VEB["Video Expansion Board"]
 ```
 
 - **Inputs:** `Pix_In[23:0]` (interleaved pixel data from RO1; in 8-bit systems bits 23:8 are ignored),

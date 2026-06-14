@@ -33,13 +33,18 @@ mode bits into its registers; REX3 turns those into screen pixels. (p.5)
 
 **The Newport display pipeline** (rendering → scanout), Figure 1, p.6–8:
 
-```
-  GIO64 host ── REX3 ──(FB CNTL / DATA)── RB2 ×4 ── VRAM framebuffer
-                  │                                       │ serial ports
-                  │ DCB (8-bit)                           ▼
-                  ├──────────► VC2 (video timing) ◄──► RO1 ×3 (reorganizer)
-                  ├──────────► XMAP9 ×2 (CI lookup / RGB path) ◄──► CMAP ×2 (CI SRAM)
-                  └──────────► RAMDAC (gamma + R/G/B out) ──► monitor
+```mermaid
+flowchart LR
+    HOST([GIO64 host]) --> REX3["<b>REX3</b><br/>raster engine"]
+    REX3 -->|"FB CNTL / DATA"| RB2["<b>RB2 ×4</b><br/>format + LogicOp"]
+    RB2 <--> VRAM[("VRAM framebuffer")]
+    VRAM -->|serial ports| RO1["<b>RO1 ×3</b><br/>reorganizer"]
+    REX3 -.->|"DCB (8-bit)"| VC2["<b>VC2</b><br/>video timing"]
+    REX3 -.->|DCB| XMAP9["<b>XMAP9 ×2</b><br/>CI lookup / RGB"]
+    REX3 -.->|DCB| RAMDAC["RAMDAC<br/>gamma + R/G/B"]
+    VC2 <--> RO1
+    XMAP9 <--> CMAP[("CMAP ×2<br/>CI SRAM")]
+    RAMDAC --> MON([monitor])
 ```
 
 - **REX3** rasterizes and writes pixels; masters the DCB.

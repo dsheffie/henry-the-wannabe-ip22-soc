@@ -18,11 +18,13 @@ Part: VC2, SGI 099-8918-001, Toshiba TC160G, 144 PQFP, ~27.5k gates (vc2.pdf p.2
 
 VC2 is one chip in the Newport pipeline. Newport datapath (p.3 block diagram):
 
-```
-REX3 ──DCB──> VC2 ──CURSOR──> XMAP9 ──> CMAP ──> RAMDAC ──> R/G/B
-                │  ──DID────>          (video timing channels fan out to XMAP9, CMAP,
-                │                        RAMDAC, RO1, and the monitor sync pins)
-           32Kx16 SRAM
+```mermaid
+flowchart LR
+    REX3["REX3"] -.->|DCB| VC2["<b>VC2</b><br/>video timing + cursor"]
+    SRAM[("32K×16 SRAM<br/><small>cursor / DID / timing tables</small>")] --- VC2
+    XMAP9["XMAP9"] --> CMAP["CMAP"] --> RAMDAC["RAMDAC"] --> RGB([R/G/B])
+    VC2 -->|CURSOR| XMAP9
+    VC2 -.->|"DID · video timing<br/>(→ XMAP9, CMAP, RAMDAC, RO1, monitor sync)"| XMAP9
 ```
 
 The host (via REX3/DCB) writes three table types into the external SRAM; VC2 walks them in real

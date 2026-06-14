@@ -89,29 +89,16 @@ pixel ≥6) before active video (ro1.pdf p.2, p.5). Dot-clock range supported is
 
 ## The pixel pipeline end-to-end
 
-```
-REX3 (raster engine, scan-converts triangles/spans, LogicOp front end)
-  │  RB2_DATA[7:0] × banks,  RB2SEL[2:0] op,  write-mask/draw regs
-  ▼
-RB2 ×4  (LogicOp + write-format → VRAM ;  read-format ← VRAM)   ── random port
-  │  VRAM_DATA[23:0] per bank
-  ▼
-VRAM frame buffer  (RGB/CI + OLAY/PUP/CID planes, double-buffered)
-  │  serial port,  8 bytes/serial-clk  (RO1 drives Serial_clk = 1/5 dot)
-  ▼
-RO1 ×3  (overlay+color merge → 12-bit ;  odd/even rotate de-stagger)   ── serial/scanout port
-  │  Pix_out_x0/x1[11:0]  @ ½ dot clock
-  ▼
-XMAP9 ×N  (mode/WID lookup, color-index → RGB, gamma path select)
-  │  ~26-bit
-  ▼
-CMAP1  (color map / palette RAM)
-  │  24-bit RGB
-  ▼
-DAC → CRT
-
-VC2  = video timing/cursor controller: generates Serial_enable + Display_enable to RO1,
-       and the CBLANK/sync timing the whole scanout is sequenced against.
+```mermaid
+flowchart TD
+    REX3["<b>REX3</b><br/><small>scan-convert · LogicOp front end</small>"]
+    REX3 -->|"RB2_DATA[7:0]×banks · RB2SEL[2:0] · masks"| RB2["<b>RB2 ×4</b><br/><small>LogicOp + write/read format · random port</small>"]
+    RB2 <-->|"VRAM_DATA[23:0]/bank"| VRAM[("<b>VRAM</b> frame buffer<br/><small>RGB/CI + OLAY/PUP/CID · double-buffered</small>")]
+    VRAM -->|"serial port · 8 B/serial-clk (1/5 dot)"| RO1["<b>RO1 ×3</b><br/><small>overlay+color merge → 12b · de-stagger</small>"]
+    RO1 -->|"Pix_out[11:0] @ ½ dot"| XMAP9["<b>XMAP9 ×N</b><br/><small>mode/WID · CI→RGB · gamma select</small>"]
+    XMAP9 -->|"~26-bit"| CMAP["<b>CMAP1</b><br/>color map / palette RAM"]
+    CMAP -->|"24-bit RGB"| DAC["DAC"] --> CRT([CRT])
+    VC2["<b>VC2</b><br/><small>video timing / cursor</small>"] -.->|"Serial_enable · Display_enable · CBLANK/sync"| RO1
 ```
 
 (End-to-end topology: rb2.pdf Fig 3.1 p.7 for the REX3→RB2→VRAM front end; ro1.pdf p.1 and the "8-bit
