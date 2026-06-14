@@ -170,6 +170,31 @@ interpreter), including C++-instrumented op histograms.</p>
    D-side ops are functionally moot — but the moment real incoherent DMA sits behind L1d, the
    invalidate-vs-writeback distinction becomes correctness-critical (see routing table).</li>
 </ol>
+<div class="admonition question">
+<p class="admonition-title">FAQ: Do we need snoops (hardware cache coherence) in r9999? — <strong>No.</strong></p>
+<p>Snooping is a <strong>multiprocessor / coherent-DMA</strong> feature: it exists to keep one cache coherent with another
+bus agent (a second CPU or a snooping DMA engine). Henry is a faithful <strong>uniprocessor</strong> IP22 with
+<strong>non-coherent DMA</strong>, so there is no other agent to snoop and nothing to build. The whole platform does
+<strong>software</strong> cache coherence instead — which is exactly the contract above.</p>
+<p>The evidence is unanimous:</p>
+<ul>
+<li><strong>HPC3</strong> (the real SCSI/Ethernet DMA path) has <strong>zero snoop hardware</strong> — it just masters the bus to/from
+  physical DRAM; coherence is the driver's job (hpc3.pdf has no coherence language).</li>
+<li><strong>VDMA</strong>'s snoop is <strong>R4000MP-only</strong> — a per-transfer <code>GIO_MODE[5]</code> bit that exists only on the
+  multiprocessor part; on a uniprocessor R4000PC/SC (what r9999 presents as) it is never used, and the
+  kernel software-flushes instead (vdma.pdf p.1–2). The MC's <code>CPUCTRL0.SNOOP_EN</code> bit is for that same
+  MP graphics-DMA path → Henry treats it as a no-op storage bit.</li>
+<li><strong>IRIX confirms it dynamically:</strong> the ~5.2M <code>cache</code> ops/boot we measured <em>are</em> the software coherence —
+  the kernel would not issue them if hardware snooped.</li>
+</ul>
+<p><strong>What r9999 needs <em>instead</em> of snoops</strong> is just to <strong>execute the software cache-management ops correctly
+(not NOP them)</strong> — drive the L1i flush on I-cache invalidate (code coherence), and invalidate-<em>without</em>-
+writeback on <code>Hit-Invalidate-D</code> (DMA-in). See the routing table below. Not building snoop logic is a
+genuine <strong>simplification</strong>, not a shortcut.</p>
+<p>Snoops would only ever be needed if Henry went <strong>multiprocessor</strong> (multiple r9999 cores sharing memory) or
+chose to model <strong>coherent DMA hardware</strong> to spare IRIX the flushes — neither is in scope, and the latter
+would diverge from the real IP22.</p>
+</div>
 <h2 id="the-cache-instruction-decode-routing">The <code>cache</code> instruction — decode &amp; routing<a class="headerlink" href="#the-cache-instruction-decode-routing" title="Permanent link">&para;</a></h2>
 <p>r9999 must <strong>fully decode <code>cache</code></strong> (opcode <code>0x2f</code>) and route by the op field — a blanket NOP is a
 latent bug. Field decode of the op register field <code>op = instr[20:16]</code>:
