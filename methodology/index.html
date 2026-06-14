@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>Methodology (MAME oracle) - Henry — the wannabe IP22 SoC</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Methodology (MAME oracle)";
+        var mkdocs_page_input_path = "methodology.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> Henry — the wannabe IP22 SoC
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Overview</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../architecture/">Architecture</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../cpu-integration/">CPU integration (r9999)</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../firmware-arcs/">Firmware (ARCS shim)</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../boot-and-console/">Boot & console</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../coherence-cache-tlb/">Cache, coherence & TLB</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Peripherals</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../peripherals/mc/">MC (memory controller)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../peripherals/ioc2/">IOC2 (serial console)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../peripherals/hpc3/">HPC3 (SCSI/enet/DMA, RTC)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../peripherals/gio64/">GIO64 (bus)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../peripherals/vdma/">VDMA (virtual DMA)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../peripherals/dmux1/">DMUX (data mux)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Graphics (Newport)</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics/rex3/">REX3 (raster engine)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics/vc2/">VC2 (video timing/cursor)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics/xmap9/">XMAP9 (colormap)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics/rb2-ro1/">RB2 & RO1 (framebuffer/output)</a>
+                  </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">Methodology (MAME oracle)</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#the-headless-harness">The headless harness</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#exact-single-instruction-breakpoints-the-workhorse">Exact single-instruction breakpoints (the workhorse)</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#c-instrumentation-for-high-volume-counts-device-capture">C++ instrumentation (for high-volume counts + device capture)</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#how-a-henry-block-gets-validated">How a Henry block gets validated</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#boot-bring-up-order-what-to-make-work-in-order">Boot bring-up order (what to make work, in order)</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#source-material">Source material</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">Henry — the wannabe IP22 SoC</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">Methodology (MAME oracle)</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="methodology-mame-as-henrys-golden-oracle">Methodology — MAME as Henry's golden oracle<a class="headerlink" href="#methodology-mame-as-henrys-golden-oracle" title="Permanent link">&para;</a></h1>
+<p>Every fact in this spec was derived by driving <strong>real IRIX 6.5.22 booting on the SGI Indy in MAME</strong>, not from
+datasheets alone. MAME is Henry's <strong>golden reference model</strong>: it runs the actual PROM + kernel, so it tells us
+what IRIX <em>actually</em> requires (vs. what's merely architecturally possible), and the values it produces are the
+<strong>block-level test vectors</strong> Henry's RTL is checked against. This page is the reproducible recipe.</p>
+<h2 id="the-headless-harness">The headless harness<a class="headerlink" href="#the-headless-harness" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Run the local instrumentable build:</strong> <code>~/code/mame/mame</code> (the system <code>/usr/games/mame</code> is <em>not</em> the
+  checkout). Launch from the IRIX image dir so relative paths + nvram resolve.</li>
+<li><strong>Headless requires SDL dummy drivers</strong> — without them SDL tries DRM/KMS and dies:
+  <code>sh
+  SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy ~/code/mame/mame indy_4610 \
+    -gio64_gfx xl24 -hard1 irix65.chd -rompath indy_4610/ -nodrc \
+    -video none -sound none -nothrottle -seconds_to_run N -autoboot_script probe.lua</code>
+  <code>-nodrc</code> = the interpreter (instrumentable). The Indy core is <code>r4600be(:maincpu)</code> (the legacy <code>mips3.cpp</code>),
+  which is fine — IRIX's CPU usage is the same at the level we care about.</li>
+<li><strong>Drive it with Lua (<code>-autoboot_script</code>), not the in-tree debugger</strong> — the debugger is unusable headless
+  (segfaults / no output). Lua <code>io.write</code>/<code>print</code> go to stdout; CPU state is <code>cpu.state["NAME"].value</code>
+  (PC, all GPRs, CP0 EntryHi/Lo/Index/Wired/Count/Compare/Cause, FCR31, FPRs…); MMU-translated memory reads
+  are <code>cpu.spaces["program"]:readv_u32/u8(addr)</code> (the non-<code>v</code> variants read raw and return junk for kseg).</li>
+</ul>
+<h2 id="exact-single-instruction-breakpoints-the-workhorse">Exact single-instruction breakpoints (the workhorse)<a class="headerlink" href="#exact-single-instruction-breakpoints-the-workhorse" title="Permanent link">&para;</a></h2>
+<p>Lua + the debugger <em>core</em> (<code>-debug -debugger none</code>) gives precise PC traps without a display:</p>
+<pre><code class="language-lua">local dbg = manager.machine.debugger
+cpu.debug:bpset(0x88005960, &quot;1&quot;, &quot;&quot;)     -- 3 args required; fewer SEGFAULTS the binding
+-- in register_periodic: if dbg.execution_state == &quot;stop&quot; then read state; dbg.execution_state = &quot;running&quot;
+</code></pre>
+<p>Caveats learned the hard way: <code>execution_state</code> reads <code>"stop"</code> (not <code>"stopped"</code>); the periodic still fires
+while paused; poll-resume adds <strong>~16 ms wall per hit</strong>, so never breakpoint high-frequency sites. <strong>Register
+reads at a <em>watchpoint</em> (mid-instruction) are stale</strong> — use single-step + read PC, or read CP0 (those are
+reliable). This is how the wirepda/wired-TLB question was answered.</p>
+<h2 id="c-instrumentation-for-high-volume-counts-device-capture">C++ instrumentation (for high-volume counts + device capture)<a class="headerlink" href="#c-instrumentation-for-high-volume-counts-device-capture" title="Permanent link">&para;</a></h2>
+<p>For things Lua can't do at speed — opcode/cache histograms, device-traffic capture — patch the MAME source
+and rebuild incrementally (<code>cd ~/code/mame &amp;&amp; make -j$(nproc)</code>; ~1–2 min relink). Pattern = a file-static
+counter/buffer + a hook at the handler + an <code>fprintf(stderr,…)</code> dump. Hooks used this session (uncommitted in
+the MAME tree):</p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Hook</th>
+<th>Yields</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>src/devices/cpu/mips/mips3.cpp</code></td>
+<td>counter on <code>case 0x2f /*CACHE*/</code> + <code>case 0x11 /*COP1*/</code>, dumped in <code>device_stop()</code></td>
+<td>the <strong>cache-op histogram</strong> (5.2M ops/boot) and the COP1 histogram</td>
+</tr>
+<tr>
+<td><code>src/mame/sgi/ioc2.cpp</code></td>
+<td><code>scc_dc_w</code> wrapper on the SCC <code>ab_dc</code> write</td>
+<td><strong>serial-console capture</strong> (the <code>du_putchar</code> → Z8530 TX stream)</td>
+</tr>
+</tbody>
+</table>
+<p>The serial capture is what proved the console path; <code>null_modem</code> + <code>-bitb</code> captured <strong>0 bytes</strong> (baud/port
+ambiguity), so the C++ SCC hook is the reliable headless serial sink. Getting serial at all also needs
+<code>console=d</code> in the PROM nvram (<code>setenv -f console d</code>, a one-time GUI step).</p>
+<h2 id="how-a-henry-block-gets-validated">How a Henry block gets validated<a class="headerlink" href="#how-a-henry-block-gets-validated" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>Spec</strong> the block from the SGI doc (cross-checked, ✅/⚠️-tagged against MAME).</li>
+<li><strong>Capture golden vectors</strong> from MAME — the values IRIX reads/writes during boot. Examples already captured:
+   <code>MEMCFG0 = 0x23200000</code> (→ 16 MB bank @ <code>0x08000000</code>); the SPB bytes at phys <code>0x1000</code> (sig "ARCS", the
+   35-entry romvec addresses); the wired PDA TLB entry (<code>EntryHi=0xFFFFA000 → 0x0838E000</code>, global, slot 0,
+   Wired=8); the SCC TX byte stream; the FR=1 transitions; the per-boot cache-op histogram.</li>
+<li><strong>Implement</strong> the block in <code>rtl/</code> against the spec.</li>
+<li><strong>Co-simulate / diff</strong> against MAME booting the same IRIX image: same instruction stream, same device
+   register reads/writes, same console output. Divergence localizes the bug (this is exactly how the wirepda
+   "real HW takes no miss → r9999 faults spuriously" conclusion was reached).</li>
+</ol>
+<h2 id="boot-bring-up-order-what-to-make-work-in-order">Boot bring-up order (what to make work, in order)<a class="headerlink" href="#boot-bring-up-order-what-to-make-work-in-order" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>CPU + RAM + the ARCS shim</strong> → reach <code>/unix</code> <code>start</code> (a0=8) without the early UTLB-miss panic (needs
+   <code>eaddr</code> set). See <a href="../firmware-arcs/">Firmware</a>, <a href="../boot-and-console/">Boot &amp; console</a>.</li>
+<li><strong>MC MEMCFG</strong> → <code>szmem</code> sizes RAM correctly. See <a href="../peripherals/mc/">MC</a>.</li>
+<li><strong>IOC2 minimal SCC</strong> → "IRIX is alive" on the serial console. See <a href="../peripherals/ioc2/">IOC2</a>.</li>
+<li><strong>Cache ops honored</strong> (not NOP'd) → code coherence + DMA correctness. See
+   <a href="../coherence-cache-tlb/">Cache, coherence &amp; TLB</a>.</li>
+<li><strong>HPC3 SCSI + WD33C93</strong> → read the root disk. See <a href="../peripherals/hpc3/">HPC3</a>.</li>
+<li>GIO64 bus-errors empty slots → IRIX skips graphics cleanly. See <a href="../peripherals/gio64/">GIO64</a>.</li>
+</ol>
+<h2 id="source-material">Source material<a class="headerlink" href="#source-material" title="Permanent link">&para;</a></h2>
+<ul>
+<li>MAME (the oracle): <code>~/code/mame</code> (v0.287), Indy <code>indy_4610</code> + the IRIX 6.5.22 CHD.</li>
+<li>SGI chip docs: <code>~/code/sgi/docs/arcs_spec.pdf</code>, <code>~/code/sgi/docs/indy_docs/ip22/{mc,ioc,hpc3,gio64,vdma,dmux1}.pdf</code>.</li>
+<li>The symbolized IRIX kernel: <code>~/code/chd-dumper/extracted/unix</code> (ELF, with symbols).</li>
+<li>The r9999 working notes (in the submodule): <code>IRIX_CPU_REQUIREMENTS.md</code>, <code>IRIX_KERNEL_GAPS.md</code>,
+  <code>IP22_CHIP_REGISTERS.md</code>, <code>MAME_QUESTIONS.md</code>.</li>
+</ul>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../graphics/rb2-ro1/" class="btn btn-neutral float-left" title="RB2 & RO1 (framebuffer/output)"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../graphics/rb2-ro1/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

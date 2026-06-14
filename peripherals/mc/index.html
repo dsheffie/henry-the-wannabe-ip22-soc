@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>MC (memory controller) - Henry — the wannabe IP22 SoC</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "MC (memory controller)";
+        var mkdocs_page_input_path = "peripherals/mc.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> Henry — the wannabe IP22 SoC
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">Overview</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../architecture/">Architecture</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../cpu-integration/">CPU integration (r9999)</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../firmware-arcs/">Firmware (ARCS shim)</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../boot-and-console/">Boot & console</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../coherence-cache-tlb/">Cache, coherence & TLB</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Peripherals</span></p>
+              <ul class="current">
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">MC (memory controller)</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#role-in-henry">Role in Henry</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#address-base-the-big-endian-alias">Address base &amp; the big-endian alias</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#register-map">Register map</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#memcfg-bank-encoding">MEMCFG bank encoding</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#behavior-semantics">Behavior / semantics</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#minimum-for-a-henry-irix-boot">Minimum for a Henry IRIX boot</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#golden-vectors-from-mame">Golden vectors (from MAME)</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#open-not-yet-needed">Open / not-yet-needed</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#sources">Sources</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../ioc2/">IOC2 (serial console)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../hpc3/">HPC3 (SCSI/enet/DMA, RTC)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../gio64/">GIO64 (bus)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../vdma/">VDMA (virtual DMA)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../dmux1/">DMUX (data mux)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Graphics (Newport)</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../graphics/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../graphics/rex3/">REX3 (raster engine)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../graphics/vc2/">VC2 (video timing/cursor)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../graphics/xmap9/">XMAP9 (colormap)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../graphics/rb2-ro1/">RB2 & RO1 (framebuffer/output)</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../methodology/">Methodology (MAME oracle)</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">Henry — the wannabe IP22 SoC</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Peripherals</li>
+      <li class="breadcrumb-item active">MC (memory controller)</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="mc-memory-controller-henry-block-spec">MC — Memory Controller (Henry block spec)<a class="headerlink" href="#mc-memory-controller-henry-block-spec" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p>Henry's main-memory + system-control block lives at phys base <code>0x1fa00000</code> (kseg1 <code>0xbfa00000</code>). The MC owns
+CPU/system control (CPUCTRL0/1), the SYSID the kernel probes, the refresh &amp; RPSS free-running counters, the
+SIMM-geometry registers (MEMCFG0/1), DRAM timing words (MEMACC), the watchdog, error-capture registers, the
+GIO64 arbiter, locks/semaphores, and the graphics/GIO DMA engine. <strong>#1 gotcha: every MC register is on an
+8-byte stride and big-endian IRIX reads the +4/+c alias, not the table offset</strong> — see the next section before
+trusting any address. Legend: ✅ confirmed in MAME, ⚠️ correction vs the SGI doc / vs earlier MAME notes.</p>
+</blockquote>
+<h2 id="role-in-henry">Role in Henry<a class="headerlink" href="#role-in-henry" title="Permanent link">&para;</a></h2>
+<p>The MC is the system's spine: the R4000-class core (r9999) talks to DRAM through it, and the boot PROM / ARCS
+shim / IRIX kernel poke its control registers to size memory, calibrate clocks (via the RPSS and refresh
+counters), set the endian mode, and arm the watchdog. For a headless Henry boot, the MC must answer a small set
+of register reads/writes correctly and <strong>route real DRAM</strong>; the DMA engine, GIO64 arbiter, EISA lock, and
+semaphores can be inert storage. Interrupts the MC could raise (parity, watchdog, PROM-write, DMA-done) are all
+maskable/disabled at reset and are not needed for first boot.</p>
+<h2 id="address-base-the-big-endian-alias">Address base &amp; the big-endian alias<a class="headerlink" href="#address-base-the-big-endian-alias" title="Permanent link">&para;</a></h2>
+<p><strong>The MC sits on the low 32 bits (<code>sysad[31:0]</code>) of the 64-bit sysad doubleword. Every register therefore answers
+at TWO byte addresses 4 apart, and which one the CPU uses depends on endian mode</strong> (mc.pdf p.25):</p>
+<ul>
+<li><strong>Big-endian CPU (Henry/IRIX default): use the odd-word address — table offset <code>+4</code> (ends in <code>4</code> or <code>c</code>).</strong></li>
+<li>Little-endian CPU: use the even-word address — the table offset itself (ends in <code>0</code> or <code>8</code>).</li>
+</ul>
+<p>So the "table offset" column below is the canonical/LE address; the "BE alias" column (= offset <code>+4</code>) is <strong>what
+IRIX actually reads</strong>. Concretely:</p>
+<table>
+<thead>
+<tr>
+<th>what IRIX touches</th>
+<th>is the BE alias of</th>
+<th>table reg</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0xbfa00004</code></td>
+<td><code>0xbfa00000</code> (+4)</td>
+<td><strong>CPUCTRL0</strong> ⚠️ (not a separate "bus-sync" reg — kernel's repeated uncached read = write-buffer flush / clock calibration of CPUCTRL0)</td>
+</tr>
+<tr>
+<td><code>0xbfa000c4</code></td>
+<td><code>0xbfa000c0</code> (+4)</td>
+<td><strong>MEMCFG0</strong></td>
+</tr>
+<tr>
+<td><code>0xbfa000cc</code></td>
+<td><code>0xbfa000c8</code> (+4)</td>
+<td><strong>MEMCFG1</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Implementation: decode <code>pa[?:3]</code> (8-byte granule) for the register select and <strong>ignore <code>pa[2]</code></strong> (the +4/+0
+alias bit) — both halves of the doubleword map to the same 32-bit register. Drive/return data on the low 32
+sysad bits in either case.</p>
+<p>Containing memory-map context (mc.pdf p.22): MC registers occupy <code>0x1fa00000–0x1faffff</code> (1 MB). Henry's RAM
+windows: <strong>Low Local Memory <code>0x08000000–0x17ffffff</code> (256 MB)</strong> and <strong>High System Memory <code>0x20000000–0x2fffffff</code>
+(256 MB, kseg-mapped only)</strong> ⇒ up to <strong>30-bit PA</strong> ⚠️ (not 29 — earlier 29-bit note was a small-RAM artifact).
+The <strong>bottom 512 KB <code>0x0–0x7ffff</code> ALIASES low RAM</strong> so exception vectors <code>0x0</code>/<code>0x80</code> hit <code>0x08000000</code>/<code>0x08000080</code>.</p>
+<h2 id="register-map">Register map<a class="headerlink" href="#register-map" title="Permanent link">&para;</a></h2>
+<p>Offsets are table offsets (add <code>+4</code> for the BE alias IRIX uses). Full chip table is mc.pdf p.24–25.</p>
+<table>
+<thead>
+<tr>
+<th>table off</th>
+<th>BE alias</th>
+<th>name</th>
+<th>R/W</th>
+<th>reset</th>
+<th>fields / function</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0x00</code></td>
+<td><code>0x04</code></td>
+<td><strong>CPUCTRL0</strong></td>
+<td>R/W</td>
+<td>see §CPUCTRL0</td>
+<td>refresh/parity/endian/watchdog/sysinit</td>
+</tr>
+<tr>
+<td><code>0x08</code></td>
+<td><code>0x0c</code></td>
+<td>CPUCTRL1</td>
+<td>R/W</td>
+<td><code>0x0000000C</code></td>
+<td>MC fifo HWM[3:0]=0xC, GIO timeout, HPC/EXP endian</td>
+</tr>
+<tr>
+<td><code>0x10</code></td>
+<td><code>0x14</code></td>
+<td>DOGC(r)/DOGR(w)</td>
+<td>R/W</td>
+<td>0</td>
+<td>20-bit watchdog: read counter / write clears it</td>
+</tr>
+<tr>
+<td><code>0x18</code></td>
+<td><code>0x1c</code></td>
+<td><strong>SYSID</strong></td>
+<td>R</td>
+<td>rev-dep</td>
+<td>[3:0] CHIP_REV (0=RevA,1=RevB), [4] EISA-present</td>
+</tr>
+<tr>
+<td><code>0x28</code></td>
+<td><code>0x2c</code></td>
+<td>RPSS_DIVIDER</td>
+<td>R/W</td>
+<td>DIV=4,INC=1</td>
+<td>RPSS counter divide[7:0] / increment[15:8]</td>
+</tr>
+<tr>
+<td><code>0x30</code></td>
+<td><code>0x34</code></td>
+<td>EEROM</td>
+<td>R/W</td>
+<td>0</td>
+<td>serial config EEROM bit-bang (CS[1],SCK[2],SO[3],SI[4])</td>
+</tr>
+<tr>
+<td><code>0x40</code></td>
+<td><code>0x44</code></td>
+<td>CTRLD</td>
+<td>R/W</td>
+<td><code>0x0C30</code></td>
+<td>refresh counter preload (CPU cycles in 62.5 µs)</td>
+</tr>
+<tr>
+<td><code>0x48</code></td>
+<td><code>0x4c</code></td>
+<td>REF_CTR</td>
+<td>R</td>
+<td>counts</td>
+<td>16-bit refresh counter — <strong>must advance</strong></td>
+</tr>
+<tr>
+<td><code>0x80</code></td>
+<td><code>0x84</code></td>
+<td>GIO64_ARB</td>
+<td>R/W</td>
+<td>dev-dep</td>
+<td>GIO64 arbiter sizing/RT/master/pipe bits</td>
+</tr>
+<tr>
+<td><code>0x88</code></td>
+<td><code>0x8c</code></td>
+<td>CPU_TIME</td>
+<td>R/W</td>
+<td><code>0x100</code></td>
+<td>GIO64 cycles in CPU arb time period</td>
+</tr>
+<tr>
+<td><code>0x98</code></td>
+<td><code>0x9c</code></td>
+<td>LB_TIME</td>
+<td>R/W</td>
+<td><code>0x200</code></td>
+<td>GIO64 cycles in long-burst arb time period</td>
+</tr>
+<tr>
+<td><code>0xc0</code></td>
+<td><code>0xc4</code></td>
+<td><strong>MEMCFG0</strong></td>
+<td>R/W</td>
+<td>VLD=0</td>
+<td>banks 0&amp;2 ⚠️ (see §MEMCFG)</td>
+</tr>
+<tr>
+<td><code>0xc8</code></td>
+<td><code>0xcc</code></td>
+<td><strong>MEMCFG1</strong></td>
+<td>R/W</td>
+<td>VLD=0</td>
+<td>banks 1&amp;3 ⚠️</td>
+</tr>
+<tr>
+<td><code>0xd0</code></td>
+<td><code>0xd4</code></td>
+<td>CPU_MEMACC</td>
+<td>R/W</td>
+<td>timing</td>
+<td>CPU DRAM timing word (opaque; store/return)</td>
+</tr>
+<tr>
+<td><code>0xd8</code></td>
+<td><code>0xdc</code></td>
+<td>GIO_MEMACC</td>
+<td>R/W</td>
+<td>timing</td>
+<td>GIO64 DRAM timing word</td>
+</tr>
+<tr>
+<td><code>0xe0</code></td>
+<td><code>0xe4</code></td>
+<td>CPU_ERROR_ADDR</td>
+<td>R</td>
+<td>0</td>
+<td>CPU error address</td>
+</tr>
+<tr>
+<td><code>0xe8</code></td>
+<td><code>0xec</code></td>
+<td>CPU_ERROR_STAT (r)/CLR (w)</td>
+<td>R/W</td>
+<td>0</td>
+<td>CPU error status; write clears</td>
+</tr>
+<tr>
+<td><code>0xf0</code></td>
+<td><code>0xf4</code></td>
+<td>GIO_ERROR_ADDR</td>
+<td>R</td>
+<td>0</td>
+<td>GIO error address</td>
+</tr>
+<tr>
+<td><code>0xf8</code></td>
+<td><code>0xfc</code></td>
+<td>GIO_ERROR_STAT (r)/CLR (w)</td>
+<td>R/W</td>
+<td>0</td>
+<td>GIO error status; write clears</td>
+</tr>
+<tr>
+<td><code>0x100</code></td>
+<td><code>0x104</code></td>
+<td>SYS_SEMAPHORE</td>
+<td>R/W</td>
+<td>0</td>
+<td>system semaphore (R/W storage)</td>
+</tr>
+<tr>
+<td><code>0x108</code></td>
+<td><code>0x10c</code></td>
+<td>LOCK_MEMORY</td>
+<td>R/W</td>
+<td>unlocked</td>
+<td>lock GIO out of memory</td>
+</tr>
+<tr>
+<td><code>0x110</code></td>
+<td><code>0x114</code></td>
+<td>EISA_LOCK</td>
+<td>R/W</td>
+<td>unlocked</td>
+<td>lock EISA bus</td>
+</tr>
+<tr>
+<td><code>0x150</code>/<code>0x158</code></td>
+<td>+4</td>
+<td>DMA_GIO_MASK / DMA_GIO_SUB</td>
+<td>R/W</td>
+<td>0</td>
+<td>GIO64 addr translate mask / substitution</td>
+</tr>
+<tr>
+<td><code>0x160</code>/<code>0x168</code></td>
+<td>+4</td>
+<td>DMA_CAUSE / DMA_CTL</td>
+<td>R/W</td>
+<td>0</td>
+<td>DMA interrupt cause / control</td>
+</tr>
+<tr>
+<td><code>0x180</code>–<code>0x1b8</code></td>
+<td>+4</td>
+<td>DMA_TLB_{HI,LO}_{0..3}</td>
+<td>R/W</td>
+<td>0</td>
+<td>4-entry DMA µTLB</td>
+</tr>
+<tr>
+<td><code>0x01000</code></td>
+<td><code>0x01004</code></td>
+<td><strong>RPSS_CTR</strong></td>
+<td>R</td>
+<td>counts</td>
+<td>free-running 32-bit <strong>100 ns</strong> counter (separate 4 KB page)</td>
+</tr>
+<tr>
+<td><code>0x02000</code>+</td>
+<td>+4</td>
+<td>DMA engine (DMA_MEMADR…DMA_RUN)</td>
+<td>R/W</td>
+<td>0</td>
+<td>graphics/GIO virtual DMA (see VDMA doc)</td>
+</tr>
+<tr>
+<td><code>0x10000</code>+<code>n*0x1000</code></td>
+<td>+4</td>
+<td>SEMAPHORE_0..15</td>
+<td>R/W</td>
+<td>0</td>
+<td>16 hardware test-and-set semaphores (4 KB-spaced)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="memcfg-bank-encoding">MEMCFG bank encoding<a class="headerlink" href="#memcfg-bank-encoding" title="Permanent link">&para;</a></h2>
+<p>Each MEMCFG register packs <strong>two banks</strong> in its 32 bits — a high half and a low half, each with 4 fields
+(BASE, MSIZE, VLD, BNK). ⚠️ <strong>Bank pairing: MEMCFG0 = banks {0,2}, MEMCFG1 = banks {1,3}</strong> (MAME-validated;
+the SGI doc p.33 text says MEMCFG0={0,1}/MEMCFG1={2,3}, but Henry follows the MAME pairing). Field bit layout
+(mc.pdf p.33):</p>
+<table>
+<thead>
+<tr>
+<th>bits</th>
+<th>field</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>[7:0]</code></td>
+<td>BASE (low-half bank)</td>
+<td>base address, compared against <strong>phys <code>[29:22]</code></strong> (i.e. value <code>&lt;&lt;22</code>); <code>[31:30]</code> always 0</td>
+</tr>
+<tr>
+<td><code>[12:8]</code></td>
+<td>MSIZE (low-half bank)</td>
+<td>SIMM size code (table below)</td>
+</tr>
+<tr>
+<td><code>[13]</code></td>
+<td>VLD (low-half bank)</td>
+<td>1 = SIMM slot populated (reset 0)</td>
+</tr>
+<tr>
+<td><code>[14]</code></td>
+<td>BNK (low-half bank)</td>
+<td>0 = one subbank, 1 = two subbanks</td>
+</tr>
+<tr>
+<td><code>[15]</code></td>
+<td>—</td>
+<td>reserved</td>
+</tr>
+<tr>
+<td><code>[23:16]</code></td>
+<td>BASE (high-half bank)</td>
+<td>base, phys <code>[29:22]</code></td>
+</tr>
+<tr>
+<td><code>[28:24]</code></td>
+<td>MSIZE (high-half bank)</td>
+<td>size code</td>
+</tr>
+<tr>
+<td><code>[29]</code></td>
+<td>VLD (high-half bank)</td>
+<td>valid (reset 0)</td>
+</tr>
+<tr>
+<td><code>[30]</code></td>
+<td>BNK (high-half bank)</td>
+<td>subbanks</td>
+</tr>
+<tr>
+<td><code>[31]</code></td>
+<td>—</td>
+<td>reserved</td>
+</tr>
+</tbody>
+</table>
+<p><strong>SIMM size table</strong> (MSIZE code → SIMM type → bank bytes, ×4 SIMMs/bank):</p>
+<table>
+<thead>
+<tr>
+<th>MSIZE</th>
+<th>SIMM</th>
+<th>subbanks</th>
+<th>bank size</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>00000</code></td>
+<td>256K×36</td>
+<td>1</td>
+<td>1 MB</td>
+</tr>
+<tr>
+<td><code>00001</code></td>
+<td>512K×36</td>
+<td>2</td>
+<td>2 MB</td>
+</tr>
+<tr>
+<td><code>00011</code></td>
+<td>1M×36</td>
+<td>1</td>
+<td>4 MB</td>
+</tr>
+<tr>
+<td><code>00111</code></td>
+<td>2M×36</td>
+<td>2</td>
+<td>8 MB</td>
+</tr>
+<tr>
+<td><code>01111</code></td>
+<td>4M×36</td>
+<td>1</td>
+<td>16 MB</td>
+</tr>
+<tr>
+<td><code>11111</code></td>
+<td>8M×36</td>
+<td>2</td>
+<td>32 MB</td>
+</tr>
+</tbody>
+</table>
+<p>Rules: SIMMs install in groups of 4 (one bank); all four must be same size; base must be aligned to bank size;
+configure largest SIMMs at lowest base (size-descending) or you get holes/overlap. If two banks decode the same
+address ⇒ bus-error interrupt and the access does not complete.</p>
+<p><strong>Worked decode of MEMCFG0 = <code>0x23200000</code></strong> ✅ (Henry's live MAME value):
+- Bits <code>[31:16]</code> = <code>0x2320</code> → high-half bank (bank 0): BASE0 = <code>0x20</code>, MSIZE0 = <code>0b00011</code>, VLD0 = 1, BNK0 = 0.
+- Bits <code>[15:0]</code> = <code>0x0000</code> → low-half bank (bank 2): VLD2 = 0 (absent).
+- BASE0 <code>0x20</code> → base phys = <code>0x20 &lt;&lt; 22 = 0x08000000</code> ✅ (start of Low Local Memory).
+- MSIZE0 <code>0b00011</code> = 1M×36 SIMM ⇒ <strong>16 MB bank</strong> (4 SIMMs). ⚠️ (earlier note "size=base" was wrong; base and
+  size are independent fields — this is a 16 MB bank based at <code>0x08000000</code>.)</p>
+<h2 id="behavior-semantics">Behavior / semantics<a class="headerlink" href="#behavior-semantics" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Refresh / CTRLD / REF_CTR:</strong> CTRLD (reset <code>0x0C30</code>) is the preload for a down-counter clocked at the CPU rate
+  (20 ns @ 50 MHz); on reaching 0 it reloads from CTRLD and issues a refresh burst. REF_CTR returns the live
+  16-bit count. <strong>REF_CTR must advance</strong> between reads — the kernel busy-loops on it for clock calibration.</li>
+<li><strong>Watchdog (CPUCTRL0.DOG / DOGC / DOGR):</strong> 20-bit counter counting refresh bursts (~64 µs each ⇒ rollover
+  ~67 s). Enabled by CPUCTRL0.DOG; rollover to 0 resets the machine. Writing DOGR (any data) clears it; software
+  must pet it at least every ~60 s. Off at reset.</li>
+<li><strong>RPSS_CTR (<code>0x1000</code>, own 4 KB page):</strong> free-running 32-bit counter that ticks <strong>every 100 ns</strong> (RPSS_DIVIDER
+  DIV/INC scale CPU clocks → 100 ns; for 50 MHz: DIV=4 (÷5), INC=1). Used as a fine-grained timestamp/calibration
+  source; must be monotonic.</li>
+<li><strong>Endian bit (CPUCTRL0.LITTLE, bit18):</strong> 0 = big-endian, 1 = little. Normally loaded from the EEROM at reset;
+  the BIG/LITTLE MC pin must match the R4000's mode or the machine won't run. Henry is <strong>big-endian</strong> ⇒ LITTLE=0.</li>
+<li><strong>Error registers (<code>0xe0</code>–<code>0xf8</code>):</strong> CPU/GIO error address + status capture on parity/bus errors; status reg is
+  read to inspect, <strong>written (any value) to clear</strong>. Henry returns 0 / clears cleanly (no parity enabled at reset).</li>
+<li><strong>Locks / semaphores:</strong> LOCK_MEMORY, EISA_LOCK reset unlocked; the 16 SEMAPHORE_n and SYS_SEMAPHORE are R/W
+  storage for Henry (no real multi-master arbitration needed on a uniprocessor headless build).</li>
+</ul>
+<h2 id="minimum-for-a-henry-irix-boot">Minimum for a Henry IRIX boot<a class="headerlink" href="#minimum-for-a-henry-irix-boot" title="Permanent link">&para;</a></h2>
+<p>Must-implement subset (everything else can be inert storage that reads back what was written):</p>
+<ol>
+<li><strong>CPUCTRL0</strong> (<code>0x00</code>/+4) — R/W; honor LITTLE=0 (BE); reset value with REFS=2, RFE=1; the <code>0xbfa00004</code>
+   uncached reads must return the stored CPUCTRL0. → verify: kernel's clock-calibration read loop doesn't hang.</li>
+<li><strong>SYSID</strong> (<code>0x18</code>/+4) — R; return CHIP_REV in <code>[3:0]</code>, <strong>EISA bit <code>[4]</code> = 0</strong> (Indy has no EISA). → verify:
+   IRIX MC-identification probe passes.</li>
+<li><strong>CTRLD + REF_CTR</strong> (<code>0x40</code>,<code>0x48</code>) — REF_CTR must advance; CTRLD R/W storage. → verify: refresh-calibration
+   loop terminates.</li>
+<li><strong>RPSS_CTR</strong> (<code>0x1000</code>) + RPSS_DIVIDER — monotonic 100 ns counter. → verify: timestamp deltas are positive.</li>
+<li><strong>MEMCFG0 / MEMCFG1</strong> (<code>0xc0</code>,<code>0xc8</code>/+4) — decode to Henry's actual RAM geometry; back real DRAM in the
+   decoded window. → verify: ARCS memory descriptors + kernel sizing see the right amount of RAM.</li>
+<li><strong>CPU_MEMACC / GIO_MEMACC</strong> (<code>0xd0</code>,<code>0xd8</code>) — store/return opaque timing words. → verify: writeback then
+   readback matches.</li>
+<li><strong>Error regs</strong> (<code>0xe0</code>–<code>0xf8</code>) — read 0, write-to-clear. → verify: no spurious bus-error handling.</li>
+</ol>
+<h2 id="golden-vectors-from-mame">Golden vectors (from MAME)<a class="headerlink" href="#golden-vectors-from-mame" title="Permanent link">&para;</a></h2>
+<p>Concrete block test vectors (use as DV checks):</p>
+<table>
+<thead>
+<tr>
+<th>address (BE)</th>
+<th>reg</th>
+<th>value</th>
+<th>decode</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0xbfa000c4</code></td>
+<td>MEMCFG0</td>
+<td><code>0x23200000</code> ✅</td>
+<td>bank0: base <code>0x08000000</code>, 16 MB, valid; bank2 absent</td>
+</tr>
+<tr>
+<td>read of <code>0xd4</code></td>
+<td>CPU_MEMACC</td>
+<td><code>0x11453433</code> ✅</td>
+<td>opaque DRAM timing word — store &amp; return verbatim</td>
+</tr>
+<tr>
+<td><code>0xbfa0001c</code></td>
+<td>SYSID</td>
+<td><code>[3:0]</code>=CHIP_REV (RevA=0/RevB=1), <code>[4]</code>=0</td>
+<td>EISA absent ⇒ Indy</td>
+</tr>
+<tr>
+<td><code>0xbfa00004</code></td>
+<td>CPUCTRL0 alias ⚠️</td>
+<td>(stored value)</td>
+<td>NOT a bus-sync reg; BE alias of CPUCTRL0@<code>0x00</code></td>
+</tr>
+<tr>
+<td><code>0xbfa00044</code></td>
+<td>CTRLD</td>
+<td><code>0x0C30</code> (reset)</td>
+<td>refresh preload</td>
+</tr>
+<tr>
+<td><code>0x1fa01000</code></td>
+<td>RPSS_CTR</td>
+<td>monotonically increasing</td>
+<td>+1 per 100 ns</td>
+</tr>
+</tbody>
+</table>
+<p>Sanity: <code>BASE 0x20 &lt;&lt; 22 == 0x08000000</code>; MSIZE <code>0b00011</code> ⇒ 16 MB; phys mask uses bits <code>[29:22]</code> (30-bit PA).</p>
+<h2 id="open-not-yet-needed">Open / not-yet-needed<a class="headerlink" href="#open-not-yet-needed" title="Permanent link">&para;</a></h2>
+<p>These can be <strong>stubbed as R/W storage</strong> (write returns on read) for an initial headless boot and fleshed out
+later:</p>
+<ul>
+<li><strong>DMA engine</strong> (<code>0x02000</code>+, DMA_MEM/SIZE/STRIDE/GIO/MODE/COUNT/RUN + DMA_TLB 0–3 + DMA_CAUSE/CTL): the
+  graphics/GIO virtual-DMA blitter (FastForward). DMA_RUN polled-busy can just return "not running" (0).</li>
+<li><strong>GIO64 arbiter</strong> (GIO64_ARB, CPU_TIME, LB_TIME): no real GIO masters on headless Henry ⇒ arbitration never
+  runs; treat as R/W storage (PROM writes timing, nobody arbitrates).</li>
+<li><strong>Semaphores / locks</strong> (SEMAPHORE_0..15, SYS_SEMAPHORE, LOCK_MEMORY, EISA_LOCK): R/W storage on a uniprocessor.</li>
+<li><strong>EEROM</strong> (<code>0x30</code>): the endian bit is fixed BE in Henry; the bit-bang interface can swallow writes / return a
+  stable SI.</li>
+<li><strong>Parity / watchdog / PROM-write interrupts</strong>: all disabled at reset; leave unimplemented until needed.</li>
+</ul>
+<h2 id="sources">Sources<a class="headerlink" href="#sources" title="Permanent link">&para;</a></h2>
+<ul>
+<li>SGI IP22 <strong>MC Chip Specification</strong> (<code>mc.pdf</code>): §4 Physical Address Space (p.22–23); §5 MC Internal Registers
+  table + the 8-byte-stride / +4(BE) /+0(LE) alias text (p.24–25); §5.1 CPUCTRL0 (p.26–27); §5.2 CPUCTRL1, §5.3
+  Watchdog DOGC/DOGR (p.28); §5.4 SYSID, §5.5 RPSS Divider, §5.6 EEROM (p.29–30); §5.7 CTRLD, §5.8 REF_CTR, §5.9
+  GIO64_ARB (p.30–31); §5.10 CPU_TIME, §5.11 LB_TIME, §5.12 MEMCFG0/1 + SIMM size table (p.32–33); §5.13
+  CPU_MEMACC/GIO_MEMACC (p.33).</li>
+<li>r9999 working docs: <code>/home/dsheffie/code/r9999/IP22_CHIP_REGISTERS.md</code> — the MC § and the "CONTRADICTIONS /
+  CORRECTIONS vs MAME" items (BE +4/+c alias; banks {0,2}/{1,3}; MEMCFG decode of <code>0x23200000</code>; 30-bit PA;
+  <code>0xbfa00004</code> = CPUCTRL0 alias).</li>
+</ul>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../../coherence-cache-tlb/" class="btn btn-neutral float-left" title="Cache, coherence & TLB"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../ioc2/" class="btn btn-neutral float-right" title="IOC2 (serial console)">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../../coherence-cache-tlb/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../ioc2/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

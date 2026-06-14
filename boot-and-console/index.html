@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>Boot & console - Henry — the wannabe IP22 SoC</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Boot \u0026 console";
+        var mkdocs_page_input_path = "boot-and-console.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> Henry — the wannabe IP22 SoC
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Overview</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../architecture/">Architecture</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../cpu-integration/">CPU integration (r9999)</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../firmware-arcs/">Firmware (ARCS shim)</a>
+                </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">Boot & console</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#the-boot-chain">The boot chain</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#kernel-entry">Kernel entry</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#the-eaddr-requirement-1-boot-gotcha">The eaddr requirement — #1 boot gotcha</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#console-not-via-arcs">Console — NOT via ARCS</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#for-a-headless-henry-set-consoled-and-emulate-the-minimal-scc">For a HEADLESS Henry: set console=d and emulate the minimal SCC</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#what-booted-looks-like-serial-transcript-consoled">What "booted" looks like (serial transcript, console=d)</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#minimum-for-henry-to-print-irix-is-alive">Minimum for Henry to print "IRIX is alive"</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#detailed-working-notes">Detailed working notes</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../coherence-cache-tlb/">Cache, coherence & TLB</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Peripherals</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../peripherals/mc/">MC (memory controller)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../peripherals/ioc2/">IOC2 (serial console)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../peripherals/hpc3/">HPC3 (SCSI/enet/DMA, RTC)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../peripherals/gio64/">GIO64 (bus)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../peripherals/vdma/">VDMA (virtual DMA)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../peripherals/dmux1/">DMUX (data mux)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Graphics (Newport)</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics/rex3/">REX3 (raster engine)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics/vc2/">VC2 (video timing/cursor)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics/xmap9/">XMAP9 (colormap)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics/rb2-ro1/">RB2 & RO1 (framebuffer/output)</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../methodology/">Methodology (MAME oracle)</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">Henry — the wannabe IP22 SoC</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">Boot & console</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="boot-sequence-console">Boot sequence &amp; console<a class="headerlink" href="#boot-sequence-console" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p>Intro: the real chain is PROM → sash → /unix; Henry collapses this by loading <code>/unix</code> directly
+and entering it with the sash→kernel handoff already done (SPB planted, entry registers set).
+Console: the IRIX kernel writes to its <strong>own</strong> console driver — a graphics framebuffer driver for
+<code>console=g</code>, or the Z8530 SCC serial driver for <code>console=d</code> — it does <strong>NOT</strong> route console
+output through ARCS. Measured over a full boot in MAME: <code>arcs_write</code> = 0 calls.</p>
+</blockquote>
+<p>All numbers below were captured by booting real <strong>IRIX 6.5.22</strong> (Indy <code>indy_4610</code> / <code>r4600be</code>) in
+headless MAME with a debugger-driven Lua autoboot script. MAME is the ground-truth oracle.
+Cross-refs: <code>r9999/IRIX_KERNEL_GAPS.md</code> (console + entry sections), <code>r9999/IRIX_CPU_REQUIREMENTS.md</code>
+(ARCS/SPB/romvec), <code>docs/peripherals/ioc2.md</code> (the SCC console device).</p>
+<h2 id="the-boot-chain">The boot chain<a class="headerlink" href="#the-boot-chain" title="Permanent link">&para;</a></h2>
+<p><strong>Real Indy:</strong> PROM POST (power-on diagnostics) → <strong>sash</strong> (the OSLoader: enumerates RAM via ARCS
+<code>GetMemoryDescriptor</code> ×14, builds the component/config tree, seeds the wall clock, loads the <code>/unix</code>
+ELF) → jumps into <code>/unix</code> <code>start</code>.</p>
+<p><strong>Henry (sash-less / PROM-less):</strong> a shim loads the <code>/unix</code> ELF directly and jumps to <code>start</code>,
+synthesizing the small amount of state sash normally leaves behind. The running kernel barely touches
+firmware — over a 100 s emulated boot to multiuser the kernel calls the ARCS romvec <strong>exactly once</strong>
+(<code>GetEnvironmentVariable</code>). So the shim's job is to leave correct <em>in-memory</em> state, not to implement
+a live firmware. The collapsed handoff is: <strong>shim → /unix <code>start</code> with <code>a0=8, a1=0, a2=0</code>.</strong></p>
+<h2 id="kernel-entry">Kernel entry<a class="headerlink" href="#kernel-entry" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>ELF entry = <code>0x88005960</code>, symbol <code>start</code>.</strong> kseg0-cached vaddr → <strong>PA <code>0x08005960</code></strong>; the image
+  loads at VA base <code>0x88000000</code> / <strong>PA <code>0x08000000</code></strong> (DRAM <code>0x08000000</code>–<code>0x0fffffff</code>).</li>
+<li><strong>Entry registers (measured, NOT argc/argv/envp):</strong> <code>a0 = 8</code>, <code>a1 = 0</code>, <code>a2 = 0</code>, <code>a3 = 0</code>.
+  <code>a1</code>/<code>a2</code> are zero — there is no argv/envp array to walk. Only <code>a0 = 8</code> carries a value (a small
+  boot-type/flag code; exact meaning TBD, boot succeeds regardless). Registers also carry sash
+  leftovers (<code>t0=0x11 t1=7 t2=0x10 t3=0x11 t4=0x12 s6=4 s7=0x01000000 t8=8</code>) but the shim can enter
+  with a clean GPR file. <strong><code>SR = 0x30004801</code></strong> (reset Status <code>0x70400004</code>: KX=0, ERL=1, 32-bit
+  kernel).</li>
+<li><strong><code>start</code> prologue (verified disassembly):</strong> sets <code>gp = 0x88332bf0</code>, loads <code>sp = *(0x8832bfa0)</code>,
+  immediately <code>sw</code>s <code>a0/a1/a2</code> to gp-relative globals (saves all three boot args), then <code>jal</code>s its
+  first C routine <code>0x880255e8(a0,a1,a2,a3=0x880059b0)</code>. Early calls <code>_check_dbg</code>(<code>0x880255e8</code>) and
+  <code>debug</code>(<code>0x880152c8</code>) are debug hooks that return.</li>
+<li>The kernel pulls its config from the <strong>ARCS SPB at phys <code>0x1000</code></strong> (signature "ARCS", kseg1
+  <code>0xA0001000</code>) + a 35-entry FirmwareVector — NOT from the entry registers. RAM size/layout it reads
+  <strong>directly from the SGI MC</strong> (<code>MEMCFG0/1</code> at phys <code>0x1fa000c4/0xcc</code>, via <code>szmem</code>@<code>0x8800790c</code>),
+  not from ARCS. From there it proceeds through early init to multiuser.</li>
+</ul>
+<h2 id="the-eaddr-requirement-1-boot-gotcha">The eaddr requirement — #1 boot gotcha<a class="headerlink" href="#the-eaddr-requirement-1-boot-gotcha" title="Permanent link">&para;</a></h2>
+<p>IRIX's early kernel <strong>PANICs</strong> (UTLB miss around <code>0x88007488</code>) if the PROM Ethernet address (<code>eaddr</code>)
+is unset. In MAME this required a one-time <code>setenv -f eaddr &lt;mac&gt;</code> at the PROM prompt or the boot
+died before reaching multiuser. <strong>Henry's shim / NVRAM must supply an <code>eaddr</code></strong> (any valid-looking
+MAC) or the kernel dies in early init. With a placeholder MAC the kernel boots but later complains
+<code>ec0: machine has bad ethernet address: 08:01:02:03:04:05</code> and falls back to standalone networking —
+harmless for bring-up. Set this first; it is the single most common reason a fresh boot wedges.</p>
+<h2 id="console-not-via-arcs">Console — NOT via ARCS<a class="headerlink" href="#console-not-via-arcs" title="Permanent link">&para;</a></h2>
+<p>Measured over a whole boot (both <code>console=g</code> and <code>console=d</code> runs): <strong><code>arcs_write</code> = 0</strong>,
+<code>romvec[Write]</code> = 0, <code>call_prom_cached</code> = 2 (a non-console early PROM query). There is <strong>no early
+ARCS console window</strong> — IRIX's own console driver comes up early enough that the firmware console is
+never exercised. The console device is selected by the ARCS <code>console</code> env var (<code>arg_console</code>):</p>
+<ul>
+<li><strong><code>console=g</code> / <code>G</code> (graphics):</strong> kernel's own <strong>graphics framebuffer driver</strong> (over GIO64). This
+  is what MAME runs by default; the boot banner is drawn by the kernel, not the firmware.</li>
+<li><strong><code>console=d</code> (serial duart):</strong> kernel's <code>cn*</code> console subsystem dispatches to the serial driver
+  <code>du_*</code> (<code>du_putchar</code> / <code>ducons_write</code>), which drives the <strong>Z8530 / SCC85230</strong> in the <strong>IOC2/INT2</strong>
+  ASIC directly. <code>du_putchar</code> works through a per-port struct at kdata <code>0x8832d670 + port*0x84</code>; the
+  mapped SCC base is stored there at driver init.</li>
+</ul>
+<p><strong>Important:</strong> the "free output via the ARCS <code>Write</code> hook (<code>arcs_fw</code>)" trick does <strong>not</strong> work for
+the IRIX kernel console. Both the PROM phase ("Running power-on diagnostics…") and the kernel phase
+("IRIX Release 6.5 IP22…") write the Z8530 <strong>directly</strong>. A <code>du_putchar</code>/<code>ducons_write</code> entry
+breakpoint <em>undercounts</em> TX (output is buffered / interrupt-driven); the SCC-write hook (<code>scc_dc_w</code>
+in MAME <code>src/mame/sgi/ioc2.cpp</code>) is ground truth — it caught 972 console bytes.</p>
+<h3 id="for-a-headless-henry-set-consoled-and-emulate-the-minimal-scc">For a HEADLESS Henry: set <code>console=d</code> and emulate the minimal SCC<a class="headerlink" href="#for-a-headless-henry-set-consoled-and-emulate-the-minimal-scc" title="Permanent link">&para;</a></h3>
+<p>Indy console = Port 1, channel A, at IOC2 base <code>0x1FBD9800</code>. The whole console is two registers
+(cross-ref <code>docs/peripherals/ioc2.md</code>):</p>
+<ul>
+<li><strong>Write <code>0x1FBD9834</code></strong> (Port1 chan A data) → take <code>data[7:0]</code>, append to the console sink (stdout).
+  That byte is the printed character — this is <code>du_putchar</code>'s store.</li>
+<li><strong>Read <code>0x1FBD9830</code></strong> (Port1 chan A command / RR0) → always return <strong><code>0x04</code></strong> (RR0 bit2 = Tx Buffer
+  Empty), so the driver's "wait for Tx empty" poll (<code>while(!(RR0 &amp; 4));</code>) never stalls.</li>
+<li><strong>Write <code>0x1FBD9830</code></strong> → swallow (WR-pointer selects / WR-register loads: baud, mode, IE). Henry
+  models no SCC register file; a stateless drain ignores them.</li>
+</ul>
+<p>That stateless polled-TX drain is enough to print. The SCC interrupt path (mappable int, Map Status
+<code>0x9890</code> bit5) is <strong>not</strong> needed — IRIX's <code>du</code> driver polls RR0.</p>
+<h2 id="what-booted-looks-like-serial-transcript-consoled">What "booted" looks like (serial transcript, <code>console=d</code>)<a class="headerlink" href="#what-booted-looks-like-serial-transcript-consoled" title="Permanent link">&para;</a></h2>
+<pre><code>                         Running power-on diagnostics...
+                           Starting up the system...
+               To perform system maintenance instead, press &lt;Esc&gt;
+IRIX Release 6.5 IP22 Version 10070055 System V
+Copyright 1987-2003 Silicon Graphics, Inc.
+All Rights Reserved.
+ec0: machine has bad ethernet address: 08:01:02:03:04:05
+The system is coming up.
+...
+</code></pre>
+<p>The PROM-phase lines ("Running power-on diagnostics…", "press &lt;Esc&gt;") are <strong>PROM</strong> code writing
+the Z8530; the "IRIX Release 6.5 IP22…" banner onward is the <strong>kernel's</strong> serial driver writing the
+Z8530. (Henry is PROM-less, so the PROM-phase lines won't appear; the kernel banner is the first
+output.) Full capture: <code>~/code/mame/irix_serial_console.txt</code>.</p>
+<h2 id="minimum-for-henry-to-print-irix-is-alive">Minimum for Henry to print "IRIX is alive"<a class="headerlink" href="#minimum-for-henry-to-print-irix-is-alive" title="Permanent link">&para;</a></h2>
+<ol>
+<li>Load the <code>/unix</code> ELF (VA <code>0x88xxxxxx</code> → PA <code>0x08xxxxxx</code>, base PA <code>0x08000000</code>).</li>
+<li>Plant the <strong>ARCS shim</strong>: SPB at phys <code>0x1000</code> (sig "ARCS" + field layout) → 35-entry romvec with
+   a working <strong>GetEnvironmentVariable</strong> (the one call the kernel makes); return sane <strong>MEMCFG0/1</strong>
+   from the MC model (e.g. <code>MEMCFG0=0x23200000</code> → bank @ <code>0x08000000</code>).</li>
+<li>Provide an <strong><code>eaddr</code></strong> in the ARCS env / NVRAM (see the eaddr gotcha above) — or early init panics.</li>
+<li>Set <strong><code>console=d</code></strong> in the ARCS env.</li>
+<li>Enter <code>start</code> (<code>0x88005960</code>) with <strong><code>a0=8, a1=0, a2=0</code></strong>, clean GPRs, <code>SR=0x30004801</code>.</li>
+<li>Emulate the <strong>minimal Z8530 SCC</strong> at IOC2 (write <code>0x1FBD9834</code> = TX byte → stdout; read
+   <code>0x1FBD9830</code> → <code>0x04</code>; swallow writes to <code>0x1FBD9830</code>).</li>
+</ol>
+<p>With those six, the kernel runs through early init and its <code>du</code> driver prints the IRIX banner to
+Henry's serial sink.</p>
+<h2 id="detailed-working-notes">Detailed working notes<a class="headerlink" href="#detailed-working-notes" title="Permanent link">&para;</a></h2>
+<ul>
+<li><code>r9999/IRIX_KERNEL_GAPS.md</code> — "Serial console output — how IRIX prints" and "Kernel entry &amp; boot
+  handoff" sections (the <code>arcs_write=0</code> measurement, <code>du_*</code> dispatch, SCC address, entry regs).</li>
+<li><code>r9999/IRIX_CPU_REQUIREMENTS.md</code> — P0-A (<code>start</code> handoff, entry registers, SPB layout, romvec),
+  P0-B (who calls the romvec and when), P0-C (RAM sizing via the MC), and the eaddr note.</li>
+<li><code>docs/peripherals/ioc2.md</code> — the Z8530 SCC console device map and minimal-TX recipe.</li>
+</ul>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../firmware-arcs/" class="btn btn-neutral float-left" title="Firmware (ARCS shim)"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../coherence-cache-tlb/" class="btn btn-neutral float-right" title="Cache, coherence & TLB">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../firmware-arcs/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../coherence-cache-tlb/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

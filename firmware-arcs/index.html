@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>Firmware (ARCS shim) - Henry — the wannabe IP22 SoC</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Firmware (ARCS shim)";
+        var mkdocs_page_input_path = "firmware-arcs.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> Henry — the wannabe IP22 SoC
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Overview</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../architecture/">Architecture</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../cpu-integration/">CPU integration (r9999)</a>
+                </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">Firmware (ARCS shim)</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#the-kernel-entry-handoff">The kernel entry handoff</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#the-spb-system-parameter-block-phys-0x1000">The SPB (System Parameter Block) @ phys 0x1000</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#the-romvec-firmwarevector-35-entries">The romvec (FirmwareVector, 35 entries)</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#environment-variables">Environment variables</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#how-the-kernel-learns-the-memory-map">How the kernel learns the memory map</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#minimum-the-henry-shim-must-plant-in-memory">Minimum the Henry shim must plant in memory</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#open-items">Open items</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#detailed-working-notes">Detailed working notes</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../boot-and-console/">Boot & console</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../coherence-cache-tlb/">Cache, coherence & TLB</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Peripherals</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../peripherals/mc/">MC (memory controller)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../peripherals/ioc2/">IOC2 (serial console)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../peripherals/hpc3/">HPC3 (SCSI/enet/DMA, RTC)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../peripherals/gio64/">GIO64 (bus)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../peripherals/vdma/">VDMA (virtual DMA)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../peripherals/dmux1/">DMUX (data mux)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Graphics (Newport)</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics/rex3/">REX3 (raster engine)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics/vc2/">VC2 (video timing/cursor)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics/xmap9/">XMAP9 (colormap)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics/rb2-ro1/">RB2 & RO1 (framebuffer/output)</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../methodology/">Methodology (MAME oracle)</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">Henry — the wannabe IP22 SoC</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">Firmware (ARCS shim)</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="firmware-the-arcs-shim">Firmware — the ARCS shim<a class="headerlink" href="#firmware-the-arcs-shim" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p>Henry loads <code>/unix</code> <strong>directly</strong> — it replaces the SGI PROM <strong>and</strong> sash (the ARC OSLoader) — so it must
+reproduce the in-memory state the kernel expects to find on entry. <strong>Key insight from MAME:</strong> the <em>running</em>
+kernel barely calls ARCS — exactly <strong>one</strong> <code>GetEnvironmentVariable</code> over a whole boot to multiuser; everything
+else (memory enumeration, the config-tree build/walk, the wall-clock seed) is <strong>sash work, pre-kernel</strong>, which
+Henry replaces. So Henry's shim is <strong>mostly correct in-memory DATA, not live firmware functions</strong>: plant the SPB,
+a romvec, an env block, and the exception-vector area; enter <code>start</code> with the SGI handoff registers; let the
+kernel read RAM geometry straight from the MC. Everything below is big-endian (SGI = BE, ARCS Ver 1 Rev 10).
+Legend: ✅ confirmed in MAME, ⚠️ correction vs an earlier assumption.</p>
+</blockquote>
+<hr />
+<h2 id="the-kernel-entry-handoff">The kernel entry handoff<a class="headerlink" href="#the-kernel-entry-handoff" title="Permanent link">&para;</a></h2>
+<p>Henry jumps to <code>/unix</code> <code>start</code> (entry <strong><code>0x88005960</code></strong>, kseg0) with:</p>
+<pre><code>a0 = 0x00000008   a1 = 0   a2 = 0   a3 = 0
+sp = 0   gp = 0   ra = 0   fp = 0          ; clean GPRs; the kernel sets up its own gp/sp
+SR = 0x30004801                            ; CU1|BEV|... (MAME-observed entry Status)
+</code></pre>
+<p>⚠️ <strong>This is NOT <code>start(argc, argv, envp)</code>.</strong> <code>a1=a2=0</code> — there is no argv/envp pointer array to walk. The ARC
+<code>Main(Argc,Argv,Envp)</code> convention (Argc=0, non-NULL Argv/Envp) applies to the <strong>OSLoader (sash)</strong> that ARC loads —
+<strong>not</strong> to <code>/unix</code>, which sash loads one level down via an SGI-private handoff. Henry replaces sash, so Henry must
+emit the SGI handoff: <strong><code>a0=8, a1=0, a2=0</code></strong> and a clean register file. <code>a0=8</code> is an SGI boot flag (a small
+integer, not a pointer; exact meaning TBD — <code>start</code> just <code>sw</code>s it to a global and boot succeeds regardless).</p>
+<p><code>start</code> does <strong>not</strong> rely on register-passed pointers: it immediately saves <code>a0/a1/a2</code> to globals, then calls its
+first C routine <code>0x880255e8(a0,a1,a2,a3=0x880059b0)</code>. Everything else IRIX needs it pulls from the <strong>SPB + romvec</strong>
+(below) and from the <strong>MC registers</strong> (memory map) — not from registers. Verified prologue:</p>
+<pre><code>88005960 lui   gp,0x8833
+88005964 lui   sp,0x8833
+88005968 addiu gp,gp,0x2bf0          ; gp = 0x88332bf0  (kernel computes its own gp)
+8800596c addiu sp,sp,-0x4060
+88005970 lw    sp,0(sp)              ; sp = *(0x8832bfa0) (kernel computes its own sp)
+88005978 addiu at,gp,-0x5440
+8800597c sw    a0,0(at)              ; save boot arg a0 to a global
+...      sw    a1 / sw a2            ; saves a1,a2 similarly
+880059a8 jal   0x880255e8           ; first C call with the saved boot args
+</code></pre>
+<p><strong>Henry leaves gp/sp = 0</strong>; the kernel sets them itself in the prologue. Do not try to pre-seed them.</p>
+<hr />
+<h2 id="the-spb-system-parameter-block-phys-0x1000">The SPB (System Parameter Block) @ phys <code>0x1000</code><a class="headerlink" href="#the-spb-system-parameter-block-phys-0x1000" title="Permanent link">&para;</a></h2>
+<p>The kernel finds <em>everything</em> through the SPB. Plant it verbatim at <strong>phys <code>0x1000</code></strong> (kseg1 <code>0xa0001000</code>,
+kseg0 <code>0x80001000</code>). All fields big-endian. Layout (72 bytes, <code>SPBLength=0x48</code>):</p>
+<pre><code>off    value         field                         notes
++0x00  0x53435241    Signature = &quot;ARCS&quot;            BE bytes 41 52 43 53 ('A''R''C''S')
++0x04  0x00000048    SPBLength = 72
++0x08  0x0001000a    Version = 1, Revision = 10    (u16 Version=1, u16 Revision=10)
++0x0c  0xa87484ec    RestartBlock ptr              PROM-internal; kernel does not deref on boot — any sane ptr
++0x10  0x00000000    DebugBlock = NULL             (none)  ✅ matches dump + spec
++0x14  0x9fc30590    GeneralException vector       PROM addr; advisory (kernel installs its own early)
++0x18  0x9fc306e4    UTLB-miss vector              PROM addr; advisory
++0x1c  0x0000008c    FirmwareVectorLength = 140    =&gt; 35 entries (0x8c/4)
++0x20  0xa0001800    FirmwareVector  -&gt; romvec     (the 35-entry table, below)
++0x24  0x00000034    PrivateVectorLength = 52      =&gt; 13 SGI-private entries
++0x28  0xa0001c00    PrivateVector   -&gt; SGI ext.   (semantics TBD; table of NULLs is acceptable if unused)
++0x2c  0x00000000    AdapterCount = 0
+</code></pre>
+<p>Notes:
+- The <strong>GEVector/UTLBmiss</strong> entries are advisory — IRIX installs its own exception handlers very early, but the
+  SPB still advertises them. Henry may point them at its own stubs (or keep PROM-style addresses); the kernel
+  does not call through them.
+- The <strong>exception block (page 0)</strong> must be real RAM, and the SPB sits at <code>0x1000</code> — see "exception vectors area"
+  in the checklist. Henry must alias phys <code>0x0</code>/<code>0x80</code> to RAM (the MC doc covers the <code>0x0–0x7ffff</code> low alias to
+  <code>0x08000000</code>).</p>
+<hr />
+<h2 id="the-romvec-firmwarevector-35-entries">The romvec (FirmwareVector, 35 entries)<a class="headerlink" href="#the-romvec-firmwarevector-35-entries" title="Permanent link">&para;</a></h2>
+<p>35 function pointers @ <code>0xa0001800</code>, in the standard ARCS vector order (<code>FirmwareVectorLength=0x8c</code>). The two
+reserved NULL slots (idx 8, 19) match the MAME dump exactly, confirming the layout. <strong>The crucial finding (P0-B):
+the running kernel calls almost none of these</strong> — so most entries can be simple stubs that return cleanly. The one
+the kernel actually invokes is <strong>GetEnvironmentVariable (30)</strong>; the rest are sash-era. Addresses below are the real
+Indy PROM's (<code>indy_4610</code>) for reference — for Henry only the <strong>semantics</strong> and <strong>whether the kernel calls it</strong>
+matter. Mark which Henry must implement vs may stub:</p>
+<pre><code>idx  name                  PROM addr   caller   Henry
+ 0   Load                  9fc31a8c    [s]      stub (sash-only loader)
+ 1   Invoke                9fc31bd8    [s]      stub
+ 2   Execute               9fc31ee4    [s]      stub
+ 3   Halt                  9fc005ec    -        stub: spin / power-down
+ 4   PowerDown             9fc005f4    -        stub: spin
+ 5   Restart               9fc00614    -        stub: jump reset
+ 6   Reboot                9fc0061c    -        stub: jump reset
+ 7   EnterInteractiveMode  9fc00624    -        stub: spin/halt
+ 8   (reserved)            00000000    -        NULL
+ 9   GetPeer               9fc2c1f8    [s]      stub: return NULL (config tree)
+10   GetChild              9fc2c204    [s]      stub: return NULL (or tiny tree)
+11   GetParent             9fc2c228    [s]      stub: return NULL
+12   GetConfigurationData  9fc2c234    [s]      stub: return error/empty
+13   AddChild              9fc2c284    [s]      stub
+14   DeleteComponent       9fc2c548    -        stub
+15   GetComponent          9fc34680    -        stub: return NULL
+16   SaveConfiguration     9fc2c674    -        stub: ESUCCESS no-op
+17   GetSystemId           9fc107a8    -        stub: ptr to a SYSTEMID (VendorId/ProductId)
+18   GetMemoryDescriptor   9fc10b90    [s]      stub: return NULL  (kernel uses MC, not this — see below)
+19   (reserved)            00000000    -        NULL
+20   GetTime               9fc106d0    [s]      stub: return a TIMEINFO  (kernel uses CP0, not this)
+21   GetRelativeTime       9fc39fb0    -        stub: return RPSS/CP0 count
+22   GetDirectoryEntry     9fc10608    [s]      stub
+23   Open                  9fc0fc34    [s]      stub: error
+24   Close                 9fc1046c    [s]      stub: ESUCCESS
+25   Read                  9fc1004c    [s]      stub: error
+26   GetReadStatus         9fc107b4    [s]      stub
+27   Write                 9fc1030c    [s]      stub: drain to console (optional)
+28   Seek                  9fc1053c    [s]      stub: error
+29   Mount                 9fc10878    [s]      stub
+30   GetEnvironmentVariable 9fc10944   [K]      ** REQUIRED ** — the only entry the kernel calls
+31   SetEnvironmentVariable 9fc10924   [s]      stub: ESUCCESS no-op
+32   GetFileInformation    9fc10964    [s]      stub
+33   SetFileInformation    9fc10a04    [s]      stub
+34   FlushAllCaches        9fc0e278    [s]      stub: do the r9999 cache flush (or no-op if direct-boot safe)
+</code></pre>
+<p><code>[K]</code> = called by the kernel (after <code>start</code>); <code>[s]</code> = sash/PROM only (before <code>start</code>), irrelevant to Henry's
+sash-less boot; <code>-</code> = not observed in this boot.</p>
+<p><strong>Minimum viable romvec:</strong> a real <code>GetEnvironmentVariable</code> (idx 30); every other slot a stub returning a benign
+value (NULL / ESUCCESS=0 / a static TIMEINFO/SYSTEMID). ⚠️ Do <strong>not</strong> leave wild pointers — the config-tree
+walkers (GetChild/GetPeer/GetParent) must return NULL cleanly or a tiny <code>System→CPU→FPU</code> / <code>System→MemoryUnit</code>
+tree; a garbage COMPONENT pointer crashes early probing. ARCS status codes are POSIX-numbered (<code>ESUCCESS=0</code>).</p>
+<p>The kernel's single call is <code>GetEnvironmentVariable(a0=NULL)</code> — likely fetching the env-block base or an init
+probe (exact return semantics: open item). Implement it to walk the env block (next section) by name, returning a
+pointer to the value string (or NULL if absent).</p>
+<p><code>PrivateVector</code> (13 SGI extensions @ <code>0xa0001c00</code>) — semantics TBD; not observed called by the kernel. A table of
+NULLs is acceptable until something is found to need it.</p>
+<hr />
+<h2 id="environment-variables">Environment variables<a class="headerlink" href="#environment-variables" title="Permanent link">&para;</a></h2>
+<p>ARCS keeps a <code>;</code>-separated env block; names are case-insensitive, values case-sensitive. On real hardware these
+live in the ds1386 NVRAM (HPC3 <code>0x60000</code>) and are <code>setenv</code>'d in the PROM monitor; <strong>Henry plants them directly in
+the env block</strong> that <code>GetEnvironmentVariable</code> reads. Standard ARC vars (arcs_spec.pdf p.55–57): <code>ConsoleIn</code>,
+<code>ConsoleOut</code>, <code>SystemPartition</code>, <code>OSLoader</code>, <code>OSLoadPartition</code>, <code>OSLoadFilename</code>, <code>OSLoadOptions</code>,
+<code>LoadIdentifier</code>, <code>AutoLoad</code>, <code>TimeZone</code>, <code>FWSearchPath</code>. SGI adds non-standard ones: <strong><code>eaddr</code></strong> (MAC — its
+absence caused early kernel panics in MAME until a one-time PROM <code>setenv -f eaddr &lt;mac&gt;</code>), <code>dbaud</code>, <code>rbaud</code>,
+<code>bootfile</code>, <code>path</code>, <code>console</code>.</p>
+<p>What matters for a direct <code>/unix</code> boot:
+- <strong><code>eaddr</code></strong> — <em>load-bearing</em>: set it (e.g. <code>eaddr=08:00:69:xx:xx:xx</code>) or the kernel panics early in network init.
+- <strong><code>console</code></strong> — selects the serial console (<code>d</code> / <code>g</code>); Henry's console is IOC2 serial (see <code>peripherals/ioc2.md</code>).
+- <strong><code>ConsoleIn</code>/<code>ConsoleOut</code></strong> — ARCS path to the console device.
+- <code>OSLoadPartition</code> / <code>OSLoader</code> / <code>OSLoadFilename</code> / <code>OSLoadOptions</code> / <code>SystemPartition</code> / <code>root</code> — these drive
+  sash's OS-loading and root selection. Since Henry <em>is</em> the loader and hands the kernel a fixed <code>/unix</code>, the
+  kernel reads few of these directly, but plant plausible values (<code>OSLoadOptions=auto</code>, a <code>root=</code>/<code>SystemPartition</code>
+  pointing at the boot disk) so any kernel-side query returns something sane.</p>
+<p>Reproduce whatever the kernel actually queries; over-provisioning the block is harmless. (Open item: pin the exact
+name the single kernel <code>GetEnvironmentVariable(NULL)</code> resolves to.)</p>
+<hr />
+<h2 id="how-the-kernel-learns-the-memory-map">How the kernel learns the memory map<a class="headerlink" href="#how-the-kernel-learns-the-memory-map" title="Permanent link">&para;</a></h2>
+<p>⚠️ <strong>NOT via <code>GetMemoryDescriptor</code>.</strong> P0-B/P0-C: the kernel makes <strong>zero</strong> <code>GetMemoryDescriptor</code> calls — sash's 14
+calls are pre-kernel and irrelevant to a sash-less boot. Instead, <code>szmem</code> (<code>0x8800790c</code>, "size memory") reads the
+<strong>MC MEMCFG registers directly</strong> (<code>0x880077c0</code>):</p>
+<pre><code>lui  a5,0xbfa0        ; 0xbfa00000 kseg1 uncached -&gt; phys 0x1fa00000 = the MC
+lw   a3,196(a5)       ; MEMCFG0 @ 0xbfa000c4  (BE +4 alias of table offset 0xc0)
+lw   a3,204(a5)       ; MEMCFG1 @ 0xbfa000cc  (BE +c alias of 0xc8)
+srlv v0,a3,a4         ; pick the bank's 16-bit half (two banks packed per 32-bit reg)
+andi v0,v0,0xffff
+</code></pre>
+<p><strong>Implication for Henry:</strong> the shim does <strong>NOT</strong> need a working <code>GetMemoryDescriptor</code> (idx 18 may stub→NULL). It
+<strong>must</strong> present correct <strong>MC MEMCFG0/MEMCFG1</strong> values describing Henry's DRAM. The decode and SIMM-size table live
+in <strong><code>peripherals/mc.md</code></strong> — implement those registers there; here is the handoff dependency:</p>
+<ul>
+<li>MEMCFG packs banks {0,2} (MEMCFG0) and {1,3} (MEMCFG1); per bank <code>base = BASE&lt;&lt;22</code> (4 MB units, vs phys[29:22]),
+  size from the MSIZE table (<code>0b01111</code>=16 MB, <code>0b11111</code>=32 MB, …), <code>VLD</code> valid bit, <code>BNK</code> sub-banks.</li>
+<li>Live golden values (16 MB Indy): <code>MEMCFG0=0x23200000</code> (hiBank base=0x20→<code>0x08000000</code>, MSIZE=0b00011=16 MB,
+  VLD=1; loBank invalid), <code>MEMCFG1=0x00000000</code>, <code>CPU_MEMACC (0xd0)=0x11453433</code> (opaque DRAM timing — store/return).</li>
+<li>For Henry's DRAM (e.g. 128 MB at <code>0x08000000</code>): set bank base <code>0x20</code>, widen MSIZE / add banks so the decoded
+  base+size cover <code>0x08000000–0x0fffffff</code>. Cross-check the decoded total against <code>physmem</code>/<code>maxmem</code>
+  (<code>0x8832d1f0</code>/<code>0x8832d1f8</code>) after <code>szmem</code> runs, and against <code>_physmem_start = 0x08000000</code>.</li>
+</ul>
+<p>So memory-map correctness is an <strong>MC peripheral</strong> problem, not a firmware-data problem — keep the romvec
+<code>GetMemoryDescriptor</code> a stub and get MEMCFG right.</p>
+<hr />
+<h2 id="minimum-the-henry-shim-must-plant-in-memory">Minimum the Henry shim must plant in memory<a class="headerlink" href="#minimum-the-henry-shim-must-plant-in-memory" title="Permanent link">&para;</a></h2>
+<p>Checklist (everything big-endian):</p>
+<ol>
+<li><strong>SPB @ phys <code>0x1000</code></strong> — signature "ARCS", the 72-byte field layout above, <code>FirmwareVector→0xa0001800</code>,
+   <code>PrivateVector→0xa0001c00</code>, <code>DebugBlock=NULL</code>, <code>AdapterCount=0</code>.</li>
+<li><strong>Romvec (35 entries) @ <code>0xa0001800</code></strong> — with a <strong>working <code>GetEnvironmentVariable</code> (idx 30)</strong>; all other slots
+   stubs that return benign values (NULL / ESUCCESS / static TIMEINFO/SYSTEMID). No wild pointers; tree walkers
+   return NULL cleanly.</li>
+<li><strong>Env block</strong> — at minimum <code>eaddr</code> (or the kernel panics) and <code>console</code>/<code>ConsoleIn</code>/<code>ConsoleOut</code>; plus plausible
+   <code>OSLoad*</code>/<code>SystemPartition</code>/<code>root</code>.</li>
+<li><strong>Exception-vector area</strong> — page 0 is real RAM; alias phys <code>0x0</code>/<code>0x80</code> to <code>0x08000000</code>/<code>0x08000080</code> (MC low
+   alias). SPB sits just above at <code>0x1000</code>. The kernel installs its own GE/UTLB handlers early.</li>
+<li><strong>Enter <code>start</code> (<code>0x88005960</code>) with <code>a0=8, a1=0, a2=0</code></strong>, a clean GPR file, gp/sp = 0 (kernel sets them).</li>
+</ol>
+<p><strong>Not needed:</strong> a live <code>GetMemoryDescriptor</code> (kernel reads MC MEMCFG — see above), live <code>GetTime</code> (kernel uses the
+CP0 Count/Compare timer for the scheduler tick), the config tree, or any file-I/O romvec entry (sash did all disk
+I/O; Henry already loaded <code>/unix</code>).</p>
+<hr />
+<h2 id="open-items">Open items<a class="headerlink" href="#open-items" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Decode the single kernel <code>GetEnvironmentVariable(a0=NULL)</code> call — exact name resolved / how the return is used
+  (getenv-of-NULL to fetch the env-block base, vs an init probe). Determines how minimal idx-30 can be.</li>
+<li>Exact meaning of <code>a0=8</code> to <code>start</code> (minor — <code>start</code> saves it and boot succeeds regardless).</li>
+<li>Whether <code>FlushAllCaches</code> (idx 34) needs a real r9999 cache flush at the handoff or can be a no-op for direct boot.</li>
+<li>Confirm no kernel-phase deref of <code>RestartBlock</code>/<code>PrivateVector</code> (so NULL/placeholder stays safe).</li>
+</ul>
+<hr />
+<h2 id="detailed-working-notes">Detailed working notes<a class="headerlink" href="#detailed-working-notes" title="Permanent link">&para;</a></h2>
+<p>Source of truth: <strong><code>r9999/IRIX_CPU_REQUIREMENTS.md</code></strong> (P0-A/B/C, MAME-validated 2026-06-12) and the <strong>ARCS section
+of <code>r9999/IP22_CHIP_REGISTERS.md</code></strong> (mined from <code>arcs_spec.pdf</code> ARC 1.2 + cross-checked vs MAME, 2026-06-14).</p>
+<ul>
+<li><strong>P0-A — the handoff at <code>start</code> (0x88005960):</strong> entry register state (<code>a0=8,a1=a2=0</code>, SR=0x30004801, clean
+  GPRs), the verified <code>start</code> prologue, the SPB @ <code>0x1000</code> byte layout, the 35-entry FirmwareVector dump, and the
+  13-entry PrivateVector dump.</li>
+<li><strong>P0-B — who calls the romvec, and when:</strong> breakpoint-tag every entry as sash/PROM <code>[s]</code> vs kernel <code>[K]</code>. Result:
+  the running kernel makes <strong>exactly one</strong> romvec call — <code>GetEnvironmentVariable(NULL)</code>; zero GetTime / Read/Write /
+  GetMemoryDescriptor / config-tree from the kernel. All enumeration (GetMemoryDescriptor ×14, GetChild ×57 /
+  GetPeer ×50 / GetParent ×47 / AddChild ×23, FlushAllCaches ×1) is <strong>sash, pre-kernel</strong>. Steady-state timekeeping
+  is <strong>CP0</strong> (Count climbs, handler re-arms <code>Compare = Count + ~0x25000</code>), not ARCS GetTime. ⇒ Henry's job is
+  correct in-memory state, not live firmware functions.</li>
+<li><strong>P0-C — how the kernel sizes RAM (RESOLVED):</strong> <code>szmem</code> reads MC <code>MEMCFG0/1</code> directly (<code>0xbfa000c4/0xcc</code>), not
+  ARCS. Register layout / SIMM-size table / golden live values — see <code>peripherals/mc.md</code>. ⚠️ Earlier "size=base"
+  reading corrected: <code>0x23200000</code> = base <code>0x20&lt;&lt;22=0x08000000</code>, MSIZE <code>0b00011</code> = 16 MB bank.</li>
+</ul>
+<p>⚠️ Other corrections folded in from <code>IP22_CHIP_REGISTERS.md</code>: the <code>a0=8/a1=0/a2=0</code> entry is the SGI sash→<code>/unix</code>
+handoff (NOT ARC <code>Main(argc,argv,envp)</code> — that's the ARC→sash convention Henry replaces); the romvec is 35 entries
+(<code>FirmwareVectorLength=0x8c</code>), not the 37 of the full ARC spec (TestUnicodeCharacter/GetDisplayStatus absent here).</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../cpu-integration/" class="btn btn-neutral float-left" title="CPU integration (r9999)"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../boot-and-console/" class="btn btn-neutral float-right" title="Boot & console">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../cpu-integration/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../boot-and-console/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

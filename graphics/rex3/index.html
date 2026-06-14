@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>REX3 (raster engine) - Henry — the wannabe IP22 SoC</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "REX3 (raster engine)";
+        var mkdocs_page_input_path = "graphics/rex3.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> Henry — the wannabe IP22 SoC
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">Overview</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../architecture/">Architecture</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../cpu-integration/">CPU integration (r9999)</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../firmware-arcs/">Firmware (ARCS shim)</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../boot-and-console/">Boot & console</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../coherence-cache-tlb/">Cache, coherence & TLB</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Peripherals</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../peripherals/mc/">MC (memory controller)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../peripherals/ioc2/">IOC2 (serial console)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../peripherals/hpc3/">HPC3 (SCSI/enet/DMA, RTC)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../peripherals/gio64/">GIO64 (bus)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../peripherals/vdma/">VDMA (virtual DMA)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../peripherals/dmux1/">DMUX (data mux)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Graphics (Newport)</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../">Overview</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">REX3 (raster engine)</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#role-architecture">Role &amp; architecture</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#host-interface">Host interface</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#register-group-map">Register-group map</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#drawing-programming-model">Drawing / programming model</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#henry-relevance-implementation-scope">Henry relevance / implementation scope</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#sources">Sources</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../vc2/">VC2 (video timing/cursor)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../xmap9/">XMAP9 (colormap)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../rb2-ro1/">RB2 & RO1 (framebuffer/output)</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../methodology/">Methodology (MAME oracle)</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">Henry — the wannabe IP22 SoC</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Graphics (Newport)</li>
+      <li class="breadcrumb-item active">REX3 (raster engine)</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="rex3-raster-engine-henrynewport-block-spec">REX3 — Raster Engine (Henry/Newport block spec)<a class="headerlink" href="#rex3-raster-engine-henrynewport-block-spec" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p>REX3 = the host-programmable rendering engine of the Indy Newport board, a GIO64
+slave at <code>0x1f000000</code>. The host writes its registers to issue draw primitives;
+REX3 rasterizes them and writes pixels into the VRAM framebuffer through the RB2s.
+It is also the master of the Display Control Bus (DCB) that programs the rest of
+the Newport display chain (VC2, XMAP9, CMAP, RAMDAC).</p>
+<p><strong>NOT needed for headless Henry</strong> — a headless Henry bus-errors any access to this
+address window. This document is future-work for a Henry graphics console: it
+captures the architecture, programming model, and register-group map well enough
+to (a) understand the part and (b) scope what a Henry REX3 would entail, without
+exhaustively transcribing all 149 spec pages.</p>
+</blockquote>
+<p>Part: REX3, SGI 099-9005-001, LSI L1A9040, 0.6µm CMOS gate array, 304 MQUAD,
+~149K gates incl. 5.7Kb dual-port RAM. (rex3.pdf p.5)</p>
+<hr />
+<h2 id="role-architecture">Role &amp; architecture<a class="headerlink" href="#role-architecture" title="Permanent link">&para;</a></h2>
+<p>REX3 ("the least graphics you'll ever need") is the raster engine of the Newport
+graphics subsystem. It is the successor to REX1 and, like REX1, has <strong>no geometry
+engine</strong> — the host CPU's FPU does the geometry, and Z-buffering is done in software
+in host memory. REX3's job begins when the host writes primitive coordinates and
+mode bits into its registers; REX3 turns those into screen pixels. (p.5)</p>
+<p><strong>The Newport display pipeline</strong> (rendering → scanout), Figure 1, p.6–8:</p>
+<pre><code>  GIO64 host ── REX3 ──(FB CNTL / DATA)── RB2 ×4 ── VRAM framebuffer
+                  │                                       │ serial ports
+                  │ DCB (8-bit)                           ▼
+                  ├──────────► VC2 (video timing) ◄──► RO1 ×3 (reorganizer)
+                  ├──────────► XMAP9 ×2 (CI lookup / RGB path) ◄──► CMAP ×2 (CI SRAM)
+                  └──────────► RAMDAC (gamma + R/G/B out) ──► monitor
+</code></pre>
+<ul>
+<li><strong>REX3</strong> rasterizes and writes pixels; masters the DCB.</li>
+<li><strong>RB2</strong> ×4 — the framebuffer "back-end" chips that sit between REX3 and the VRAM.
+  To stay under 304 pins, framebuffer data is byte-serialized across 8 interleaves
+  and <strong>deserialized by the RB2s</strong>; the <strong>read/write formatters and the logicop
+  function live in the RB2s</strong>, not in REX3. (p.5)</li>
+<li><strong>Framebuffer</strong> = VRAM (2 Mbit parts) in an <strong>8-way interleave + Y-axis interleave</strong>
+  for write bandwidth. Resolution 1280×1024, up to 76 Hz refresh.</li>
+<li><strong>RO1</strong> ×3 reorganizes the VRAM serial-port stream; <strong>XMAP9</strong> does color-index
+  lookup (or passes RGB) via the <strong>CMAP</strong> SRAMs; <strong>RAMDAC</strong> applies gamma and drives
+  RGB. <strong>VC2</strong> generates all display timing. (p.6)</li>
+<li>Plane configuration is upgradable: 8 pixel + 2 PUP + 2 CID planes, up to
+  24 pixel + 8 overlay (or 4+4) + 2 PUP + 2 CID. (p.5)</li>
+</ul>
+<p><strong>Inside REX3</strong> (Figures 2–3, p.9–10) — three logical blocks:</p>
+<ol>
+<li><strong>GIO block</strong> — GIO64 bus slave front-end. Decodes host accesses to REX3's own
+   registers vs. accesses bound for the display subsystem (sent over the DCB).
+   Host interface is a FIFO, 64 wide × 32 deep (the <strong>GFIFO</strong>). Runs at 33 MHz.</li>
+<li><strong>Iterator block</strong> — generates framebuffer addresses, interpolates color,
+   handles masking/patterning, and does the Bresenham line/anti-aliasing math and
+   the framebuffer interleave swizzle. Runs at 33 MHz.</li>
+<li><strong>Memory controller + pixel pipe</strong> — <strong>four instances</strong> (banks A/B/C/D), each with
+   a VRAM controller plus the CID-check, color-compare, dither and blend functions.
+   Runs at <strong>66 MHz</strong>, page-mode cycle = 4 clocks (~60 ns). Each bank has its own
+   4-bank-FIFO (one write + two read FIFOs). (p.6)</li>
+</ol>
+<p>Two shaded pixels/clock are produced (two RGBA iterators); flat spans do 4 px/clock;
+fast-clear does 32 px/clock. See Performance, p.7.</p>
+<hr />
+<h2 id="host-interface">Host interface<a class="headerlink" href="#host-interface" title="Permanent link">&para;</a></h2>
+<p><strong>Address window.</strong> REX3 is a pipelined <strong>GIO64 slave</strong>. Base address is
+<code>0x1F_n0_0000</code> where the nibble <code>n ∈ {0,4,8,C}</code> is set by the <code>SLOT_NUMBER[1:0]</code>
+strap pins — i.e. <code>0x1F000000 / 0x1F400000 / 0x1F800000 / 0x1FC00000</code>. The two
+high SLOT_NUMBER bits are assumed <code>0001_1111</code>, so the subsystem only lives in GIO64
+slots C/D/E/F; up to four heads by populating all four. (p.12, p.20, p.84)</p>
+<p><strong>Register window.</strong> All host-visible registers are offsets from that base. Two
+shadow windows exist: offsets beginning <code>0x1nnn</code> map the same registers into a
+separate "protected" page (intended for kernel-only access). Unused bits read 0.
+(p.20)</p>
+<p><strong>The GO / non-GO write model.</strong> This is REX3's primitive-launch mechanism:</p>
+<ul>
+<li>Writing a register at its normal offset just loads the register (graphics context).</li>
+<li>Writing the <strong>same register at <code>offset + 0x0800</code></strong> loads it <strong>and issues a
+  primitive GO command</strong> — i.e. the write that targets <code>addr|0x800</code> is the trigger
+  that kicks off the drawing/iteration described by the current mode + coordinate
+  state. So the host sets up state with plain writes, then does one <code>|0x800</code> write
+  to the last coordinate register to fire the primitive. (p.20)</li>
+<li>Register <em>type</em> annotations in the map control routing:</li>
+<li><code>⊗</code> registers act immediately, bypassing both FIFOs (e.g. STATUS, CONFIG, resets).</li>
+<li><code>◊</code> registers are DCB-related and flow through the <strong>BFIFO</strong> (display-bus FIFO).</li>
+<li>all others are graphics-context registers and flow through the <strong>GFIFO</strong>.</li>
+<li><code>•</code> registers stall at the GFIFO output until the graphics pipe is idle.</li>
+</ul>
+<p><strong>FIFOs.</strong> Host writes queue in the <strong>GFIFO</strong> (graphics, 64×32, enlarged to 32-deep/
+doubled at timeout); DCB traffic queues in the <strong>BFIFO</strong>. The CONFIG register sets
+high-water depths (<code>GFIFODEPTH</code>, <code>BFIFODEPTH</code>) and interrupt polarity
+(<code>GFIFOABOVEINT</code>, <code>BFIFOABOVEINT</code>); crossing a level asserts <code>FIFO_INT_N</code> and/or
+stalls the GIO bus via <code>GRXDLY</code>. A <code>TIMEOUT</code> counter (0.96–4.32 µs) raises
+<code>FIFO_INT_N</code> if the host stalls too long. STATUS exposes live FIFO levels and sticky
+interrupt bits. (p.27–28, p.80–81, p.84)</p>
+<p><strong>Pixel / command path.</strong> There is no separate command FIFO — primitive commands
+<em>are</em> register writes through the GFIFO. Host pixel data (PIO and DMA) moves through
+the <strong>HOSTRW1/HOSTRW0</strong> register pair (<code>0x0230/0x0234</code>); see Drawing model below.</p>
+<p><strong>Reset / init.</strong> After GIORESET, REX3 assumes a physically-32-bit GIO64 bus with
+external registered transceivers present. The host must program CONFIG
+(<code>EXTREGXCVR</code>, <code>BUSWIDTH</code>, <code>GIO32MODE</code>) before any register reads to match the actual
+board. (p.83) Bi-endian (little/big) addressing is supported in GIO64 mode. (p.84)</p>
+<p><strong>Interrupts.</strong> <code>VV_INT_N</code> = VC2 vertical-retrace (<code>VERT_INT_N</code>) OR'd with the
+Express-Video option (<code>VIDEO_INT_N</code>); <code>FIFO_INT_N</code> = GFIFO/BFIFO level/timeout.
+Read <strong>STATUS</strong> to clear sticky interrupt bits, or <strong>USER_STATUS</strong> for a
+non-destructive read that leaves them set. (p.27, p.84)</p>
+<hr />
+<h2 id="register-group-map">Register-group map<a class="headerlink" href="#register-group-map" title="Permanent link">&para;</a></h2>
+<p>Registers are offsets from the GIO base (above). Type column: <code>⊗</code> immediate/no-FIFO,
+<code>◊</code> DCB/BFIFO, <code>•</code> stalls until pipe idle, <code>2c</code> two's-complement, <code>sm</code> sign-magnitude,
+<code>#</code> write-only command address. Full per-bit definitions are in rex3.pdf Table 7
+(p.21–22) and the control-register tables §3.1.1 (p.23–29) — summarized here by group
+rather than transcribed.</p>
+<table>
+<thead>
+<tr>
+<th>Group</th>
+<th>Offset range</th>
+<th>What it does</th>
+<th>Pages</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Drawing-mode / state</strong></td>
+<td><code>0x0000</code>–<code>0x0024</code></td>
+<td><code>DRAWMODE0</code> (opcode + addressing mode + iterator-setup enables), <code>DRAWMODE1</code> (planes, depth, RGB/CI, dither/blend/logicop, compare), <code>LSMODE</code>, <code>LSPATTERN</code>/<code>LSPATSAVE</code>, <code>ZPATTERN</code> (stipple/soft-Z masks), <code>COLORBACK</code>, <code>COLORVRAM</code> (fastclear color), <code>ALPHAREF</code>, <code>STALL0</code></td>
+<td>21,23–27</td>
+</tr>
+<tr>
+<td><strong>Screen masks 0</strong></td>
+<td><code>0x0028</code>–<code>0x002C</code></td>
+<td><code>SMASK0X/Y</code> — window-relative GL scissor (min/max)</td>
+<td>21,30</td>
+</tr>
+<tr>
+<td><strong>Setup / command</strong></td>
+<td><code>0x0030</code>–<code>0x003C</code></td>
+<td><code>SETUP</code> (octant/Bresenham term calc, no iterate), <code>STEPZ</code>, <code>LSRESTORE</code>, <code>LSSAVE</code> — write-only <code>#</code> command addresses</td>
+<td>21</td>
+</tr>
+<tr>
+<td><strong>Vertex / coordinate iterators</strong></td>
+<td><code>0x0100</code>–<code>0x0158</code></td>
+<td><code>XSTART/YSTART</code>, <code>XEND/YEND</code> (16.4 subpixel), <code>XSAVE</code>, <code>XYMOVE</code>, plus the GL-format (<code>XSTARTF…</code>) and packed-integer (<code>XYSTARTI</code>, <code>XYENDI</code>, <code>XSTARTENDI</code>) aliases</td>
+<td>21</td>
+</tr>
+<tr>
+<td><strong>Bresenham state</strong></td>
+<td><code>0x0118</code>–<code>0x0134</code></td>
+<td><code>BRESD</code>, <code>BRESS1/S2</code>, <code>BRESOCTINC1</code>, <code>BRESRNDINC2</code>, <code>BRESE1</code>, <code>AWEIGHT0/1</code> (anti-alias line weight table). Full state for context switch</td>
+<td>21</td>
+</tr>
+<tr>
+<td><strong>Color / shader (DDA)</strong></td>
+<td><code>0x0200</code>–<code>0x022C</code></td>
+<td><code>COLORRED/GRN/BLUE/ALPHA</code> (full shade state), <code>SLOPERED/GRN/BLUE/ALPHA</code> (DDA slopes), <code>WRMASK</code> (24-bit write mask / double-buffer select), <code>COLORI</code> (packed CI/BGR), <code>COLORX</code>, <code>SLOPERED1</code></td>
+<td>22</td>
+</tr>
+<tr>
+<td><strong>Host pixel pipe (PIO/DMA)</strong></td>
+<td><code>0x0230</code>–<code>0x0234</code></td>
+<td><code>HOSTRW1</code> (MS word), <code>HOSTRW0</code> (LS word) — framebuffer PIO/DMA data port</td>
+<td>22,78</td>
+</tr>
+<tr>
+<td><strong>DCB (device control bus)</strong></td>
+<td><code>0x0238</code>–<code>0x0244</code></td>
+<td><code>DCBMODE</code> (slave addr, register-select, protocol, timing), <code>DCBDATA0/1</code> — host's window onto VC2/XMAP9/CMAP/RAMDAC</td>
+<td>22,29,82</td>
+</tr>
+<tr>
+<td><strong>Screen masks 1–4</strong></td>
+<td><code>0x1300</code>–<code>0x131C</code></td>
+<td><code>SMASK1X/Y…SMASK4X/Y</code> — X11 absolute scissor rectangles</td>
+<td>22,30</td>
+</tr>
+<tr>
+<td><strong>Window / config</strong></td>
+<td><code>0x1320</code>–<code>0x1330</code></td>
+<td><code>TOPSCAN</code>, <code>XYWIN</code> (window X/Y bias), <code>CLIPMODE</code> (mask enables + CID-match), <code>STALL1</code>, <code>CONFIG</code> (bus width/mode, FIFO depths, refresh)</td>
+<td>22,28</td>
+</tr>
+<tr>
+<td><strong>Status / reset</strong></td>
+<td><code>0x1338</code>–<code>0x1340</code></td>
+<td><code>STATUS</code> (clears ints), <code>USER_STATUS</code> (non-destructive), <code>DCBRESET</code> (resets DCB FSM, flushes BFIFO)</td>
+<td>22</td>
+</tr>
+</tbody>
+</table>
+<p>Notes on the key mode registers (full bit tables p.23–29):</p>
+<ul>
+<li><strong>DRAWMODE0</strong> (p.23): <code>OPCODE</code> = NOOP/READ/DRAW/SCR2SCR; <code>ADRMODE</code> =
+  SPAN/BLOCK/I_LINE/F_LINE/A_LINE; plus iterator-setup enables (<code>DOSETUP</code>,
+  <code>COLORHOST</code>/<code>ALPHAHOST</code> source select, <code>STOPONX/Y</code>, <code>SKIPFIRST/SKIPLAST</code>,
+  patterning/stipple/shade/clamp enables). This register selects <em>what kind of
+  primitive</em> a GO issues.</li>
+<li><strong>DRAWMODE1</strong> (p.25): <code>PLANES</code> (RGB/CI, RGBA, OLAY, PUP, CID), <code>DRAWDEPTH</code>
+  (4/8/12/24 bit), double-buffer source, <code>HOSTDEPTH</code>/<code>RWPACKED</code>/<code>RWDOUBLE</code> (host
+  pixel packing), <code>RGBMODE</code>, <code>DITHER</code>, <code>FASTCLEAR</code>, <code>BLEND</code> + <code>SFACTOR</code>/<code>DFACTOR</code>,
+  <code>LOGICOP</code>. Sets the <em>pixel format and pixel-pipe behavior</em>.</li>
+<li><strong>CONFIG</strong> (p.28): bus width/mode, FIFO trigger depths + interrupt sense, GIO
+  timeout, VRAM refresh count, fastclear column-mask mode.</li>
+<li><strong>STATUS</strong> (p.27): <code>GFXBUSY</code>/<code>BACKBUSY</code> (pipe-idle for context switch), FIFO
+  levels, retrace/video interrupt status, sticky FIFO-int flags.</li>
+<li><strong>DCBMODE</strong> (p.29): <code>DCBADDR</code> slave select, <code>DCBCRS</code> register select within slave,
+  <code>DATAWIDTH</code>/<code>ENDATAPACK</code> byte packing, sync/async ack protocol enables, programmable
+  CS setup/width/hold timing, <code>SWAPENDIAN</code>.</li>
+</ul>
+<hr />
+<h2 id="drawing-programming-model">Drawing / programming model<a class="headerlink" href="#drawing-programming-model" title="Permanent link">&para;</a></h2>
+<p><strong>Framebuffer access modes</strong> (p.31–36). A primitive is one of: <strong>point, line, span,
+block</strong>, plus <strong>fastclear</strong> and <strong>screen-to-screen move</strong>. Addressing mode is set by
+<code>DRAWMODE0.ADRMODE</code>; opcode by <code>DRAWMODE0.OPCODE</code> (DRAW / READ / SCR2SCR).</p>
+<ul>
+<li><strong>Lines</strong> (<code>I_LINE</code>/<code>F_LINE</code>/<code>A_LINE</code>, p.32–33): integer, fractional-endpoint, or
+  anti-aliased Bresenham. REX3 has the Bresenham steppers in hardware. A line can be
+  drawn as: individual points (<code>STOPONX=STOPONY=0</code>, host re-issues each point);
+  32-pixel segments (<code>LENGTH32</code>, for use with the 32-bit stipple/Z pattern masks); or
+  a full line in one command. <code>SKIPFIRST</code>/<code>SKIPLAST</code> suppress shared endpoints of
+  connected vectors. Anti-aliased lines use the <code>AWEIGHT</code> coverage table.</li>
+<li><strong>Points</strong> (p.33): an (X,Y) pair, drawn in BLOCK addressing. A DMA of many X,Y
+  pairs builds an arbitrary monochrome shape (e.g. a circle).</li>
+<li><strong>Spans</strong> (p.33–34): horizontal run with an X endpoint; X always steps
+  left-to-right. Three sub-modes: host-pixel segments (Segments I), 32-pixel DDA
+  segments (Segments II), or a full span in one command (used for DMA reads).</li>
+<li><strong>Blocks</strong> (p.34–35): rectangular region drawn span-by-span; the XY DDA steps Y and
+  reloads X from <code>XSAVE</code> each row. Used for polygon fill (host sets X/edges per row)
+  and for linear/stride DMA.</li>
+<li><strong>Fastclear</strong> (p.35): 4× rate area clear, flat fill only — no shade/stipple/
+  dither/blend. Load <code>COLORVRAM</code> (after setting <code>RGBMODE</code>+<code>DRAWDEPTH</code>), set
+  <code>FASTCLEAR</code>, draw a SPAN/BLOCK. No CID checking. 400M px/s.</li>
+<li><strong>Screen-to-screen move</strong> (p.36): <code>OPCODE=SCR2SCR</code>, BLOCK/SPAN; <code>XYMOVE</code> gives a
+  signed offset <strong>to the destination</strong> (note: REX1 offset to source). Host orders
+  endpoints so an overlapping copy doesn't clobber itself.</li>
+</ul>
+<p><strong>Issuing a primitive — the typical sequence:</strong></p>
+<ol>
+<li>Program <code>DRAWMODE0</code> (opcode + addressing mode + setup/skip enables) and
+   <code>DRAWMODE1</code> (planes, depth, RGB/CI, dither/blend/logicop).</li>
+<li>Load color / slope DDA registers (or set <code>COLORHOST</code>/<code>ALPHAHOST</code> to take pixel
+   values from <code>HOSTRW</code>), and any pattern/mask registers (<code>LSPATTERN</code>, <code>ZPATTERN</code>,
+   screen masks via <code>CLIPMODE</code>).</li>
+<li>Load coordinate iterators (<code>XSTART/YSTART/XEND/YEND</code>, or a packed alias).</li>
+<li>For line/span/block: write <code>address=SETUP</code> first so REX3 computes octant +
+   Bresenham terms (skipped if <code>DOSETUP=0</code>).</li>
+<li><strong>Fire it</strong> by issuing the GO — write the launching register at <code>offset|0x0800</code>.
+   REX3 iterates and writes pixels through the RB2s into VRAM.</li>
+</ol>
+<p><strong>Pixel pipe</strong> (per-bank, p.70–75): pattern/stipple substitution → CID check →
+color-compare / alpha-function (AFUNCTION vs <code>ALPHAREF</code>) → <strong>blend</strong> (<code>Cb = Cs·Fs +
+Cd·Fd</code>, factors in <code>SFACTOR</code>/<code>DFACTOR</code>; blend and logicop are mutually exclusive) →
+<strong>dither</strong> (4×4 Bayer, 1–4-bit RGB and CI) → <strong>logicop</strong> (16 ops, in the RB2) →
+write under the 24-bit <code>WRMASK</code>. Clipping = sector clip (auto, from coordinate space)
++ up to 5 screen masks + CID masking + color compare.</p>
+<p><strong>Host pixel transfer — PIO &amp; DMA</strong> (p.78–80). To REX3, PIO and DMA are
+indistinguishable (both are GIO activity); "word" = 4 or 8 bytes per bus cycle.
+Pixel data moves through <code>HOSTRW1/0</code>; packing is set by <code>HOSTDEPTH</code>, <code>RWPACKED</code>,
+<code>RWDOUBLE</code> (4/8/16/32-bit fields, 1..16 px per 64-bit word). For reads,
+<code>DRAWMODE1.PREFETCH=1</code> and <code>OPCODE=READ</code>; pre-fetch via a <code>|0x800</code> write, then read
+<code>HOSTRW</code>. DMA supports <strong>linear</strong> and <strong>stride</strong> block modes (stride = "virtual
+framebuffer" in main memory with a constant address gap per row); span DMA only.
+All PIO is context-switchable; reads/writes done for <em>context save/restore</em> must NOT
+use the <code>|0x800</code> GO bit. (p.78–80)</p>
+<p><strong>Device Control Bus (DCB)</strong> (p.82, p.84–85). REX3 is the DCB master; it programs the
+downstream display chips. Host writes <code>DCBMODE</code> (selecting the slave via <code>DCBADDR</code>,
+the slave-internal register via <code>DCBCRS</code>, the protocol and timing), then reads/writes
+<code>DCBDATA0/1</code>; the transaction is replayed on the 8-bit DCB. DCB slave map (<code>DCBADDR</code>):</p>
+<table>
+<thead>
+<tr>
+<th><code>DCBADDR</code></th>
+<th>Device</th>
+<th></th>
+<th><code>DCBADDR</code></th>
+<th>Device</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0000</td>
+<td>VC2</td>
+<td></td>
+<td>0101 / 0110</td>
+<td>XMAP0 / XMAP1</td>
+</tr>
+<tr>
+<td>0001</td>
+<td>CMAP0+1 (write)</td>
+<td></td>
+<td>0111</td>
+<td>RAMDAC</td>
+</tr>
+<tr>
+<td>0010 / 0011</td>
+<td>CMAP0 / CMAP1</td>
+<td></td>
+<td>1000 / 1001</td>
+<td>Video CC1 / AB1</td>
+</tr>
+<tr>
+<td>0100</td>
+<td>XMAP0+1 (write)</td>
+<td></td>
+<td>1111</td>
+<td>reserved (null)</td>
+</tr>
+</tbody>
+</table>
+<p>Protocol is sync, async (4-edge handshake on <code>DCB_CS_N</code>/<code>DCB_ACK_N</code>), or
+fully-timed (programmable CS setup/width/hold) per <code>DCBMODE</code>. Peak 1 byte/cycle
+(sync) down to 1 byte / 4 cycles (async). (p.82, p.29)</p>
+<p><strong>Context switching</strong> (p.81). Two contexts: graphics and display-bus. Poll STATUS for
+<code>GFXBUSY=0</code> &amp; <code>GFIFOLEVEL=0</code> (or <code>BACKBUSY=0</code> for the DCB) before save. Save reads
+every register that has a documented read format (often a subset suffices); restore
+writes them back. Caveat: <code>SLOPERED</code> must be converted s2c→sign-magnitude on restore,
+<code>COLORRED</code> restored with <code>RGBMODE=1</code>, and <code>XSAVE</code> restored <em>after</em> <code>XSTART</code>. Never use
+the GO bit during save/restore.</p>
+<hr />
+<h2 id="henry-relevance-implementation-scope">Henry relevance / implementation scope<a class="headerlink" href="#henry-relevance-implementation-scope" title="Permanent link">&para;</a></h2>
+<p><strong>Headless Henry (today):</strong> REX3's window (<code>0x1f000000</code>, slots C–F) is unimplemented;
+any access bus-errors. Nothing here is boot-critical — IP22/Indy boots a serial
+console without touching Newport. No action required for the current SoC.</p>
+<p><strong>Future Henry graphics console:</strong> implementing REX3 is essentially the <em>whole</em>
+graphics-console effort, in three layers of decreasing tractability:</p>
+<ol>
+<li><strong>GIO64 register face (most tractable).</strong> A GIO64 slave decoding the
+   <code>0x1F_n0_0000</code> window, the full register file (Table 7), the GFIFO/BFIFO with the
+   CONFIG-programmed depths and <code>FIFO_INT_N</code>/<code>GRXDLY</code> flow control, the STATUS/
+   USER_STATUS interrupt model, and the <code>|0x0800</code> GO write-trigger. This is bounded,
+   well-specified register/FIFO logic — the natural first milestone (even a stub that
+   accepts writes, drains the FIFO, and toggles <code>GFXBUSY</code> would stop the bus-error and
+   let a driver probe).</li>
+<li><strong>Draw pipeline (the bulk of the work).</strong> The iterator block: Bresenham line/
+   anti-alias steppers, the X/Y and R/G/B/A/CI DDAs, span/block/point/fastclear/
+   scr2scr address generation, screen-mask + CID + color-compare clipping, and the
+   per-bank pixel pipe (pattern → blend → dither → logicop → writemask). This is the
+   genuinely large piece. A Henry implementation could collapse the 4-bank ×66 MHz
+   interleave + RB2 split (a bandwidth optimization for real VRAM) into a single
+   straightforward framebuffer writer — i.e. keep the <em>programming model</em> but not the
+   physical 8-way interleave.</li>
+<li><strong>Framebuffer + display chain.</strong> A linear framebuffer (no VRAM serial-port/RO1
+   reorg needed if scanout is done differently), plus <em>some</em> answer for the DCB
+   sub-devices (VC2 timing, XMAP9/CMAP color lookup, RAMDAC). For a Henry console the
+   pragmatic path is to <strong>stub the DCB</strong> (ACK writes, return plausible reads) and
+   drive a modern display controller for actual scanout, rather than reimplementing
+   VC2/XMAP9/CMAP/RAMDAC. The DCB programming model still has to <em>exist</em> because the
+   driver pokes it during init.</li>
+</ol>
+<p>Recommended scoping order: (1) register/FIFO face to clear the bus-error and satisfy a
+probing driver → (2) SPAN/BLOCK flat-fill + fastclear + screen-to-screen (enough for a
+console: clear, scroll, blit glyphs) → (3) lines/shading/blend only if a real GL/X
+stack is targeted. Subpixel anti-aliased lines and the full DDA shader are the
+least-essential, highest-effort parts.</p>
+<hr />
+<h2 id="sources">Sources<a class="headerlink" href="#sources" title="Permanent link">&para;</a></h2>
+<p>All citations are to <code>/home/dsheffie/code/sgi/docs/indy_docs/newport/rex3.pdf</code>
+(SGI Newport REX3 Specification, Rev 1.0, Aug 1993):</p>
+<ul>
+<li><strong>p.5</strong> — part number, general description, features.</li>
+<li><strong>p.6</strong> — Newport architecture (Fig 1 components), REX3 architecture (3 logical
+  blocks, FIFO sizes, 4-bank 66 MHz memory controllers).</li>
+<li><strong>p.7</strong> — performance table.</li>
+<li><strong>p.8–10</strong> — Fig 1 (subsystem), Fig 2 (top-level block), Fig 3 (internal data path).</li>
+<li><strong>p.11–13</strong> — pin diagram and pin descriptions (GIO64, VRAM/RB2, DCB).</li>
+<li><strong>p.20</strong> — register addressing model: base <code>0x1FnF0000</code>, <code>+0x0800</code> = GO, register
+  type flags (<code>⊗</code>/<code>◊</code>/<code>•</code>).</li>
+<li><strong>p.21–22</strong> — Table 7, full host-visible register map.</li>
+<li><strong>p.23–29</strong> — §3.1.1 control-register bit definitions (DRAWMODE0/1, LSMODE,
+  CLIPMODE, STATUS, CONFIG, DCBMODE).</li>
+<li><strong>p.30–31</strong> — coordinate system, clipping/masking, iterator overview.</li>
+<li><strong>p.32–36</strong> — framebuffer access modes (lines, points, spans, blocks, fastclear,
+  scr2scr).</li>
+<li><strong>p.70–75</strong> — framebuffer data values, patterning/stipple, dither, color rounding,
+  logicop, blend.</li>
+<li><strong>p.76–77</strong> — framebuffer pixel formats (Tables 22–23).</li>
+<li><strong>p.78–80</strong> — framebuffer PIO and DMA, HOSTRW packing, PIO/DMA case table.</li>
+<li><strong>p.80–81</strong> — FIFO management, context switching.</li>
+<li><strong>p.82–83</strong> — Display Control Bus, DCB slave map, chip reset/init.</li>
+<li><strong>p.84–85</strong> — System Interface: GIO64 bus interface, DCB interface.</li>
+<li><strong>p.86</strong> — VRAM interface (memory-controller state machines, 66 MHz timing).</li>
+<li>(Chapter 5, p.108+ — gate-level architectural/FSM detail; implementation-internal,
+  intentionally not summarized here.)</li>
+</ul>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../" class="btn btn-neutral float-left" title="Overview"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../vc2/" class="btn btn-neutral float-right" title="VC2 (video timing/cursor)">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../vc2/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

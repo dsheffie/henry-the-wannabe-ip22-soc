@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>HPC3 (SCSI/enet/DMA, RTC) - Henry — the wannabe IP22 SoC</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "HPC3 (SCSI/enet/DMA, RTC)";
+        var mkdocs_page_input_path = "peripherals/hpc3.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> Henry — the wannabe IP22 SoC
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">Overview</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../architecture/">Architecture</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../cpu-integration/">CPU integration (r9999)</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../firmware-arcs/">Firmware (ARCS shim)</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../boot-and-console/">Boot & console</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../coherence-cache-tlb/">Cache, coherence & TLB</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Peripherals</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../mc/">MC (memory controller)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../ioc2/">IOC2 (serial console)</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">HPC3 (SCSI/enet/DMA, RTC)</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#role-in-henry">Role in Henry</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#dma-model-descriptor-format-pure-physical-addressing">DMA model — descriptor format + pure-physical addressing</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#cache-coherence-none-in-hardware-the-mandatory-software-contract">Cache coherence — NONE in hardware (the mandatory software contract)</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#io-sub-map">I/O sub-map</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#ds1386-rtc-battery-backed-nvram-0x60000">ds1386 RTC / battery-backed NVRAM @0x60000</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#serial-eeprom-nmc93cs56-0x30008">Serial EEPROM (NMC93CS56) @0x30008</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#scsi-wd33c93-ethernet-seeq-glue">SCSI (WD33C93) &amp; Ethernet (seeq) glue</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#interrupts">Interrupts</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#minimum-for-a-henry-irix-boot">Minimum for a Henry IRIX boot</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#golden-vectors-known-chip-bugs-to-model">Golden vectors / known chip bugs to model</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#open-not-yet-needed">Open / not-yet-needed</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#sources">Sources</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../gio64/">GIO64 (bus)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../vdma/">VDMA (virtual DMA)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../dmux1/">DMUX (data mux)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Graphics (Newport)</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../graphics/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../graphics/rex3/">REX3 (raster engine)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../graphics/vc2/">VC2 (video timing/cursor)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../graphics/xmap9/">XMAP9 (colormap)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../graphics/rb2-ro1/">RB2 & RO1 (framebuffer/output)</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../methodology/">Methodology (MAME oracle)</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">Henry — the wannabe IP22 SoC</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Peripherals</li>
+      <li class="breadcrumb-item active">HPC3 (SCSI/enet/DMA, RTC)</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="hpc3-peripheral-dma-controller-henry-block-spec">HPC3 — Peripheral / DMA Controller (Henry block spec)<a class="headerlink" href="#hpc3-peripheral-dma-controller-henry-block-spec" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p>Intro: HPC3 @ phys 0x1fb80000–0x1fbfffff bridges GIO64 to SCSI(×2)/Ethernet/PBUS and holds the ds1386
+RTC/NVRAM + serial EEPROM. Two headline facts up front: (1) DMA is pure-physical scatter-gather with NO
+address map; (2) HPC3 has NO cache coherence — software must flush/invalidate (this is WHY Henry's r9999
+cache ops are mandatory). Legend ✅ = MAME-confirmed / matches our golden reference; ⚠️ = correction,
+known-bug, or gotcha to model carefully.</p>
+</blockquote>
+<p>HPC3 is SGI's third-generation "High Performance Peripheral Controller." Six functional blocks: the 64-bit
+GIO64 bus interface, two SCSI ports (WD33C93 or Fujitsu 86603), one Ethernet port (Seeq 8003/8020), the PBUS
+controller (boot PROM, battery-backed SRAM, 8 general-purpose DMA channels, 10 chip selects), and the serial
+EEPROM interface. HPC3 runs GIO64 at 33 MHz; it is a bus slave for all PIO and a bus master for all DMA.</p>
+<h2 id="role-in-henry">Role in Henry<a class="headerlink" href="#role-in-henry" title="Permanent link">&para;</a></h2>
+<p>In the Indy/IP22 datapath HPC3 is the <strong>real system-DMA engine</strong> — the path that actually moves disk and
+network bytes in and out of DRAM. The MC's VDMA engine is the <em>graphics</em> GIO64 master (<code>v3f()</code> etc.); HPC3 is
+the <em>peripheral</em> master and is the one Henry must implement to boot, because it owns the SCSI channel that
+reads the root disk and the ds1386 NVRAM that holds the boot environment. It also sits on the IOC2/INT2–INT3
+interrupt path back to the r9999 core.</p>
+<p>Henry must model HPC3 as: a GIO64 slave for PIO register/PROM/fifo access, and a GIO64 master that walks
+descriptor chains and reads/writes <strong>physical DRAM directly with no coherence hardware</strong>.</p>
+<h2 id="dma-model-descriptor-format-pure-physical-addressing">DMA model — descriptor format + pure-physical addressing<a class="headerlink" href="#dma-model-descriptor-format-pure-physical-addressing" title="Permanent link">&para;</a></h2>
+<p>DMA is <strong>descriptor-based linked-list scatter-gather, and all addresses are PURE PHYSICAL</strong> — there is no
+address map, no page table, no translation (this is the key difference from VDMA, which goes through the MC's
+DMA map). Software builds a chain of descriptors in DRAM, configures the channel registers + device registers,
+then sets the channel's <strong>start-DMA</strong> bit; HPC3 becomes the GIO64 master, fetches the first descriptor, and
+walks the chain via the <code>DP</code> link until it hits a descriptor with <code>EOX</code> set, at which point the channel goes
+inactive.</p>
+<p>Each descriptor is <strong>3 consecutive 32-bit words, quadword (16-byte) aligned, and must not cross a page
+boundary</strong>. "Page" = the smaller of the CPU page and DRAM page (4 KB or 8 KB). Word order is <code>{BP, BC, DP}</code>
+from low address up:</p>
+<table>
+<thead>
+<tr>
+<th>Off</th>
+<th>Word</th>
+<th>Field layout</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0x0</td>
+<td><code>BP</code></td>
+<td>Memory Buffer <strong>PHYSICAL</strong> address [31:0] — the data buffer in DRAM</td>
+</tr>
+<tr>
+<td>0x4</td>
+<td><code>BC</code></td>
+<td><code>EOX</code>[31] <code>EOXP</code>[30] <code>XIE</code>[29] <code>RES</code>[28:24] <code>IPG</code>[23:16] <code>TXD</code>[15] <code>RES</code>[14] <code>ByteCount</code>[13:0]</td>
+</tr>
+<tr>
+<td>0x8</td>
+<td><code>DP</code></td>
+<td>Next-descriptor <strong>PHYSICAL</strong> address [31:0] (the chain <code>link</code>; unused when <code>EOX</code> set)</td>
+</tr>
+</tbody>
+</table>
+<p><code>BC</code> field meanings (hpc3.pdf p6–7):</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Bit(s)</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>EOX</code></td>
+<td>31</td>
+<td>End-of-chain. Last descriptor; channel deactivates after processing it. <code>DP</code> ignored.</td>
+</tr>
+<tr>
+<td><code>EOXP</code></td>
+<td>30</td>
+<td>End-of-packet (Ethernet only). Exactly one per enet-rx packet.</td>
+</tr>
+<tr>
+<td><code>XIE</code></td>
+<td>29</td>
+<td>Interrupt-enable: raise the channel interrupt after this descriptor completes. (Enet: ignored unless <code>EOXP</code>.)</td>
+</tr>
+<tr>
+<td><code>IPG</code></td>
+<td>23:16</td>
+<td>Inter-packet-gap byte (Ethernet transmit only).</td>
+</tr>
+<tr>
+<td><code>TXD</code></td>
+<td>15</td>
+<td>Transmit-done marker (Ethernet transmit only).</td>
+</tr>
+<tr>
+<td><code>ByteCount</code></td>
+<td>13:0</td>
+<td>Bytes to transfer for this buffer (max one page). On enet-rx, written back with the actual count.</td>
+</tr>
+</tbody>
+</table>
+<p>Buffer rules: the <code>BP</code> buffer is <strong>≤ one page and cannot cross a page boundary</strong>; enet-rx buffers must be
+doubleword-aligned. For DMA <strong>write</strong> (memory→device) there are no alignment constraints — HPC3 packs bytes
+seamlessly into the fifo. For DMA <strong>read</strong> (device→memory) each buffer's start byte must align with the byte
+<em>after</em> the end of the previous buffer (buffers need not be contiguous but must <em>appear</em> contiguous), because
+HPC3 packs device data into the fifo without knowing the buffer seams.</p>
+<p>Endianness: each channel has a big/little endian config bit for the data transfer; one <strong>global</strong> config bit
+sets the endianness of <em>all descriptor fetches</em>. Big-endian IRIX → both 0 (<code>gio.misc[1] des_endian</code> = 0).
+HPC3 never runs DMA with the GIO64 "count direction = down" bit asserted.</p>
+<p>The transfer is two-stage: device↔fifo and fifo↔DRAM (a GIO64 burst). Each channel also has a <strong>flush</strong> bit
+(drain remaining fifo bytes to memory and deactivate) and a direction bit (receive/transmit; not present on
+the two Ethernet channels, where direction is implicit). Clearing the start bit aborts the current op.</p>
+<h2 id="cache-coherence-none-in-hardware-the-mandatory-software-contract">Cache coherence — NONE in hardware (the mandatory software contract)<a class="headerlink" href="#cache-coherence-none-in-hardware-the-mandatory-software-contract" title="Permanent link">&para;</a></h2>
+<p>⚠️ <strong>HPC3 has zero coherence hardware — no snoop, no invalidate-on-DMA.</strong> The entire spec contains no
+coherence language; HPC3 simply masters GIO64 to/from physical DRAM. On Henry's uniprocessor R4000-class
+r9999 this means <strong>software is solely responsible</strong> for keeping the L1 D-cache consistent with DMA buffers.
+This is the actual hardware path that the r9999 cache-op findings came from, and it is <strong>why Henry's L1d
+<code>cache</code> ops are mandatory, not optional</strong> (see the coherence doc):</p>
+<ul>
+<li><strong>DMA-in (device→memory, "read/receive"):</strong> after the DMA completes, software must <code>cache Hit-Invalidate-D</code>
+  the buffer lines (no writeback) so the stale clean copies in the D-cache are dropped and the next CPU read
+  fetches the freshly-DMA'd data from DRAM.</li>
+<li><strong>DMA-out (memory→device, "write/transmit"):</strong> before starting the DMA, software must
+  <code>cache Hit-Writeback-Invalidate-D</code> the buffer so dirty CPU writes are pushed to DRAM where HPC3 will read
+  them.</li>
+</ul>
+<p>Henry's correct model: HPC3 DMA reads/writes DRAM directly (no cache probe), and the r9999 core honors those
+L1d cache ops. Zero coherence HW on the HPC3 side is spec-correct — do <strong>not</strong> add snooping.</p>
+<h2 id="io-sub-map">I/O sub-map<a class="headerlink" href="#io-sub-map" title="Permanent link">&para;</a></h2>
+<p>Offsets from base <code>0x1fb80000</code>. (✅ = matches MAME golden ref; ⚠️ = MAME correction.)</p>
+<table>
+<thead>
+<tr>
+<th>Offset range</th>
+<th>Region</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0x00000–0x0ffff</td>
+<td>PBUS DMA channel registers</td>
+<td>8 general-purpose PBUS DMA channels</td>
+</tr>
+<tr>
+<td>0x10000–0x1ffff</td>
+<td>SCSI(HD0/HD1) + ENET DMA channel registers</td>
+<td>per-channel descriptor ptr / control / status</td>
+</tr>
+<tr>
+<td>0x20000–0x2ffff</td>
+<td><strong>DMA FIFO ports</strong> (doubleword access)</td>
+<td>PBUS 0x20000, HD0 0x28000, HD1 0x2a000, ENET-rx 0x2c000, ENET-tx 0x2e000 ✅</td>
+</tr>
+<tr>
+<td>0x30000–0x3ffff</td>
+<td>General/PIO registers</td>
+<td><code>intstat</code>@0x30000 [4:0], <code>gio.misc</code>@0x30004, <code>eeprom.data</code>@0x30008, <code>intstat</code>@0x3000c [9:5] ⚠️split, <code>bus_error</code>@0x30010</td>
+</tr>
+<tr>
+<td>0x40000–0x47fff</td>
+<td>SCSI HD0 device window</td>
+<td>decode base 0x40000; <strong>WD33C93 regs at +0x4000 = 0x44000</strong> ⚠️</td>
+</tr>
+<tr>
+<td>0x48000–0x4ffff</td>
+<td>SCSI HD1 device window</td>
+<td>decode base 0x48000; <strong>WD33C93 regs at +0x4000 = 0x4c000</strong> ⚠️</td>
+</tr>
+<tr>
+<td>0x54000</td>
+<td>ENET device (Seeq 8003)</td>
+<td></td>
+</tr>
+<tr>
+<td>0x58000</td>
+<td>PBUS device PIO</td>
+<td>+ dma/pio config 0x5c000 / 0x5d000</td>
+</tr>
+<tr>
+<td>0x60000–0xfffff</td>
+<td><strong>bbRAM / RTC (ds1386)</strong></td>
+<td>32K-word decode, byte-per-word ×4 ⚠️ (MAME stopped at 0x7ffff)</td>
+</tr>
+</tbody>
+</table>
+<p>⚠️ <strong>SCSI window correction:</strong> the WD33C93 register windows live at <strong>0x44000 / 0x4c000</strong> (device-base
+<strong>+0x4000</strong>), <em>not</em> 0x40000 / 0x48000 — those are the decode bases. MAME's earlier sub-map had this wrong.</p>
+<p>⚠️ <strong>bbRAM window correction:</strong> the battery-backed RAM / RTC decodes the full <strong>0x60000–0xfffff</strong> (broader than
+MAME's 0x60000–0x7ffff).</p>
+<p>PIO access rules: all HPC3 register accesses are <strong>word (32-bit)</strong> accesses with word-aligned addresses (the
+two LSBs of the register address are ignored); FIFO-RAM accesses are <strong>doubleword</strong>; PROM accesses may be
+halfword/word/doubleword. Each register access transfers exactly one word regardless of GIO64 byte count;
+unused bits read back 0 (except PBUS external regs, where the 8/16-bit value is replicated to fill the word).
+Word-oriented register code is <em>not</em> endian-sensitive; byte/halfword external-register code <em>is</em>.</p>
+<h2 id="ds1386-rtc-battery-backed-nvram-0x60000">ds1386 RTC / battery-backed NVRAM @0x60000<a class="headerlink" href="#ds1386-rtc-battery-backed-nvram-0x60000" title="Permanent link">&para;</a></h2>
+<p>bbRAM/RTC is a <strong>Dallas ds1386</strong> RTC-with-NVRAM at offset 0x60000, accessed <strong>one byte per 32-bit word (×4
+address spacing)</strong> — i.e. ds1386 internal byte <code>i</code> is read/written at HPC3 offset <code>0x60000 + i*4</code>, in the low
+byte of the word. This is the SGI NVRAM that holds the boot-monitor environment: <strong><code>eaddr</code> (MAC address),
+<code>console</code>, <code>OSLoad*</code>, <code>netaddr</code></strong> and the rest of the <code>setenv</code> variables the PROM reads at power-on.</p>
+<p><strong>Required for boot:</strong> the IP22 PROM reads its boot parameters here; without a populated, correctly-spaced
+ds1386 Henry will not get through the boot monitor. The ds1386 <em>internal</em> register/NVRAM layout (clock
+registers, NVRAM bytes) follows the Dallas datasheet, not the HPC3 spec — Henry should reuse the standard
+ds1386 model (MAME has one) behind the ×4 byte-per-word address wrapper.</p>
+<h2 id="serial-eeprom-nmc93cs56-0x30008">Serial EEPROM (NMC93CS56) @0x30008<a class="headerlink" href="#serial-eeprom-nmc93cs56-0x30008" title="Permanent link">&para;</a></h2>
+<p>A separate serial EEPROM (National <strong>NMC93CS56</strong>) holds the chassis serial number and boot-monitor env;
+<strong>distinct from the ds1386 NVRAM</strong>. It is bit-banged through the single PIO register <code>eeprom.data</code> @0x30008:</p>
+<table>
+<thead>
+<tr>
+<th>Bit</th>
+<th>Signal</th>
+<th>Dir</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td><code>pre</code> (program-enable / preamble)</td>
+<td>out</td>
+</tr>
+<tr>
+<td>1</td>
+<td><code>cs</code> (chip select)</td>
+<td>out</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>clk</code> (serial clock)</td>
+<td>out</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>dato</code> (data → EEPROM, MOSI)</td>
+<td>out</td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>dati</code> (data ← EEPROM, MISO)</td>
+<td>in</td>
+</tr>
+</tbody>
+</table>
+<p>Henry models this as a 5-bit bit-bang shift interface driving a standard 93CS56 serial EEPROM state machine.
+Stub-friendly for first boot (PROM tolerates a blank/default serial), but the bit-bang register must exist.</p>
+<h2 id="scsi-wd33c93-ethernet-seeq-glue">SCSI (WD33C93) &amp; Ethernet (seeq) glue<a class="headerlink" href="#scsi-wd33c93-ethernet-seeq-glue" title="Permanent link">&para;</a></h2>
+<p>HPC3 is <em>glue</em>, not the device. The actual SCSI controller is a <strong>WD33C93</strong> (or Fujitsu 86603) reached
+through the device window (HD0 @0x44000, HD1 @0x4c000); HPC3 supplies its DMA channel (descriptor walk +
+fifo) and PIO path. The actual Ethernet controller is a <strong>Seeq 8003</strong> (with 8020 transceiver) at 0x54000;
+HPC3 supplies the enet-tx/enet-rx DMA channels (the <code>EOXP</code>/<code>IPG</code>/<code>TXD</code> <code>BC</code> fields are for it). Henry reuses
+MAME's WD33C93 and Seeq device models and only implements the HPC3 channel/fifo/PIO wrapper around them. The
+WD33C93 generates its own interrupts, so the HPC3 <code>XIE</code> per-descriptor interrupt is often redundant for SCSI.</p>
+<h2 id="interrupts">Interrupts<a class="headerlink" href="#interrupts" title="Permanent link">&para;</a></h2>
+<p>HPC3 raises a small set of interrupt sources:</p>
+<ul>
+<li><strong><code>dma_complete_int</code></strong> — shared by <em>all</em> DMA channels <strong>except</strong> Ethernet; asserted when a channel finishes
+  a descriptor that has <code>XIE</code> set. Exact timing: DMA-read+<code>XIE</code> → after the last byte is written to the main-
+  memory buffer; DMA-write+<code>XIE</code>+<code>EOX</code> → after the last byte reaches the device; DMA-write+<code>XIE</code> without
+  <code>EOX</code> → when the last byte has been read into the HPC3 fifo (fifo-to-buffer correspondence is unknown
+  because the fifo is packed seamlessly).</li>
+<li><strong><code>enet</code> interrupt</strong> — the Ethernet channels have their own dedicated interrupt pin (not shared with
+  <code>dma_complete_int</code>).</li>
+<li><strong><code>bus_error_int</code></strong> — GIO64 parity / bus error during a master cycle.</li>
+</ul>
+<p>All of these route through <strong>IOC2 → INT2/INT3 → MC → r9999 CP0 Cause IP</strong> (exact bit mapping lives in the IOC
+doc). Per-channel DMA interrupt status is readable from two HPC3 registers (the split <code>intstat</code> @0x30000 /
+@0x3000c — see known bugs).</p>
+<h2 id="minimum-for-a-henry-irix-boot">Minimum for a Henry IRIX boot<a class="headerlink" href="#minimum-for-a-henry-irix-boot" title="Permanent link">&para;</a></h2>
+<p>To get IRIX off the root disk, Henry needs:</p>
+<ol>
+<li><strong>Address decode</strong> of 0x1fb80000–0x1fbfffff and the sub-map above.</li>
+<li><strong>PIO register R/W</strong> for the general regs (<code>intstat</code>, <code>gio.misc</code>, <code>bus_error</code>) and channel/config regs.</li>
+<li><strong>ds1386 RTC/NVRAM @0x60000</strong> (byte-per-word ×4) — boot env, <strong>mandatory</strong>.</li>
+<li><strong>Serial EEPROM @0x30008</strong> (bit-bang; default/blank contents OK).</li>
+<li><strong>One SCSI channel + WD33C93 @0x44000</strong> — descriptor-walk DMA into DRAM to read the root disk / load the
+   kernel.</li>
+</ol>
+<p>Stub until real I/O is needed: <strong>Ethernet (Seeq) DMA, audio (HAL2), parallel, floppy, the other SCSI channel,
+and the general PBUS DMA channels.</strong> They can be decode-only / read-as-0 stubs initially.</p>
+<h2 id="golden-vectors-known-chip-bugs-to-model">Golden vectors / known chip bugs to model<a class="headerlink" href="#golden-vectors-known-chip-bugs-to-model" title="Permanent link">&para;</a></h2>
+<ul>
+<li>⚠️ <strong>PIO read-back of DMA descriptors (single-stage write-queue bug, hpc3.pdf p10):</strong> HPC3 has a one-stage
+  PIO write queue. <strong>Before reading any DMA-descriptor port, software must flush it by doing a PIO read of any
+  register immediately before the descriptor read, back-to-back.</strong> Skipping the dummy read returns wrong data.
+  Henry must reproduce this so PROM/IRIX driver sequences (which issue the dummy read) match real timing.</li>
+<li>⚠️ <strong><code>intstat</code> split (chip quirk):</strong> DMA interrupt status is split across two registers — bits [4:0] at
+  0x30000 and bits [9:5] at 0x3000c. Drivers read both; model the split exactly.</li>
+<li>⚠️ <strong>SCSI-rx drops the last byte:</strong> the SCSI receive path leaves the final byte stuck in the fifo. The IRIX
+  driver works around it by appending a <strong>0-count descriptor</strong> to flush. Henry must model the last-byte-stuck
+  behavior so the workaround descriptor is actually needed (and harmless).</li>
+</ul>
+<h2 id="open-not-yet-needed">Open / not-yet-needed<a class="headerlink" href="#open-not-yet-needed" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Exact per-channel register layouts within 0x00000–0x1ffff (PBUS DMA, SCSI/ENET channel ctrl/status) — only
+  the SCSI channel needs full fidelity for boot; the rest can come as devices are added.</li>
+<li>DMA/PIO config-register fields at 0x5c000/0x5d000 (PBUS access timing) — PROM writes them; treat as R/W
+  storage until a real PBUS device cares.</li>
+<li>Ethernet <code>IPG</code>/<code>TXD</code>/<code>EOXP</code> semantics and the enet-rx byte-count write-back — only when wiring real
+  networking.</li>
+<li>HAL2 audio, parallel port, floppy (PC8477) — out of scope for first boot.</li>
+</ul>
+<h2 id="sources">Sources<a class="headerlink" href="#sources" title="Permanent link">&para;</a></h2>
+<ul>
+<li>SGI IP22 <strong>HPC3 Chip Specification</strong> (<code>~/code/sgi/docs/indy_docs/ip22/hpc3.pdf</code>) — authoritative: features
+  (p1), DMA descriptor format + buffer rules (p6–7), PIO/word-access + single-stage-write-queue bug (p5,10),
+  DMA interrupt timing + flush/coherence absence (p8).</li>
+<li><code>~/code/r9999/IP22_CHIP_REGISTERS.md</code> (HPC3 section + corrections #8/#9) — sub-map, SCSI-window correction
+  (0x44000/0x4c000), bbRAM window 0x60000–0xfffff, ds1386 byte-per-word ×4, EEPROM bit-bang, coherence finding.</li>
+<li>MAME IP22/Indy driver — golden reference for FIFO-port offsets, ds1386, WD33C93 and Seeq device models.</li>
+</ul>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../ioc2/" class="btn btn-neutral float-left" title="IOC2 (serial console)"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../gio64/" class="btn btn-neutral float-right" title="GIO64 (bus)">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../ioc2/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../gio64/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

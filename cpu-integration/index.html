@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>CPU integration (r9999) - Henry — the wannabe IP22 SoC</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "CPU integration (r9999)";
+        var mkdocs_page_input_path = "cpu-integration.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> Henry — the wannabe IP22 SoC
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Overview</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../architecture/">Architecture</a>
+                </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">CPU integration (r9999)</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#whats-already-complete-mips-iii-integer-system-atomic-set">What's already complete (MIPS-III integer / system / atomic set)</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#gap-1-fp-subsystem-boot-needs-the-regfile-moves-2-converts-not-an-fp-alu">Gap 1 — FP subsystem (boot needs the regfile + moves + 2 converts, NOT an FP ALU)</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#gap-2-caches-are-incoherent-cachenop-is-a-latent-bug-see-coherence-doc">Gap 2 — caches are incoherent → cache→NOP is a LATENT BUG (see coherence doc)</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#gap-3-wired-tlb-wirepda-spurious-fault-mame-confirmed-r9999-bug">Gap 3 — wired-TLB / wirepda spurious fault (MAME-confirmed r9999 bug)</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#cp0-misc">CP0 / misc</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#boot-critical-checklist">Boot-critical checklist</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#detailed-working-notes">Detailed working notes</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../firmware-arcs/">Firmware (ARCS shim)</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../boot-and-console/">Boot & console</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../coherence-cache-tlb/">Cache, coherence & TLB</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Peripherals</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../peripherals/mc/">MC (memory controller)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../peripherals/ioc2/">IOC2 (serial console)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../peripherals/hpc3/">HPC3 (SCSI/enet/DMA, RTC)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../peripherals/gio64/">GIO64 (bus)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../peripherals/vdma/">VDMA (virtual DMA)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../peripherals/dmux1/">DMUX (data mux)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Graphics (Newport)</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics/rex3/">REX3 (raster engine)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics/vc2/">VC2 (video timing/cursor)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics/xmap9/">XMAP9 (colormap)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics/rb2-ro1/">RB2 & RO1 (framebuffer/output)</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../methodology/">Methodology (MAME oracle)</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">Henry — the wannabe IP22 SoC</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">CPU integration (r9999)</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="cpu-integration-r9999-in-henry">CPU integration — r9999 in Henry<a class="headerlink" href="#cpu-integration-r9999-in-henry" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p>r9999 presents <strong>PRId = R4000 (imp <code>0x04</code>)</strong> → IRIX takes the <strong>R4000/R4400 baseline path</strong>
+(default UTLB/exception handlers, <code>*_r4000</code> clocks, Watch regs cleared; all r4600/r5000/RM/r10k
+code is dead for us). The integer / 64-bit / system / atomic ISA r9999 already implements is
+<strong>COMPLETE</strong> for booting the IRIX 6.5.22 kernel. The real remaining work is <strong>(1) the FP
+subsystem</strong>, <strong>(2) cache coherence wiring</strong>, and <strong>(3) a wired-TLB / <code>wirepda</code> spurious-fault bug</strong>.
+Everything here is validated against IRIX 6.5.22 driven in MAME (<code>indy_4610</code> = r4600be / mips3).
+Henry is a pseudo-IP22 "wannabe Indy" SoC; r9999 is the CPU core (git submodule).</p>
+</blockquote>
+<p>Detailed working notes live in the submodule:
+<code>r9999/IRIX_KERNEL_GAPS.md</code> (static kernel instruction working set) and
+<code>r9999/IRIX_CPU_REQUIREMENTS.md</code> (MAME ground truth: ARCS handoff, SPB, MC sizing).</p>
+<hr />
+<h2 id="whats-already-complete-mips-iii-integer-system-atomic-set">What's already complete  (MIPS-III integer / system / atomic set)<a class="headerlink" href="#whats-already-complete-mips-iii-integer-system-atomic-set" title="Permanent link">&para;</a></h2>
+<p>Per the gaps-doc headline: <strong>the integer / 64-bit / system / atomic ISA r9999 already implements is
+COMPLETE for this kernel</strong> (125 distinct mnemonics, all confirmed decoded+executed except the FP set
+and <code>wait</code>). No action needed for any of:</p>
+<ul>
+<li><strong>Integer / branch (MIPS I/II):</strong> the full ALU/shift/mul/div set, all <strong>branch-likely</strong> forms
+  (<code>beqzl</code>…<code>bgezl</code>), <code>j/jal/jr/jalr</code>, unaligned <code>lwl/lwr/swl/swr</code>, <code>mfhi/mflo/mthi/mtlo</code>, <code>teq</code>,
+  <code>break</code>, <code>syscall</code>.</li>
+<li><strong>64-bit (MIPS III):</strong> <code>ld/sd/lwu/ldl/ldr/sdl/sdr</code>, <code>daddu/daddiu/daddi/dsubu/dnegu</code>, the full
+  <code>d*</code> shift family, <code>dmult/dmultu/ddiv/ddivu</code>.</li>
+<li><strong>System / CP0:</strong> <code>mtc0/mfc0/dmtc0/dmfc0</code>, <code>tlbr/tlbwi/tlbwr/tlbp</code>, <code>eret</code>, <code>cache</code> (today NOP — see
+  Gap 2), <code>sync</code>.</li>
+<li><strong>Atomics:</strong> <code>ll/sc/lld/scd</code>.</li>
+</ul>
+<p>The kernel runs <strong>no FP arithmetic at all</strong> (no <code>add.*/sub.*/mul.*/div.*/sqrt/abs/neg/c.*</code>), so an
+FP ALU is <strong>not required to boot</strong> — see Gap 1.</p>
+<hr />
+<h2 id="gap-1-fp-subsystem-boot-needs-the-regfile-moves-2-converts-not-an-fp-alu">Gap 1 — FP subsystem  (boot needs the regfile + moves + 2 converts, NOT an FP ALU)<a class="headerlink" href="#gap-1-fp-subsystem-boot-needs-the-regfile-moves-2-converts-not-an-fp-alu" title="Permanent link">&para;</a></h2>
+<p>All FP activity in the kernel is <strong>context save/restore</strong> (the 32 FP regs + FCSR across context
+switch / signal delivery) plus exactly <strong>two</strong> long→float converts. Static FP counts: <code>swc1</code> 96,
+<code>sdc1</code> 81, <code>dmtc1/dmfc1</code> 65, <code>mtc1/mfc1</code> 64, <code>lwc1</code> 64, <code>ldc1</code> 49, <code>cfc1</code> 5, <code>ctc1</code> 4, <code>cvt.s.l</code> 1,
+<code>cvt.d.l</code> 1. r9999 today has the FPU <strong>ripped out</strong> (<code>fp_prf/fp_uq/is_fp = 0</code> in <code>exec.sv</code>; only
+vestigial MTC1/MFC1 decode with no execution).</p>
+<p>Add, in this order (boot-first; no FP ALU):</p>
+<ol>
+<li><strong>FP register file (32 × 64-bit) + <code>Status.CU1</code> + <code>Status.FR</code>.</strong> <code>FR=1</code> <strong>is used</strong> — <code>FR=0</code> for
+   kernel/idle, <strong><code>FR=1</code> once N32/N64 userland runs</strong> (first seen mid-boot, ~19% of samples by
+   multiuser). The regfile must implement true <code>FR=1</code> (32 independent 64-bit registers) and have the
+   <code>Status.FR</code> bit switch the even/odd aliasing — not FR=0-only pairs.</li>
+<li><strong>FP moves:</strong> <code>mtc1/mfc1/dmtc1/dmfc1</code>, <code>cfc1/ctc1</code> (FCR31 / FCR0=FIR). Replace the vestigial
+   decode with real execution.</li>
+<li><strong>FP load/store:</strong> <code>lwc1/swc1/ldc1/sdc1</code>.</li>
+<li><strong><code>cvt.s.l</code> / <code>cvt.d.l</code></strong> — the only two FP "math" ops the kernel executes.</li>
+<li><strong>CU1 → Coprocessor-Unusable (Cause ExcCode 11):</strong> extend the existing CpU mechanism (already
+   present for CP0) to gate on <code>~Status.CU1</code>, so lazy-FP enable/disable works (reuse the <code>CPU</code> uop).</li>
+<li><strong>FP Exception (Cause ExcCode 15) delivery</strong> — the <code>fp_intr</code> handler path.</li>
+<li><strong>PRECISE exceptions on delay-slot FP loads/stores.</strong> When an FP load/store <strong>in a branch delay
+   slot faults</strong>, the kernel's <code>emulate_branch</code>/<code>emulate_{lwc1,ldc1,swc1,sdc1}</code> decodes the branch,
+   emulates the memory op, and resumes. This is <strong>NOT an FP-arithmetic emulator</strong> — it is a precise
+   BD-slot fixup, and it <strong>requires r9999 to deliver the correct EPC + <code>Cause.BD</code></strong> (the
+   <code>WAIT_FOR_SERIALIZE_IN_FAULTED_DELAY_SLOT</code> corner). Get this contract right or the fixup spins.</li>
+</ol>
+<p><strong>Not needed to boot:</strong> the FP adder/multiplier/divider/compare. User FP can be <strong>E-punted</strong> to
+IRIX's softfloat via the Unimplemented (E) trap (<code>_cvtd_s</code>, <code>_cvts_d</code>, … softfloat converters exist
+in the kernel). Add a real FP ALU <strong>later</strong>, for userland, validated vs softfloat (see
+<code>r9999/FPU_PORT_STUDY.md</code>, <code>FPU_ROUNDING_EXCEPTIONS.md</code>).</p>
+<hr />
+<h2 id="gap-2-caches-are-incoherent-cachenop-is-a-latent-bug-see-coherence-doc">Gap 2 — caches are incoherent → <code>cache</code>→NOP is a LATENT BUG  (see coherence doc)<a class="headerlink" href="#gap-2-caches-are-incoherent-cachenop-is-a-latent-bug-see-coherence-doc" title="Permanent link">&para;</a></h2>
+<p>r9999 has separate <strong>L1i + L1d</strong> over an L2 that <strong>is</strong> transparent/coherent (hidden from the kernel
+via <code>Config.SC=1</code> → kernel sees "R4000PC", so all ~30 static secondary/L2 <code>cache_sel=2/3</code> sites are
+gated out — confirmed <strong>0 dynamic</strong>; no L2 modeling needed). The live coherence axis is <strong>L1i vs.
+D-side stores</strong>: the kernel <strong>writes code</strong> through L1d/L2 (runtime CPU patching at boot —
+<code>R4000_jump_war</code>/<code>mtext_fixup</code>; loadable modules — <code>doelfrelocs</code>), and L1i then holds a <strong>stale</strong>
+copy. So the I-cache <code>cache</code> ops <strong>must be honored, not NOP'd</strong>.</p>
+<p><code>cache</code> (op <code>0x2f</code>) is executed <strong>5.2 M times</strong> over a 120 s boot; four primary ops = 99.94%. Decode:
+<code>op = instr[20:16]</code>, <code>cache_sel = op[1:0]</code> (0=I,1=D,2=SD,3=SI), <code>operation = op[4:2]</code>.</p>
+<p>Decode / handling obligations:</p>
+<ul>
+<li><strong>Fully decode the op field</strong> (do not blanket-NOP); <strong>privilege-check</strong> (<code>cache</code> is kernel/CU0-only
+  → user mode = Coprocessor-Unusable); compute EA = <code>base + signext(offset)</code>.</li>
+<li><strong>I-cache ops (<code>0x10</code> Hit-Inval-I, <code>0x00</code> Index-Inval-I, and the I-side of any others): drive the
+  existing <code>l1i.sv</code> <code>flush_req</code>/<code>FLUSH_CACHE</code>.</strong> The I-cache is never dirty, so a <strong>whole-L1i flush is
+  a correct over-approximation of EVERY I-cache op</strong> — simplest wiring: any I-cache <code>cache</code> op →
+  <code>flush_req</code>. <strong>This is the one real obligation today</strong> — a <em>wiring</em> task; the flush HW already
+  exists in <code>l1i.sv</code>.</li>
+<li><strong>D-cache ops (<code>0x01</code>/<code>0x15</code>/<code>0x11</code>/<code>0x19</code>): NOP-safe while there is no incoherent DMA</strong> (no snoop
+  logic in L1d; I/O is backdoored). <strong>IF</strong> incoherent DMA is ever added behind L1d, honor the
+  invalidate-vs-writeback distinction — esp. <strong><code>0x11</code> D-Hit-Invalidate must invalidate WITHOUT
+  writeback</strong> (DMA-in); do not promote it to writeback-invalidate or you corrupt DMA'd data.</li>
+<li><strong>Index-Store-Tag (<code>0x08</code>/<code>0x09</code>) / Fill (<code>0x14</code>): NOP</strong> — r9999's caches reset clean (no power-on
+  tag scrub); cache size comes from <code>Config</code>, not the tag probe.</li>
+</ul>
+<hr />
+<h2 id="gap-3-wired-tlb-wirepda-spurious-fault-mame-confirmed-r9999-bug">Gap 3 — wired-TLB / <code>wirepda</code> spurious fault  (MAME-confirmed r9999 bug)<a class="headerlink" href="#gap-3-wired-tlb-wirepda-spurious-fault-mame-confirmed-r9999-bug" title="Permanent link">&para;</a></h2>
+<p><strong>Symptom:</strong> r9999 faults on the <code>jr $ra</code> return from <code>wirepda</code> (kernel <code>mlsetup</code> path). <strong>MAME ground
+truth: real HW takes NO miss here</strong> — both the return fetch and the delay-slot PDA store resolve
+through a <strong>global wired entry</strong>, so <strong>r9999 is faulting <em>spuriously</em></strong> (treating a mapped access as a
+miss). The fix is in r9999's TLB/Wired/segment/ASID handling, <strong>not</strong> a missing mapping.</p>
+<p><strong>The golden wired PDA entry</strong> (captured at the <code>tlbwi</code> inside <code>tlbwired</code>, <code>0x88004c28</code>):
+<code>EntryHi VA = 0xFFFFFFFF_FFFFA000</code> → <code>PA = 0x0838E000</code>, <strong>valid, dirty, cached, GLOBAL</strong> (matches any
+ASID), wired in <strong>slot 0</strong>, <code>Wired = 8</code> (slots 0–7 reserved). The PDA store target <code>0xFFFFA240</code> hits
+this same global wired entry.</p>
+<p><strong>Suspects (fix + verify):</strong></p>
+<ol>
+<li><strong><code>tlbwr</code> not respecting <code>Wired</code>.</strong> If Random isn't clamped to <code>[Wired..47]</code>, a <code>tlbwr</code> between
+   <code>wirepda</code> and the access can overwrite the wired PDA entry (slot 0) → the access misses → refill
+   can't find it (no page-table backing for a wired-only mapping) → spins in EXL. <strong>Clamp Random to
+   <code>[Wired..47]</code>.</strong></li>
+<li><strong>High-kseg3 VA decode.</strong> Confirm r9999 translates the 64-bit kseg3 VA <code>0xFFFFFFFF_FFFFA000</code>
+   (sign-extended high segment) through the JTLB rather than mishandling/short-circuiting it.</li>
+<li><strong>Global-bit / ASID matching</strong> on a wired entry across ASID changes.</li>
+</ol>
+<p><strong>Test gap (found in <code>r9999/tests/</code>):</strong> the wired mechanism is <strong>untested</strong>. <code>tests/cp0/test_cp0.S</code>
+Test 2 only R/W-tests the <code>Wired</code> register; <code>tests/tlb/test_tlb.S</code> Step 7 <code>tlbwr</code> round-trips with
+<code>Wired=0</code> (no wired-slot exclusion), Step 8 tests the global bit on a non-wired low-VA entry. <strong>Not
+covered:</strong> (a) <code>tlbwr</code> never replacing a wired slot; (b) a wired entry resolving a load/store/fetch;
+(c) a <strong>global wired entry at a high kseg3 VA resolving across ASID changes</strong> — the exact
+<code>wirepda</code>/PDA pattern. <strong>Add a directed test</strong> using the golden values above (set <code>Wired=8</code>, write the
+PDA entry, then fetch/load/store against <code>0xFFFFA000</code> under a changed ASID, and prove a <code>tlbwr</code> storm
+never evicts slot 0).</p>
+<p>Cross-ref: <code>r9999/MAME_QUESTIONS.md</code> Q1 (full capture + single-step trace; caller <code>mlsetup</code>
+@ <code>0x8814a0d0</code>, return to <code>mlsetup+0xb4</code>).</p>
+<hr />
+<h2 id="cp0-misc">CP0 / misc<a class="headerlink" href="#cp0-misc" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Count / Compare timer:</strong> steady-state timekeeping is the <strong>on-chip R4000 timer</strong>, not ARCS — the
+  handler re-arms <code>Compare = Count + ~0x25000</code> per tick (confirmed live; <code>Count</code> climbs monotonically
+  and wraps). Must be functional.</li>
+<li><strong>Watch regs (WatchLo/WatchHi, r18/r19): RAZ/WI is sufficient</strong> — already <strong>DONE in r9999 commit
+  <code>272360d</code></strong> (functional register: store on <code>mtc0</code>, read back on <code>mfc0</code>, reset 0; modeled on
+  <code>Compare</code>). The kernel only ever does two <code>mtc0 zero</code> clears in <code>start</code>; <strong>no Watch-match hardware
+  or ExcCode-23 delivery is required</strong> (the kernel's watchpoint facility is software).</li>
+<li><strong><code>wait</code>:</strong> <strong>not a real gap.</strong> It is R4600+/MIPS32, absent from the R4000/R4400 ISA; IRIX gates the
+  idle WAIT by PRId (<code>wait_for_interrupt</code>) and on imp <code>0x04</code> returns without ever executing it. It is a
+  pure hint — correctness never depends on it. <strong>Decode as NOP for insurance.</strong></li>
+<li><strong>PageMask:</strong> <strong>not RAZ/WI</strong> — the kernel writes <code>PageMask=0</code> before each <code>tlbw</code> and reads it back;
+  it must <strong>hold its value</strong>. Boot is <strong>4 KB-only</strong> (3000 boot TLB writes, 100% <code>PageMask=0</code>); large-
+  page CAM matching is <strong>deferrable past boot</strong>.</li>
+<li><strong>TLB size:</strong> 48 dual-entry JTLB (matches R4000/R4400/R4600/R5000); r9999's 48-entry CAM matches.
+  Use the <strong>R4000 blind-<code>tlbwr</code> refill</strong> path; ensure the CAM tolerates a <strong>duplicate write</strong>
+  (last-wins/overwrite) rather than asserting a machine-check.</li>
+<li><strong>Physical address width:</strong> 29 bits (512 MB ceiling); highest PA the kernel forms is the device/PROM
+  region <code>0x1f000000–0x1fffffff</code>. Cache/TLB physical tags need 29 bits (bits 31:29 always 0).</li>
+<li><strong>PRId-gated R4000 workarounds:</strong> IRIX applies the R4000 set (<code>R4000_jump_war</code>, <code>init_mfhi_war</code>, …)
+  — generally conservative/harmless on a clean core. <strong>Verify</strong> that the two that assume <em>buggy</em> R4000
+  behavior — <code>R4000_jump_war</code> (page-boundary branch errata) and <code>init_mfhi_war</code> (hi/lo read hazard) —
+  are harmless no-ops on r9999's clean OOO core (it already enforces precise control flow + correct
+  hi/lo).</li>
+</ul>
+<hr />
+<h2 id="boot-critical-checklist">Boot-critical checklist<a class="headerlink" href="#boot-critical-checklist" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Need</th>
+<th>r9999 status</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Integer / branch-likely / unaligned / traps</td>
+<td>implemented</td>
+<td>—</td>
+</tr>
+<tr>
+<td>64-bit MIPS-III (<code>d*</code>, <code>ld/sd</code>, <code>ldl</code>…<code>sdr</code>)</td>
+<td>implemented</td>
+<td>—</td>
+</tr>
+<tr>
+<td>System CP0 (<code>mtc0/mfc0/dmtc0/dmfc0</code>, <code>tlb*</code>, <code>eret</code>, <code>sync</code>, <code>syscall</code>, <code>break</code>)</td>
+<td>implemented</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Atomics (<code>ll/sc/lld/scd</code>)</td>
+<td>implemented</td>
+<td>—</td>
+</tr>
+<tr>
+<td><strong><code>cache</code> op decode + I-cache flush wiring</strong></td>
+<td>decode missing (<code>cache</code>→NOP, <strong>latent bug</strong>)</td>
+<td><strong>Gap 2</strong> — decode full op field; any I-cache op → <code>l1i</code> <code>flush_req</code>; D-ops NOP-safe</td>
+</tr>
+<tr>
+<td><strong>FP regfile 32×64b + <code>Status.CU1/FR</code> (FR=1)</strong></td>
+<td>absent (FPU ripped out)</td>
+<td><strong>Gap 1.1</strong> — add, with FR aliasing switch</td>
+</tr>
+<tr>
+<td><strong>FP moves</strong> <code>mtc1/mfc1/dmtc1/dmfc1</code>, <code>cfc1/ctc1</code></td>
+<td>vestigial decode, no exec</td>
+<td><strong>Gap 1.2</strong> — add full exec</td>
+</tr>
+<tr>
+<td><strong>FP load/store</strong> <code>lwc1/swc1/ldc1/sdc1</code> (precise BD-slot faults)</td>
+<td>absent</td>
+<td><strong>Gap 1.3 + 1.7</strong></td>
+</tr>
+<tr>
+<td><strong><code>cvt.s.l</code> / <code>cvt.d.l</code></strong></td>
+<td>absent</td>
+<td><strong>Gap 1.4</strong> (2 converts only)</td>
+</tr>
+<tr>
+<td><strong>CU1 → CpU (Cause 11)</strong></td>
+<td>CpU mechanism exists (CP0)</td>
+<td><strong>Gap 1.5</strong> — extend to <code>~CU1</code></td>
+</tr>
+<tr>
+<td><strong>FP Exception (Cause 15)</strong></td>
+<td>absent</td>
+<td><strong>Gap 1.6</strong> — add delivery</td>
+</tr>
+<tr>
+<td><strong>Precise EPC + <code>Cause.BD</code> on delay-slot FP mem ops</strong></td>
+<td>verify</td>
+<td><strong>Gap 1.7</strong> — required for <code>emulate_*</code></td>
+</tr>
+<tr>
+<td><strong>Wired-slot protection / <code>wirepda</code> high-kseg3 VA</strong></td>
+<td><strong>spurious fault</strong></td>
+<td><strong>Gap 3</strong> — clamp Random <code>[Wired..47]</code>; fix kseg3 + global/ASID; add directed test</td>
+</tr>
+<tr>
+<td>Count/Compare timer</td>
+<td>required</td>
+<td>ensure functional</td>
+</tr>
+<tr>
+<td>WatchLo/WatchHi</td>
+<td><strong>DONE (<code>272360d</code>)</strong></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>wait</code></td>
+<td>not decoded</td>
+<td>NOP for insurance (PRId-gated out anyway)</td>
+</tr>
+<tr>
+<td>PageMask holds value (4 KB boot)</td>
+<td>verify</td>
+<td>must not be RAZ/WI</td>
+</tr>
+<tr>
+<td>FP ALU (add/sub/mul/div/sqrt/cmp)</td>
+<td>absent</td>
+<td><strong>NOT boot-critical</strong> — userland only; E-punt to softfloat</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>Boot-environment note (separate from CPU ISA): a sash-less direct <code>/unix</code> boot also needs the ARCS
+shim — SPB @ phys <code>0x1000</code> (sig "ARCS"), a 35-entry romvec with a working <code>GetEnvironmentVariable</code>,
+entry to <code>start</code> (<code>0x88005960</code>) with <code>a0=8, a1=0, a2=0</code>, and <code>MEMCFG0/MEMCFG1</code> @ <code>0x1fa000c4/0xcc</code>
+describing Henry's DRAM. That is platform/SoC integration, not CPU ISA — see
+<code>r9999/IRIX_CPU_REQUIREMENTS.md</code> (P0-A/B/C). Listed here only so it isn't mistaken for a CPU gap;
+the first observed derail (<code>0x880059f0</code>) is the missing SPB, <strong>not</strong> an ISA gap.</p>
+</blockquote>
+<hr />
+<h2 id="detailed-working-notes">Detailed working notes<a class="headerlink" href="#detailed-working-notes" title="Permanent link">&para;</a></h2>
+<ul>
+<li><code>r9999/IRIX_KERNEL_GAPS.md</code> — static kernel instruction working set (125 mnemonics), FP gap
+  analysis, <code>cache</code> op histogram, TLB/CP0/PA requirements, PRId support map, console path.</li>
+<li><code>r9999/IRIX_CPU_REQUIREMENTS.md</code> — MAME ground truth: PROM→kernel handoff at <code>start</code>, the ARCS SPB +
+  romvec layout, and how the kernel sizes RAM via the MC (<code>MEMCFG0/1</code>).</li>
+<li><code>r9999/MAME_QUESTIONS.md</code> Q1 — the <code>wirepda</code> wired-TLB capture (golden entry + single-step trace).</li>
+<li><code>r9999/FPU_PORT_STUDY.md</code>, <code>r9999/FPU_ROUNDING_EXCEPTIONS.md</code> — FP ALU plumbing + E-trap strategy
+  for the later userland-FP stage.</li>
+</ul>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../architecture/" class="btn btn-neutral float-left" title="Architecture"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../firmware-arcs/" class="btn btn-neutral float-right" title="Firmware (ARCS shim)">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../architecture/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../firmware-arcs/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

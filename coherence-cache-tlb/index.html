@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>Cache, coherence & TLB - Henry — the wannabe IP22 SoC</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Cache, coherence \u0026 TLB";
+        var mkdocs_page_input_path = "coherence-cache-tlb.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> Henry — the wannabe IP22 SoC
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Overview</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../architecture/">Architecture</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../cpu-integration/">CPU integration (r9999)</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../firmware-arcs/">Firmware (ARCS shim)</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../boot-and-console/">Boot & console</a>
+                </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">Cache, coherence & TLB</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#the-coherence-contract">The coherence contract</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#the-cache-instruction-decode-routing">The cache instruction — decode &amp; routing</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#tlb">TLB</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#the-wirepda-wired-entry-finding">The wirepda / wired-entry finding</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#cp0-timekeeping-misc">CP0 timekeeping &amp; misc</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#physical-address-width">Physical address width</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#detailed-working-notes">Detailed working notes</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Peripherals</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../peripherals/mc/">MC (memory controller)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../peripherals/ioc2/">IOC2 (serial console)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../peripherals/hpc3/">HPC3 (SCSI/enet/DMA, RTC)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../peripherals/gio64/">GIO64 (bus)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../peripherals/vdma/">VDMA (virtual DMA)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../peripherals/dmux1/">DMUX (data mux)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Graphics (Newport)</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics/rex3/">REX3 (raster engine)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics/vc2/">VC2 (video timing/cursor)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics/xmap9/">XMAP9 (colormap)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics/rb2-ro1/">RB2 & RO1 (framebuffer/output)</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../methodology/">Methodology (MAME oracle)</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">Henry — the wannabe IP22 SoC</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">Cache, coherence & TLB</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="cache-coherence-tlb">Cache, coherence &amp; TLB<a class="headerlink" href="#cache-coherence-tlb" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p>Henry's caches are incoherent: r9999's L1i is <strong>not</strong> kept in sync with D-side stores, and the L2,
+while transparent and coherent, is hidden from software (<code>Config.SC=1</code> → kernel sees "R4000PC").
+DMA masters — HPC3 (SCSI/Ethernet) and the MC's VDMA graphics engine — are <strong>NON-coherent in
+hardware</strong> on a uniprocessor R4000 (HW snoop is R4000MP-only). So the <code>cache</code> instruction is
+load-bearing: software coherence is mandatory, and r9999 must <strong>honor specific cache ops, not NOP
+them</strong>. Every fact below was measured by booting real IRIX 6.5.22 in MAME (<code>indy_4610</code>, <code>-nodrc</code>
+interpreter), including C++-instrumented op histograms.</p>
+</blockquote>
+<h2 id="the-coherence-contract">The coherence contract<a class="headerlink" href="#the-coherence-contract" title="Permanent link">&para;</a></h2>
+<p>Two independent coherence axes, both software-managed:</p>
+<ol>
+<li><strong>I-cache vs D-side stores (code writes).</strong> The kernel writes instructions through L1d/L2 and the
+   L1i then holds a stale copy. Sources of code writes on the boot path:</li>
+<li><strong>Runtime CPU patching</strong> at boot — <code>R4000_jump_war</code>, <code>mtext_fixup_inst</code>, the UTLB-vector patches
+     (<code>need_utlbmiss_patch</code>/<code>utlbmiss_patched</code>).</li>
+<li><strong>Loadable kernel modules</strong> — <code>doelfrelocs</code> relocating module text after load.</li>
+<li>
+<p>Re-patch of already-executed code (the case early boot can't get lucky on).
+   The L2 is coherent, so a <em>cold</em> L1i fetch pulls the patched line from L2 correctly; the failure mode
+   is a line that was already resident in L1i before the patch. <strong>⇒ I-cache <code>cache</code> ops MUST flush L1i.</strong></p>
+</li>
+<li>
+<p><strong>D-cache vs DMA.</strong> HPC3 and VDMA master directly to/from physical DRAM with no snoop. The driver
+   issues the coherence ops by hand:</p>
+</li>
+<li><strong>DMA-in</strong> (device → memory): <code>cache Hit-Invalidate-D</code> <em>after</em> the transfer — invalidate the stale
+     cached copy <strong>without</strong> writeback.</li>
+<li><strong>DMA-out</strong> (memory → device): <code>cache Hit-Writeback-Invalidate-D</code> <em>before</em> the transfer — push
+     dirty lines to DRAM so the device reads current data.
+   This split is <strong>architecturally mandated</strong> (vdma.pdf p.1–2,7; hpc3.pdf has zero coherence language),
+   not an IRIX quirk. r9999's L1d has no snoop logic today, so while all I/O stays backdoored these
+   D-side ops are functionally moot — but the moment real incoherent DMA sits behind L1d, the
+   invalidate-vs-writeback distinction becomes correctness-critical (see routing table).</li>
+</ol>
+<h2 id="the-cache-instruction-decode-routing">The <code>cache</code> instruction — decode &amp; routing<a class="headerlink" href="#the-cache-instruction-decode-routing" title="Permanent link">&para;</a></h2>
+<p>r9999 must <strong>fully decode <code>cache</code></strong> (opcode <code>0x2f</code>) and route by the op field — a blanket NOP is a
+latent bug. Field decode of the op register field <code>op = instr[20:16]</code>:
+<code>cache_sel = op[1:0]</code> (0=I-primary, 1=D-primary, 2=SD secondary-data, 3=SI secondary-instr);
+<code>operation = op[4:2]</code>.</p>
+<p><strong>Boot histogram</strong> — C++ instrumentation on MAME's mips3 <code>case 0x2f</code>, <strong>5,208,585 cache ops over a
+120 s boot</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>op</th>
+<th>cache / operation</th>
+<th>boot count</th>
+<th>%</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0x01</td>
+<td>D Index-Writeback-Invalidate</td>
+<td>1,483,598</td>
+<td>28.5%</td>
+</tr>
+<tr>
+<td>0x00</td>
+<td>I Index-Invalidate</td>
+<td>1,481,976</td>
+<td>28.5%</td>
+</tr>
+<tr>
+<td>0x15</td>
+<td>D Hit-Writeback-Invalidate</td>
+<td>1,400,427</td>
+<td>26.9%</td>
+</tr>
+<tr>
+<td>0x10</td>
+<td>I Hit-Invalidate</td>
+<td>839,506</td>
+<td>16.1%</td>
+</tr>
+<tr>
+<td>0x08 / 0x09</td>
+<td>I/D Index-Store-Tag (cache init)</td>
+<td>1,025 / 1,025</td>
+<td>—</td>
+</tr>
+<tr>
+<td>0x14</td>
+<td>I Fill</td>
+<td>512</td>
+<td>—</td>
+</tr>
+<tr>
+<td>0x11</td>
+<td><strong>D Hit-Invalidate (NO writeback)</strong></td>
+<td>489</td>
+<td>—</td>
+</tr>
+<tr>
+<td>0x19</td>
+<td>D Hit-Writeback</td>
+<td>21</td>
+<td>—</td>
+</tr>
+<tr>
+<td>0x0b</td>
+<td>secondary Index-Store-Tag (L2 probe)</td>
+<td>6</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Four primary-cache ops = 99.94%.</strong> Secondary/L2 ops are ~0 (just a 6-hit probe). This Indy has no
+L2 visible to software (<code>Config.SC=1</code>), so the ~30 static <code>cache_sel=2/3</code> code sites never execute —
+<strong>no L2 modeling needed</strong>.</p>
+<p><strong>Decode/handling obligations:</strong>
+- Decode the full op field; <strong>privilege-check</strong> (<code>cache</code> is kernel/CU0-only → user mode raises
+  Coprocessor-Unusable); compute EA = <code>base + signext(offset)</code>.</p>
+<p><strong>Routing table — what Henry must honor vs NOP:</strong></p>
+<table>
+<thead>
+<tr>
+<th>op</th>
+<th>name</th>
+<th>cache_sel</th>
+<th>Henry action</th>
+<th>why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0x10</td>
+<td>I Hit-Invalidate</td>
+<td>I</td>
+<td><strong>MUST flush L1i</strong></td>
+<td>code coherence — the one real obligation today</td>
+</tr>
+<tr>
+<td>0x00</td>
+<td>I Index-Invalidate</td>
+<td>I</td>
+<td><strong>MUST flush L1i</strong></td>
+<td>code coherence</td>
+</tr>
+<tr>
+<td>any I-side op</td>
+<td>—</td>
+<td>I</td>
+<td><strong>drive L1i <code>flush_req</code></strong></td>
+<td>L1i is never dirty → a whole-L1i flush is a correct over-approximation of <em>every</em> I-cache op; simplest wiring is "any I-cache op → <code>flush_req</code>". The flush HW already exists in <code>l1i.sv</code> — this is a <em>wiring</em> task</td>
+</tr>
+<tr>
+<td>0x11</td>
+<td><strong>D Hit-Invalidate (NO writeback)</strong></td>
+<td>D</td>
+<td>invalidate WITHOUT writeback (NOP-safe today)</td>
+<td>DMA-in. <strong>CRITICAL: do NOT promote to writeback</strong> or you write a stale/dirty line back over freshly DMA'd data — reintroduces the corruption window</td>
+</tr>
+<tr>
+<td>0x15</td>
+<td>D Hit-Writeback-Invalidate</td>
+<td>D</td>
+<td>writeback + invalidate (NOP-safe today)</td>
+<td>DMA-out</td>
+</tr>
+<tr>
+<td>0x01</td>
+<td>D Index-Writeback-Invalidate</td>
+<td>D</td>
+<td>writeback + invalidate (NOP-safe today)</td>
+<td>D-side flush</td>
+</tr>
+<tr>
+<td>0x19</td>
+<td>D Hit-Writeback</td>
+<td>D</td>
+<td>writeback (NOP-safe today)</td>
+<td>D-side flush</td>
+</tr>
+<tr>
+<td>0x08 / 0x09</td>
+<td>I/D Index-Store-Tag</td>
+<td>I/D</td>
+<td><strong>NOP</strong></td>
+<td>r9999 caches reset clean — no power-on tag scrub needed (unlike real R4000 silicon); cache <em>size</em> comes from <code>Config</code>, not the tag probe</td>
+</tr>
+<tr>
+<td>0x14</td>
+<td>I Fill</td>
+<td>I</td>
+<td><strong>NOP</strong></td>
+<td>same — caches reset clean</td>
+</tr>
+<tr>
+<td>0x0b</td>
+<td>SI Index-Store-Tag</td>
+<td>SI (L2)</td>
+<td><strong>NOP</strong></td>
+<td>no software-visible L2</td>
+</tr>
+</tbody>
+</table>
+<p>D-cache ops are <strong>NOP-safe while I/O stays backdoored</strong> (no snoop logic, no incoherent DMA behind L1d).
+If real incoherent DMA is ever added, honor the invalidate-vs-writeback distinction — especially <code>0x11</code>.</p>
+<h2 id="tlb">TLB<a class="headerlink" href="#tlb" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Size:</strong> 48 dual-entry JTLB — identical on R4000/R4400/R4600/R4700/R5000/RM (only R10000/R12000 go
+  to 64). r9999's 48-entry CAM matches. <code>start</code> sets <strong><code>Wired=8</code></strong> (slots 0–7 reserved).</li>
+<li><strong>Boot is 4 KB-only.</strong> 3000 explicit TLB writes during boot → <strong>100% <code>PageMask=0</code> (4 KB), zero large
+  pages.</strong> Large-page machinery (<code>large_pages_enable</code>, <code>lpage_*</code>) exists but is on-demand/under-load,
+  never triggered by a vanilla boot ⇒ Henry can <strong>boot with a 4 KB-only TLB</strong>; variable-page-size CAM
+  matching (16 KB…16 MB) is deferrable past boot. <strong>But <code>PageMask</code> is NOT RAZ/WI</strong> — the kernel writes
+  <code>PageMask=0</code> before each <code>tlbw</code> and reads it back; it must hold its value.</li>
+<li><strong>R4000 vs R5000 refill (Henry = R4000 path):</strong> R4000/R4600 fast refill is a <strong>blind <code>tlbwr</code></strong> (load
+  2 PTEs → <code>mtc0 entrylo0/1</code> → <code>tlbwr</code> → <code>eret</code>). R5000 does <strong><code>tlbp</code> first, <code>tlbwr</code> only if absent</strong> (a
+  guard against a duplicate TLB entry the R5000 mishandles). Henry presents <strong>PRId imp <code>0x04</code> = R4000</strong>,
+  so it gets the blind-<code>tlbwr</code> refill. Just ensure the CAM <strong>tolerates a duplicate write</strong> (last-wins /
+  overwrite) rather than asserting a machine-check.</li>
+</ul>
+<h2 id="the-wirepda-wired-entry-finding">The wirepda / wired-entry finding<a class="headerlink" href="#the-wirepda-wired-entry-finding" title="Permanent link">&para;</a></h2>
+<p><strong>MAME-confirmed (Q1, 2026-06-13): real HW takes NO miss at <code>wirepda</code>'s <code>jr $ra</code>; r9999 faults
+spuriously.</strong> This is the live VM-init bug that strands r9999 ~805K cycles into boot.</p>
+<p><code>wirepda</code> (@<code>0x881689b0</code>) <code>jal</code>s <code>tlbwired</code> (@<code>0x88004ba0</code>) to wire the per-CPU PDA. The golden wired
+entry captured at the <code>tlbwi</code> inside <code>tlbwired</code> (0x88004c28):</p>
+<pre><code>EntryHi  = 0x00000000_FFFFA000   ; VPN2 for VA 0xFFFFFFFF_FFFFA000, ASID=0x00
+EntryLo0 = 0x00000000_0020E39F   ; PFN=0x838E -&gt; PA 0x0838E000; C=3 (cached), D=1, V=1, G=1 (GLOBAL)
+EntryLo1 = 0x00000000_00000001   ; V=0 -&gt; odd page INVALID; G=1
+PageMask = 0                     ; 4 KB
+Index    = 0     Wired = 8
+</code></pre>
+<p>So the <strong>PDA is wired in slot 0</strong>: VA <code>0xFFFFFFFF_FFFFA000</code> → PA <code>0x0838E000</code>, valid, dirty, cached,
+<strong>GLOBAL</strong> (matches any ASID).</p>
+<p>At the <code>jr $ra</code> (0x88168aec), single-stepped on real HW:
+- The delay slot (<code>sw at,0xFFFFA240(zero)</code>) stores to <strong>PDA+0x240</strong> — hits the global wired entry,
+  <strong>no store miss</strong>.
+- Returns to <strong><code>0x8814a184</code></strong> (= <code>mlsetup+0xb4</code>, <strong>kseg0 / UNMAPPED</strong>) — clean, <strong>no exception vector,
+  Cause=0, no BadVAddr</strong>.</p>
+<p><strong>⇒ r9999 is faulting spuriously</strong> — the fix is in r9999's TLB/Wired/segment/ASID handling, NOT a
+missing mapping. The wired mechanism is <strong>untested</strong> in r9999/tests/ (existing tests only R/W the Wired
+register, round-trip <code>tlbwr</code> with Wired=0, and test the global bit on a non-wired low-VA entry — never a
+global wired high-kseg3 entry resolving an access across ASID changes).</p>
+<p><strong>Two prime suspects:</strong>
+1. <strong><code>tlbwr</code> not clamping Random to <code>[Wired..47]</code></strong> — a <code>tlbwr</code> between <code>wirepda</code> and the access
+   overwrites the wired PDA entry (slot 0); the access then misses and refill can't find it (no
+   page-table entry backs a wired-only mapping) → spins in EXL=1.
+2. <strong>Segment decode for the high kseg3 VA <code>0xFFFFFFFF_FFFFA000</code></strong> — r9999 may mis-handle the
+   sign-extended top-of-space mapped address (treat as unmapped / wrong region / 64-bit VA mishandling).</p>
+<p><strong>Suggested directed test (golden values above):</strong> set <code>Wired=8</code>; write the PDA entry
+(EntryHi=0xFFFFA000, EntryLo0=0x20E39F, EntryLo1=0x00000001, PageMask=0) at Index 0; churn the TLB with
+many <code>tlbwr</code> and change ASID; then <strong>store to <code>0xFFFFFFFF_FFFFA240</code> and load it back</strong> — must hit
+PA <code>0x0838E240</code> with no miss. Reproduces the bug if either suspect is real.</p>
+<h2 id="cp0-timekeeping-misc">CP0 timekeeping &amp; misc<a class="headerlink" href="#cp0-timekeeping-misc" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Steady-state timekeeping = on-chip <code>Count</code>/<code>Compare</code></strong> (not ARCS). The handler re-arms
+  <code>Compare = Count + ~0x25000</code> per tick — confirmed live in MAME.</li>
+<li><strong>Status.FR (bit 26) IS used.</strong> FR=0 for kernel/idle, <strong>FR=1 once N32/N64 userland runs</strong> (first seen
+  mid-boot, ~19% of samples by multiuser). r9999's FP regfile must implement FR=1 (32 independent 64-bit
+  registers), not just FR=0 even/odd 32-bit pairs; the FR bit must switch regfile aliasing. (Still no FP
+  <em>arithmetic</em> in the kernel — this is the regfile mode for context save/restore + userland.)</li>
+<li><strong>Watch registers (WatchLo/WatchHi, r18/r19): unused → RAZ/WI</strong> (already done in <code>exec.sv</code>, 272360d).
+  The only references are two <code>mtc0 zero</code> clears in <code>start</code>; nothing ever programs a watch address, so
+  ExcCode 23 never fires. IRIX's watchpoint facility is pure software. Henry needs only a functional
+  register (accept <code>mtc0</code>/<code>mfc0</code> r18/r19 without faulting); no Watch-match HW required.</li>
+</ul>
+<h2 id="physical-address-width">Physical address width<a class="headerlink" href="#physical-address-width" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>29 bits observed; 30 bits architectural.</strong> The test Indy measured a max PA of <code>0x1fffffff</code> (29 bits)
+  only because it had ~16 MB RAM. The MC map (mc.pdf p.22) has a <strong>second 256 MB "High System Memory"
+  window at <code>0x20000000–0x2fffffff</code></strong> (kseg-mapped) → a maxed Indy needs <strong>30-bit PA</strong>.</li>
+<li>Low RAM window <code>0x08000000–0x17ffffff</code> (256 MB max); kernel/device region up to <code>0x1fffffff</code>.
+  TLB-mapped PFNs observed only <code>0x0800_0000</code>–~<code>0x0900_0000</code> (max <code>0x0881a000</code>); EntryLo PFN is
+  arch-24-bit but only ~17 significant bits are ever used on this platform.</li>
+<li><strong>The bottom 512 KB <code>0x0–0x7ffff</code> ALIASES RAM</strong> (for exception vectors at <code>0x0</code>/<code>0x80</code>) — Henry must
+  alias <code>0x0</code>/<code>0x80</code> to <code>0x08000000</code>/<code>0x08000080</code>.</li>
+<li>⇒ cache/TLB <strong>physical tags need 30 bits</strong> to be safe (29 observed; bits above 30 always 0).</li>
+</ul>
+<h2 id="detailed-working-notes">Detailed working notes<a class="headerlink" href="#detailed-working-notes" title="Permanent link">&para;</a></h2>
+<ul>
+<li><code>/home/dsheffie/code/r9999/IRIX_KERNEL_GAPS.md</code> — the <code>cache</code>-instruction decode requirement + boot
+  histogram; the TLB/CP0/physical-address section; Watch-register and Status.FR findings.</li>
+<li><code>/home/dsheffie/code/r9999/MAME_QUESTIONS.md</code> — the Q1 <code>wirepda</code> answer (golden wired PDA entry,
+  single-step trace, the two suspects, the directed test).</li>
+<li><code>/home/dsheffie/code/r9999/IP22_CHIP_REGISTERS.md</code> — HPC3/VDMA non-coherence (the cache-op split is
+  architecturally mandated), MC/IOC2 register maps, physical-address-width correction.</li>
+</ul>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../boot-and-console/" class="btn btn-neutral float-left" title="Boot & console"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../peripherals/mc/" class="btn btn-neutral float-right" title="MC (memory controller)">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../boot-and-console/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../peripherals/mc/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

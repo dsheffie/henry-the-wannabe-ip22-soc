@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>Overview - Henry — the wannabe IP22 SoC</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Overview";
+        var mkdocs_page_input_path = "graphics/index.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> Henry — the wannabe IP22 SoC
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Overview</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../architecture/">Architecture</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../cpu-integration/">CPU integration (r9999)</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../firmware-arcs/">Firmware (ARCS shim)</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../boot-and-console/">Boot & console</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../coherence-cache-tlb/">Cache, coherence & TLB</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Peripherals</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../peripherals/mc/">MC (memory controller)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../peripherals/ioc2/">IOC2 (serial console)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../peripherals/hpc3/">HPC3 (SCSI/enet/DMA, RTC)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../peripherals/gio64/">GIO64 (bus)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../peripherals/vdma/">VDMA (virtual DMA)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../peripherals/dmux1/">DMUX (data mux)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Graphics (Newport)</span></p>
+              <ul class="current">
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">Overview</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#board-architecture">Board architecture</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#address-host-interface">Address &amp; host interface</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#the-chips-at-a-glance">The chips at a glance</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#henry-relevance">Henry relevance</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#sources">Sources</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="rex3/">REX3 (raster engine)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="vc2/">VC2 (video timing/cursor)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="xmap9/">XMAP9 (colormap)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="rb2-ro1/">RB2 & RO1 (framebuffer/output)</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../methodology/">Methodology (MAME oracle)</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">Henry — the wannabe IP22 SoC</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Graphics (Newport)</li>
+      <li class="breadcrumb-item active">Overview</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="newport-graphics-board-overview">Newport graphics board (overview)<a class="headerlink" href="#newport-graphics-board-overview" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p>Intro: the Indy "XL" graphics board on GIO64 slot 0 (phys <code>0x1f000000</code>). NOT needed for a headless
+Henry boot (bus-error the aperture → IRIX skips it, see <a href="../peripherals/gio64/">../peripherals/gio64.md</a>).
+This is the future-work path for a Henry graphics console.</p>
+</blockquote>
+<p>Newport is the entry-level (8-bit, upgradable to 24-bit) framebuffer graphics board for the SGI Indy.
+SGI's own tagline for it was "the least graphics you'll ever need." There is <strong>no geometry/transform
+ASIC</strong> — the host MIPS FPU is the geometry engine, and Z-buffering lives in host system memory. The
+board is purely a 2D raster engine plus a framebuffer and the video-output backend. That makes it a
+smaller (but still large) target than a full GE-class SGI pipe: the bulk of the work is REX3's drawing
+command set, not a 3D pipeline.</p>
+<h2 id="board-architecture">Board architecture<a class="headerlink" href="#board-architecture" title="Permanent link">&para;</a></h2>
+<p>Five ASIC types (plus VRAM, a colormap SRAM, and an external RAMDAC) form a one-way pixel pipeline from
+the host bus to the CRT. REX3 is the only host-facing chip; everything downstream is display/scanout.</p>
+<pre><code>                              DISPLAY CONTROL BUS (DCB)  — REX3 is bus master
+        ┌──────────────┬──────────────────────┬─────────────┬──────────────┐
+        │              │                      │             │              │
+  host  │   ┌──────┐   │   ┌──────┐  cursor   │   ┌──────┐  │  ┌──────┐     │
+ ───────┼──►│ REX3 │   ├──►│ VC2  │──────────►├──►│XMAP9 │─►├─►│ CMAP │     │
+ GIO64  │   │      │   │   │      │  DID      │   │      │  │  │(SRAM)│     │
+  slot0 │   │raster│   │   │video │           │   │pixel │  │  └──┬───┘     │
+0x1f00… │   │engine│   │   │timing│           │   │mode /│  │     │ ▲       │
+        │   └──┬───┘   │   │cursor│           │   │mux   │  │     ▼ │       │
+        │      │ writes│   └──────┘           │   └──▲───┘  │  ┌──────┐ R   │
+        │      ▼ (RB2) │                      │      │      └─►│RAMDAC│─G──►CRT
+        │   ┌──────┐   │   ┌──────────────┐   │   ┌──┴───┐     │(gamma│ B   │
+        │   │ RB2  │◄──┴──►│ VRAM frame-  │──►│   │ RO1  │     │ +DAC)│     │
+        │   │fmt/  │       │ buffer       │   │   │raster│     └──────┘     │
+        │   │logicop│      │ (8-way ileave)│  │   │output│                  │
+        │   └──────┘       └──────────────┘   │   └──────┘                  │
+        │                  serial (video) port┘   reorg/rotate              │
+        └──────────────────────────────────────────────────────────────────┘
+</code></pre>
+<p>Flow: <strong>host → REX3</strong> (programs primitives over GIO64) <strong>→ framebuffer</strong> (REX3 reads/writes VRAM
+through RB2, which holds the read/write formatters + LogicOp) <strong>→ RO1</strong> (reads the VRAM serial/video
+ports, merges overlay+color, undoes REX3's scanline stagger) <strong>→ XMAP9</strong> (selects pixel mode: RGB vs
+color-index, picks the display ID) <strong>→ CMAP</strong> (colormap SRAM, in CI mode) <strong>→ RAMDAC</strong> (gamma + analog
+RGB) <strong>→ CRT</strong>. <strong>VC2</strong> sits to the side as the video-timing/cursor/DID generator, driving sync and the
+per-pixel cursor + display-ID streams; it is <em>not</em> in the pixel datapath but gates it. REX3 owns the
+<strong>Display Control Bus (DCB)</strong>, an 8-bit side channel it uses to program VC2/XMAP9/RAMDAC (and read back).</p>
+<h2 id="address-host-interface">Address &amp; host interface<a class="headerlink" href="#address-host-interface" title="Permanent link">&para;</a></h2>
+<p>Newport is the GIO64 <strong>slot-0</strong> device, based at phys <code>0x1f000000</code> (4 MB aperture). <strong>REX3 is the only
+host-programmable chip</strong>: it is a GIO64 bus slave that decodes accesses into its own register file (and
+into framebuffer PIO/DMA windows), and it forwards config to the rest of the board over the DCB. The
+GIO bus interface runs at 33 MHz behind a 64-wide × 32-deep host FIFO; the framebuffer side is an 8-way
+interleaved VRAM running at 66 MHz.</p>
+<p>IRIX detects the board via the standard GIO64 <strong>Product Identification Word</strong> probe (word read at the
+slot base; an empty slot bus-errors, a populated slot returns its product-ID). See
+<a href="../peripherals/gio64/">../peripherals/gio64.md</a> for the probe protocol and the slot/address map.
+For a headless Henry we make slot 0 answer "empty" by bus-erroring the aperture, so this REX3 ID never
+appears and IRIX skips graphics entirely.</p>
+<h2 id="the-chips-at-a-glance">The chips at a glance<a class="headerlink" href="#the-chips-at-a-glance" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Chip</th>
+<th>Role</th>
+<th>Doc</th>
+<th>Pages</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>REX3</td>
+<td>Raster/rendering engine; host-facing GIO64 slave; DCB master</td>
+<td><a href="rex3/">rex3.md</a></td>
+<td>149</td>
+</tr>
+<tr>
+<td>VC2</td>
+<td>Video timing generator, hardware cursor, display-ID (DID) encoder</td>
+<td><a href="vc2/">vc2.md</a></td>
+<td>42</td>
+</tr>
+<tr>
+<td>XMAP9</td>
+<td>Pixel-mode mux / colormap-index path (RGB vs CI, display IDs)</td>
+<td><a href="xmap9/">xmap9.md</a></td>
+<td>34</td>
+</tr>
+<tr>
+<td>RB2</td>
+<td>RAM Buffer: framebuffer read/write formatter + LogicOp (VRAM glue)</td>
+<td><a href="rb2-ro1/">rb2-ro1.md</a></td>
+<td>16</td>
+</tr>
+<tr>
+<td>RO1</td>
+<td>ReOrganizer: VRAM serial-port readout, overlay merge, de-stagger</td>
+<td><a href="rb2-ro1/">rb2-ro1.md</a></td>
+<td>15</td>
+</tr>
+</tbody>
+</table>
+<p>(CMAP is a colormap SRAM and the RAMDAC is an off-the-shelf part; neither has its own page here.)</p>
+<h2 id="henry-relevance">Henry relevance<a class="headerlink" href="#henry-relevance" title="Permanent link">&para;</a></h2>
+<p><strong>Headless (current):</strong> Henry bus-errors the entire <code>0x1f000000–0x1fffffff</code> GIO region, so the graphics
+slot reads as empty and IRIX never touches REX3. Nothing on this page is on the boot path. This is the
+spec-correct "all slots empty" behavior, not a hack — see the gio64 doc.</p>
+<p><strong>Future (graphics console):</strong> to give Henry a display you would implement, at minimum, <strong>REX3's GIO64
+register face plus a framebuffer</strong>, then a path from the framebuffer to a real (or emulated) video
+output. Concretely:</p>
+<ol>
+<li>Decode the slot-0 aperture and return a valid REX3 <strong>Product-ID</strong> so IRIX <em>finds</em> the board → verify:
+   IRIX's GIO probe reports a Newport at slot 0 instead of bus-erroring.</li>
+<li>Implement REX3's host-visible register file + the framebuffer PIO/DMA windows backed by real RAM →
+   verify: the IRIX/PROM graphics init writes registers and clears the screen without faulting.</li>
+<li>Implement the <strong>rendering command set</strong> (lines/spans/blocks via the Bresenham iterators, the DDA
+   color iterators, dither/blend/LogicOp, fast-clear, screen-to-screen copy). <strong>This is the bulk of the
+   work</strong> — it is most of the 149-page REX3 spec → verify: a known IRIX 2D workload draws correctly.</li>
+<li>The scanout backend (VC2 timing, RO1/XMAP9/CMAP/RAMDAC) only matters if you drive a <em>physical</em> CRT;
+   a software console can short-circuit to reading the framebuffer RAM directly. Treat VC2/XMAP9/RO1 as
+   optional until real video output is a goal.</li>
+</ol>
+<p>The big-ticket item is step 3: REX3 is where essentially all the complexity lives, because Newport
+deliberately pushes geometry and Z onto the host and keeps everything downstream as fixed-function
+scanout.</p>
+<h2 id="sources">Sources<a class="headerlink" href="#sources" title="Permanent link">&para;</a></h2>
+<ul>
+<li>REX3 Specification, Rev 1.0 (SGI, Aug 1993) — <code>sgi/docs/indy_docs/newport/rex3.pdf</code> (§1.4 Newport
+  architecture, §1.5 REX3 architecture, §3 programmer interface, §4 system interface).</li>
+<li>VC2 Specification, Rev 2.0 (SGI, May 1993) — <code>…/newport/vc2.pdf</code> (§2.1 system block diagram).</li>
+<li>XMAP9 Specification, Rev 2.1 (SGI, Oct 1993) — <code>…/newport/xmap9.pdf</code> (§1.2–1.4, Newport block diagram).</li>
+<li>RB2 (RAM Buffer) Specification, Rev 2.3 (SGI, 2000) — <code>…/newport/rb2.pdf</code> (§1.2 general description).</li>
+<li>RO1 (ReOrganizer) Specification (SGI) — <code>…/newport/ro1.pdf</code> (§1–2 functional description).</li>
+<li>Henry GIO64 peripheral notes — <a href="../peripherals/gio64/">../peripherals/gio64.md</a> (slot map, Product-ID
+  probe, empty-slot bus-error behavior).</li>
+</ul>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../peripherals/dmux1/" class="btn btn-neutral float-left" title="DMUX (data mux)"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="rex3/" class="btn btn-neutral float-right" title="REX3 (raster engine)">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../peripherals/dmux1/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="rex3/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

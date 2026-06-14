@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>VC2 (video timing/cursor) - Henry — the wannabe IP22 SoC</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "VC2 (video timing/cursor)";
+        var mkdocs_page_input_path = "graphics/vc2.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> Henry — the wannabe IP22 SoC
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">Overview</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../architecture/">Architecture</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../cpu-integration/">CPU integration (r9999)</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../firmware-arcs/">Firmware (ARCS shim)</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../boot-and-console/">Boot & console</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../coherence-cache-tlb/">Cache, coherence & TLB</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Peripherals</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../peripherals/mc/">MC (memory controller)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../peripherals/ioc2/">IOC2 (serial console)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../peripherals/hpc3/">HPC3 (SCSI/enet/DMA, RTC)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../peripherals/gio64/">GIO64 (bus)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../peripherals/vdma/">VDMA (virtual DMA)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../peripherals/dmux1/">DMUX (data mux)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Graphics (Newport)</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../rex3/">REX3 (raster engine)</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">VC2 (video timing/cursor)</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#role-architecture">Role &amp; architecture</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#register-ram-interface">Register / RAM interface</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#table-formats-in-sram">Table formats in SRAM</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#programming-model-irixx">Programming model (IRIX/X)</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#henry-relevance">Henry relevance</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#sources">Sources</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../xmap9/">XMAP9 (colormap)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../rb2-ro1/">RB2 & RO1 (framebuffer/output)</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../methodology/">Methodology (MAME oracle)</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">Henry — the wannabe IP22 SoC</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Graphics (Newport)</li>
+      <li class="breadcrumb-item active">VC2 (video timing/cursor)</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="vc2-video-timing-cursor-controller-henrynewport-block-spec">VC2 — Video Timing &amp; Cursor Controller (Henry/Newport block spec)<a class="headerlink" href="#vc2-video-timing-cursor-controller-henrynewport-block-spec" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p>VC2 generates the CRT timing (sync/blank), the display ID (DID), and the cursor (glyph or
+crosshair) for the Newport graphics board. It interprets tables held in its own external SRAM:
+a programmable video-timing state machine, a DID run-length stream, and a cursor pixel pattern.
+It is <strong>not</strong> programmed directly by the host — it sits on REX3's Display Control Bus (DCB), and
+the host pokes its registers/RAM through REX3. <strong>Not needed for headless Henry</strong> (graphics
+space bus-errors); this is future-work for a real display console.</p>
+</blockquote>
+<p>Part: VC2, SGI 099-8918-001, Toshiba TC160G, 144 PQFP, ~27.5k gates (vc2.pdf p.2).</p>
+<h2 id="role-architecture">Role &amp; architecture<a class="headerlink" href="#role-architecture" title="Permanent link">&para;</a></h2>
+<p>VC2 is one chip in the Newport pipeline. Newport datapath (p.3 block diagram):</p>
+<pre><code>REX3 ──DCB──&gt; VC2 ──CURSOR──&gt; XMAP9 ──&gt; CMAP ──&gt; RAMDAC ──&gt; R/G/B
+                │  ──DID────&gt;          (video timing channels fan out to XMAP9, CMAP,
+                │                        RAMDAC, RO1, and the monitor sync pins)
+           32Kx16 SRAM
+</code></pre>
+<p>The host (via REX3/DCB) writes three table types into the external SRAM; VC2 walks them in real
+time to drive its outputs. It has six internal blocks (p.24):</p>
+<ul>
+<li><strong>DCB interface</strong> — async handshake to REX3's DCB; the only host-facing port.</li>
+<li><strong>Master controller + master datapath</strong> — a 16x16 register file of table pointers/counters and
+  the memory controller that reads/writes the external SRAM on behalf of the other blocks.</li>
+<li><strong>Video Timing Generation (VTG)</strong> — 16x28 FIFO (21 timing channels + 7-bit duration); drives the
+  21 (+ duplicates) video timing channels: sync, blank, transfer-request, internal cursor/DID
+  position strobes. Error flag on FIFO underflow.</li>
+<li><strong>DID Generation</strong> — 64x20 FIFO; emits 5-bit window display IDs run-length-encoded across the
+  scanline, 2 pixels wide, to XMAP9. Error flag on underflow.</li>
+<li><strong>Cursor Generation</strong> — reads the cursor pattern table; emits a 2-wide cursor pixel stream to
+  XMAP9. Supports 32x32x2 glyph, 64x64x1 glyph, and a full-screen crosshair.</li>
+</ul>
+<p>DID and cursor are output 2 pixels wide at PCLK/2 (half the monitor pixel clock), so the timing
+channels have 2-pixel resolution (p.2).</p>
+<p><strong>Clocks (p.24):</strong> VC2 takes PCLK/2 (≤70 MHz; max pixel rate 140 MHz). Backend (VTG/DID/cursor)
+and the DCB always run at PCLK/2. The master controller/datapath run at PCLK/4 for hi-res
+(pixel clock ≥70 MHz) and PCLK/2 for lo-res; a clock-enable gates the flops rather than muxing
+clocks. The <code>Slow Clock</code> config bit selects the mode.</p>
+<p><strong>External RAM:</strong> 64 KB static RAM as 32Kx16, expandable to 64Kx16. RAM-address pointers are
+15 bits (max 32767). Accessed by the host only through the DCB (RAM Address register + RAM Data
+virtual register), big-endian, 2 bytes atomic.</p>
+<h2 id="register-ram-interface">Register / RAM interface<a class="headerlink" href="#register-ram-interface" title="Permanent link">&para;</a></h2>
+<p>Accessed over the DCB. The DCB exposes only 4 control-register-selects (CRS): CRS0 = Index reg,
+CRS1/CRS2 = high/low byte of the indexed register, CRS3 = external RAM data. Because VC2's register
+space is larger than the DCB address space, an <strong>Index register</strong> (5 bits) selects which internal
+register CRS1/CRS2 touch. REX3's DCB auto-increment lets the host write Index then the 2 data
+bytes in one burst; for RAM it writes the start address once then streams 2-byte words to CRS3
+(RAM Address auto-increments) (p.16).</p>
+<blockquote>
+<p><strong>Hang warning (p.11):</strong> before touching any register other than Index/Config, or the SRAM, the
+<code>Soft Reset</code> bit in the Configuration register must be set to 1 (normal operation). Otherwise VC2
+never acknowledges and both VC2 and the DCB hang.</p>
+</blockquote>
+<p><strong>Register summary (p.10).</strong> Shaded = host-programmed; rest are internal running pointers exposed
+read-only for diagnostics. Addresses are the Index value.</p>
+<table>
+<thead>
+<tr>
+<th>Idx</th>
+<th>Name</th>
+<th>Bits</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>—</td>
+<td>Index</td>
+<td>5</td>
+<td>selects register for DCB access</td>
+</tr>
+<tr>
+<td>0x00</td>
+<td>Video Entry Pointer</td>
+<td>16</td>
+<td>start of video-timing frame table in SRAM</td>
+</tr>
+<tr>
+<td>0x01</td>
+<td>Cursor Entry Pointer</td>
+<td>16</td>
+<td>start of cursor glyph data; 128-word align (32x32x2) / 256-word (64x64x1)</td>
+</tr>
+<tr>
+<td>0x02</td>
+<td>Cursor X Location</td>
+<td>16</td>
+<td>next cursor X (max 2047/4095); shadowed</td>
+</tr>
+<tr>
+<td>0x03</td>
+<td>Cursor Y Location</td>
+<td>16</td>
+<td>next cursor Y (max 2047); write triggers X→CurrentX copy</td>
+</tr>
+<tr>
+<td>0x04</td>
+<td>Current Cursor X</td>
+<td>16</td>
+<td>current X after update (R/O for programmer)</td>
+</tr>
+<tr>
+<td>0x05</td>
+<td>DID Entry Pointer</td>
+<td>16</td>
+<td>start of Display-ID table in SRAM</td>
+</tr>
+<tr>
+<td>0x06</td>
+<td>Scanline Length</td>
+<td>16</td>
+<td>visible pixels per scanline, bits[15:5] (max 2046); for DID gen</td>
+</tr>
+<tr>
+<td>0x07</td>
+<td>RAM Address</td>
+<td>16</td>
+<td>address for host RAM access; auto-increments</td>
+</tr>
+<tr>
+<td>0x08–0x0F</td>
+<td>(VT/DID/cursor running pointers + Vertical Line Counter)</td>
+<td>16</td>
+<td>diagnostic / R/O</td>
+</tr>
+<tr>
+<td>0x10</td>
+<td>Display Control</td>
+<td>16</td>
+<td>enables + cursor/genlock mode (below)</td>
+</tr>
+<tr>
+<td>0x1F</td>
+<td>Configuration</td>
+<td>16</td>
+<td>soft reset, slow clock, error flags, revision</td>
+</tr>
+<tr>
+<td>—</td>
+<td>RAM Data</td>
+<td>16</td>
+<td>virtual register: external RAM data (CRS3)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Configuration register (Idx 0x1F, p.11):</strong> bit0 <code>Soft Reset</code> (0=reset, 1=run; resets all but
+DCB), bit1 <code>Slow Clock</code> (1 = monitor pixel rate &lt;70 MHz), bit2 <code>Cursor Error</code>, bit3 <code>DID Error</code>
+(DID FIFO underflow), bit4 <code>VTG Error</code> (VTG FIFO underflow) — error flags set by HW, cleared by
+writing 0; bits[7:5] revision (000 = first rev); bits[15:8] read-only "Temp Hibyte" (high byte of
+the last DCB transfer).</p>
+<p><strong>Display Control register (Idx 0x10, p.12):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Bit</th>
+<th>Name</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>VINTR enable</td>
+<td>enable vertical interrupt (when VINT timing channel active)</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Blackout</td>
+<td>0 = blank display (forces CBLANK to RAMDAC), 1 = enable display</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Video Timing Enable</td>
+<td>1 = run VTG from SRAM; 0 = channels driven to default</td>
+</tr>
+<tr>
+<td>3</td>
+<td>DID Function Enable</td>
+<td>1 = read DIDs from SRAM; 0 = drive DID 0</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Cursor Function Enable</td>
+<td>1 = read cursor pattern from SRAM</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Gensync Enable</td>
+<td>1 = reset frame on GENSYNC input (genlock)</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Interlace</td>
+<td>monitor type: 0 = non-interlaced, 1 = interlaced</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Cursor Enable</td>
+<td>1 = drive cursor pixels (effect immediate, not deferred to retrace)</td>
+</tr>
+<tr>
+<td>8</td>
+<td>Cursor Mode</td>
+<td>0 = glyph, 1 = crosshair</td>
+</tr>
+<tr>
+<td>9</td>
+<td>Cursor Size</td>
+<td>0 = 32x32x2, 1 = 64x64x1 (glyph mode only)</td>
+</tr>
+<tr>
+<td>10</td>
+<td>Genlock Select</td>
+<td>0 = GEN0, 1 = GEN1</td>
+</tr>
+<tr>
+<td>15:11</td>
+<td>reserved</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p>All Display-Control bits power up 0 (video disabled, blacked out).</p>
+<h3 id="table-formats-in-sram">Table formats in SRAM<a class="headerlink" href="#table-formats-in-sram" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Video Timing Table (p.17–19):</strong> a <em>frame table</em> of (line-sequence-pointer, line-count) runs,
+  terminated by a 0x0000 run; each line-sequence is a circular linked list of <em>lines</em>; each line is
+  a list of <em>state runs</em>. A state = 21 timing-channel bits split into State A/B/C (7 bits each:
+  SA=VT[20:14], SB=VT[13:7], SC=VT[6:0]) plus a 7-bit duration (SRUN) in 2-pixel-clock units (max
+  127). The A word always present; B/C word optional (bit7 of A flags presence). bit15 of the A
+  word = end-of-line, followed by a pointer to the next line. ~150 words for a hi-res non-interlaced
+  table, ~300 for NTSC/PAL.</li>
+<li><strong>Cursor Pattern Table (p.20–21):</strong> raw glyph bitmap. 32x32x2 = 128 words (128-word aligned),
+  two bit-planes; 64x64x1 = 256 words (256-word aligned). Crosshair needs no table.</li>
+<li><strong>Display ID Table (p.21–22):</strong> a <em>frame table</em> of per-scanline pointers terminated by 0xFFFF,
+  into a <em>scanline table</em> of transition records <code>{X-location[15:5], DID[4:0]}</code>; first X must be 0,
+  end-of-line = X 0x7FF (2047). Run-length-encoded, so a sparse line is cheap. The same DID table
+  serves multiple resolutions by changing only Scanline Length + DID Entry Pointer.</li>
+</ul>
+<h2 id="programming-model-irixx">Programming model (IRIX/X)<a class="headerlink" href="#programming-model-irixx" title="Permanent link">&para;</a></h2>
+<p>Power-on leaves VC2 with video disabled and blacked out; only Soft Reset is known. Bring-up
+(p.15):</p>
+<ol>
+<li>Program the RAMDAC for the target pixel clock.</li>
+<li>Set <code>Slow Clock</code> if needed and release <code>Soft Reset</code> in Configuration (→ normal operation).</li>
+<li>Load the video-timing tables into SRAM; write Video Entry Pointer.</li>
+<li>Set <code>Video Timing Enable</code> (and Interlace) in Display Control; ~32 pixel clocks later video
+   starts. VINTR / Blackout / Gensync may be enabled now or later.</li>
+<li>Load DID tables; write DID Entry Pointer + Scanline Length.</li>
+<li>Set <code>DID Function Enable</code>.</li>
+<li>Set <code>Cursor Function Enable</code> (comes up glyph + disabled); write the cursor pattern into SRAM,
+   set Cursor Enable + mode/size and the X/Y registers.</li>
+</ol>
+<p>In steady state Video/DID/Cursor enables stay on. <strong>Hardware cursor:</strong> write Cursor X <em>then</em>
+Cursor Y (the Y write copies X→Current X so the move is atomic); X/Y are relative to a point 31
+px above/left of the visible screen so the glyph can slide partly off-screen (X=Y=31 = top-left
+fully visible). VC2 double-buffers cursor pointer/position and swaps them during vertical
+blanking, so the host need not disable the cursor to move it. Changing the <em>pattern</em> pointer or
+mode coincident with an X/Y move should be done with the cursor disabled.</p>
+<p><strong>Mode/clock change (p.15):</strong> disable Cursor/DID/Video/VINTR/Gensync/Blackout, assert Soft Reset,
+redo bring-up steps 1–4; DID and cursor tables/registers retain their values.</p>
+<h2 id="henry-relevance">Henry relevance<a class="headerlink" href="#henry-relevance" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Headless (now):</strong> N/A. Henry has no Newport board; the graphics address space bus-errors, so
+  VC2 is never touched. Boot does not depend on it.</li>
+<li><strong>Future (graphics console):</strong> required for a real display. VC2 is the piece that turns frame
+  pointers + tables into CRT sync/blank, the hardware cursor, and per-pixel window DIDs. A Henry
+  graphics block would need (a) a REX3-equivalent DCB master to reach VC2, (b) the external table
+  SRAM, and (c) the XMAP9/CMAP/RAMDAC downstream. The hardware cursor and DID-based window IDs are
+  the host-visible features X/IRIX would drive. Until that whole pipeline exists, VC2 is a
+  reference spec only.</li>
+</ul>
+<h2 id="sources">Sources<a class="headerlink" href="#sources" title="Permanent link">&para;</a></h2>
+<ul>
+<li>vc2.pdf p.2 — part/features, 2-wide PCLK/2 output, external RAM size.</li>
+<li>vc2.pdf p.3 — Newport system block diagram (REX3/DCB → VC2 → XMAP9/CMAP/RAMDAC).</li>
+<li>vc2.pdf p.5–6 — pin descriptions (DCB, MEM, XMAP, video timing channels).</li>
+<li>vc2.pdf p.10 — register summary table.</li>
+<li>vc2.pdf p.11 — Configuration register + soft-reset hang warning.</li>
+<li>vc2.pdf p.12 — Display Control register detail.</li>
+<li>vc2.pdf p.13–14 — cursor positioning, entry/X/Y registers, scanline length.</li>
+<li>vc2.pdf p.15 — reset / start-up / mode-change procedures.</li>
+<li>vc2.pdf p.16 — programming via the DCB (CRS, Index, atomic RAM access).</li>
+<li>vc2.pdf p.17–22 — table formats (video timing, cursor pattern, display ID).</li>
+<li>vc2.pdf p.24–25 — architecture: six blocks, clocks, VTG/DID/cursor generation.</li>
+</ul>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../rex3/" class="btn btn-neutral float-left" title="REX3 (raster engine)"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../xmap9/" class="btn btn-neutral float-right" title="XMAP9 (colormap)">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../rex3/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../xmap9/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

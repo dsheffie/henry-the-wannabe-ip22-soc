@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>VDMA (virtual DMA) - Henry — the wannabe IP22 SoC</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "VDMA (virtual DMA)";
+        var mkdocs_page_input_path = "peripherals/vdma.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> Henry — the wannabe IP22 SoC
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">Overview</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../architecture/">Architecture</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../cpu-integration/">CPU integration (r9999)</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../firmware-arcs/">Firmware (ARCS shim)</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../boot-and-console/">Boot & console</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../coherence-cache-tlb/">Cache, coherence & TLB</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Peripherals</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../mc/">MC (memory controller)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../ioc2/">IOC2 (serial console)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../hpc3/">HPC3 (SCSI/enet/DMA, RTC)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../gio64/">GIO64 (bus)</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">VDMA (virtual DMA)</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#role-in-henry-future-work-graphics-only-uniprocessor-no-snoop">Role in Henry (future-work; graphics-only; uniprocessor = no snoop)</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#address-translation-the-ptebase-tlb-hardware-page-table-walker">Address translation — the PTEBase µTLB + hardware page-table walker</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#cache-coherence-non-coherent-on-uniprocessor-snoop-r4000mp-only">Cache coherence (non-coherent on uniprocessor; snoop = R4000MP-only)</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#descriptor-register-set-a-register-set-not-an-in-memory-linked-list">Descriptor register set (a register set, not an in-memory linked list)</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#software-model-system-call-dma-on-uniprocessor-kick-off-restartable-on-fault">Software model (system-call DMA on uniprocessor; kick-off; restartable on fault)</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#henry-implications-future-model-what-henry-would-add-to-model-vdma">Henry implications / future model (what Henry would add to model VDMA)</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#sources">Sources</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../dmux1/">DMUX (data mux)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Graphics (Newport)</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../graphics/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../graphics/rex3/">REX3 (raster engine)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../graphics/vc2/">VC2 (video timing/cursor)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../graphics/xmap9/">XMAP9 (colormap)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../graphics/rb2-ro1/">RB2 & RO1 (framebuffer/output)</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../methodology/">Methodology (MAME oracle)</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">Henry — the wannabe IP22 SoC</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Peripherals</li>
+      <li class="breadcrumb-item active">VDMA (virtual DMA)</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="vdma-virtual-dma-henry-block-spec">VDMA — Virtual DMA (Henry block spec)<a class="headerlink" href="#vdma-virtual-dma-henry-block-spec" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p>Intro: VDMA = the MC's GIO/graphics DMA master that DMAs directly from USER VIRTUAL addresses, walking the
+CPU's page tables via its OWN 4-entry PTEBase µTLB (separate from the 48-entry JTLB but R4000-PTE-compatible).
+NOT needed for headless boot; NOT the SCSI/enet path (that's HPC3). Non-coherent on uniprocessor R4000 -&gt;
+reinforces Henry's mandatory cache ops. Legend ✅ = confirmed against spec/MAME, ⚠️ = subtle / easy-to-miss.</p>
+</blockquote>
+<p>The "FastForward" project DMA engine that lives <strong>inside the MC</strong> (Memory Controller). Its job: move
+variable-sized blocks between <strong>user-space main memory</strong> and the <strong>graphics/GIO subsystem</strong>, with the block
+described by <em>user virtual addresses</em> that the engine translates on the fly. Optimised for the graphics
+library <code>v3f()</code> call (ship a 3-float / 12-byte vertex to the pipe). Authored by Karim Abdalla &amp; James Tornes,
+Draft 1.5 (1992).</p>
+<h2 id="role-in-henry-future-work-graphics-only-uniprocessor-no-snoop">Role in Henry  (future-work; graphics-only; uniprocessor = no snoop)<a class="headerlink" href="#role-in-henry-future-work-graphics-only-uniprocessor-no-snoop" title="Permanent link">&para;</a></h2>
+<ul>
+<li>⚠️ <strong>Not boot-critical.</strong> Henry boots headless: GIO slots bus-error as "no device" (see <code>gio64</code>), there is no
+  graphics card, so nothing ever programs the VDMA descriptor registers. VDMA can be a no-op / unimplemented
+  decode and IRIX still boots. This doc exists because the block is architecturally interesting (a DMA engine
+  with its own page-table walker) and because it <em>confirms</em> Henry's cache-coherence contract.</li>
+<li>✅ <strong>Distinct from HPC3.</strong> VDMA is the <strong>graphics/GIO</strong> master and the only DMA path that touches <em>virtual</em>
+  addresses + page tables. The real SCSI / Ethernet / PBUS DMA (the boot-critical I/O) is <strong>HPC3</strong>, which is
+  pure-physical scatter-gather — see <code>hpc3</code>. Don't conflate them.</li>
+<li>⚠️ <strong>Henry is uniprocessor R4000.</strong> Cache snooping in VDMA is an <strong>R4000MP-only</strong> feature (the large package).
+  r9999 / Henry never get hardware snoop, so the engine is <strong>non-coherent</strong> and software cache ops are
+  load-bearing (see Cache coherence below).</li>
+</ul>
+<h2 id="address-translation-the-ptebase-tlb-hardware-page-table-walker">Address translation — the PTEBase µTLB + hardware page-table walker<a class="headerlink" href="#address-translation-the-ptebase-tlb-hardware-page-table-walker" title="Permanent link">&para;</a></h2>
+<p>The novel feature: the engine translates user virtual addresses <em>itself</em>, page-by-page, so the OS no longer has
+to pre-translate + lock-down a long physical descriptor list per transfer. Flow:</p>
+<pre><code> user virtual addr  ──split──&gt;  VPNhi  +  VPNlo  +  page-offset
+                                  │
+                  VPNhi ── associative lookup ──&gt; 4-entry PTEBase µTLB (CAM)
+                                  │  hit -&gt; PTEBase[25:6] (phys base of that page table) + V
+                                  ▼
+        PTE_addr = PTEBase  indexed by  VPNlo     (one memory indirection)
+                                  │  HW reads the PTE from DRAM
+                                  ▼
+                          PTE  ── decode ──&gt;  PFN  (+ valid / dirty bits)
+                                  │
+              physical addr = PFN | page-offset   ──&gt; DMA the data
+</code></pre>
+<ul>
+<li><strong>The µTLB</strong> (<code>GIO_TLBHI[n]</code> / <code>GIO_TLBLO[n]</code>, n = 0..3). Each PTEBase maps one ~2 MB-aligned slice of user
+  VA (a single user page table). 4 entries -&gt; 4 such slices resident without a miss. ⚠️ The µTLB is
+  <strong>software-loaded and software-maintained</strong>: the DMA engine <em>reads</em> it but never modifies it; the CPU sets the
+  hardware-valid <code>V</code> bit when writing an entry and must <em>clear</em> it when the mapping goes stale (context switch,
+  unmap). It is <strong>separate from the CPU's 48-entry JTLB</strong> but walks the <em>same</em> R4000 page tables in DRAM.</li>
+<li><code>GIO_TLBHI[n]</code>: <code>VPNhi[31:21]</code> (CAM tag), rest zero. Which VA bits form VPNhi depends on page size (GIO_CTL).</li>
+<li><code>GIO_TLBLO[n]</code>: <code>PTEBase[25:6]</code>, <code>V[1]</code> (hw-valid). ⚠️ Remaining bits read as zero.</li>
+<li>✅ <strong>PTE format is R4000-compatible.</strong> "The format of GIO_TLBLO is chosen for maximum compatibility with the
+  R4000 (MIPS II &amp; III) EntryLo format." That's the key Henry reuse hook — the walker can share the core's
+  existing EntryLo/PTE decode rather than inventing a second one.</li>
+<li><strong>Geometry from <code>GIO_CTL</code></strong> (set once at boot): <code>Page Size</code> (CTL[1]) 0=4 KB / 1=16 KB; <code>PT Size</code> (CTL[0])
+  0=4 B/PTE / 1=8 B/PTE (so VPNlo indexes the right stride); <code>Cache Size</code> (CTL[3:2]) = L line size 16·2^x.</li>
+<li><strong><code>GIO_CTL.Xlate</code> (CTL[8])</strong> gates the whole thing. Set (the normal user-mode case) -&gt; <code>GIO_MEMADR</code> is a
+  <strong>virtual</strong> address and goes through the µTLB+walker. Clear -&gt; <code>GIO_MEMADR</code> is taken as a <strong>physical</strong> address
+  directly (kernel-only debug / OS-initiated DMA to a known physical block). The top bit of GIO_MEMADR is
+  ignored in the virtual case.</li>
+<li><strong>Four fault causes</strong> (reported in <code>GIO_CAUSE</code>, also mirrored read-only in <code>GIO_RUN[3:0]</code>):</li>
+<li><strong>PTEBase miss</strong> — VPNhi not in the µTLB. Engine interrupts the CPU (or, optionally, the CPU re-loads the
+     µTLB) and the transfer is restarted.</li>
+<li><strong>TLB miss</strong> (<code>CAUSE[1]</code>) — the PTE itself is missing/invalid at the end of the lookup.</li>
+<li><strong>Page Fault</strong> (<code>CAUSE[0]</code>) — the user data page is not resident.</li>
+<li><strong>Clean</strong> (<code>CAUSE[2]</code>) — a DMA <em>write</em> (GIO-&gt;memory) hit a page marked clean (so the OS can do
+     dirty-bit/COW bookkeeping before the write lands).
+  All four are <strong>restartable</strong>: the descriptor registers hold enough state to resume; the CPU services the fault
+  then re-asserts <code>GIO_STDMA.Start</code> to continue.</li>
+</ul>
+<h2 id="cache-coherence-non-coherent-on-uniprocessor-snoop-r4000mp-only">Cache coherence  (non-coherent on uniprocessor; snoop = R4000MP-only)<a class="headerlink" href="#cache-coherence-non-coherent-on-uniprocessor-snoop-r4000mp-only" title="Permanent link">&para;</a></h2>
+<p>⚠️ <strong>This is the load-bearing part for Henry, even though VDMA itself is future-work.</strong> The spec lays out two
+coherence options and explicitly scopes one of them out for the uniprocessor:
+- <strong>Snoop</strong> (the engine watches the CPU's cache) — <code>GIO_MODE.Snoop</code> (MODE[5]) requests it, but it exists
+  <strong>only on R4000MP</strong>. Henry / r9999 is uniprocessor R4000: there is <strong>no snoop hardware</strong>.
+- <strong>Flush</strong> (software keeps memory and cache consistent) — the only option on a uniprocessor. The R4000 cache
+  ops are <strong>privileged</strong>, so the DMA is set up/managed inside a <strong>system call</strong>.
+- ✅ Therefore the writeback-vs-invalidate split is <strong>architecturally mandated, not an IRIX quirk</strong> (vdma.pdf
+  p.1–2, 7):
+  - <strong>DMA-in</strong> (device -&gt; memory, GIO-&gt;memory write): after the transfer, <strong><code>cache Hit-Invalidate-D</code></strong> the target
+    lines (no writeback — the DMA'd data is the truth; writing back stale cache lines would clobber it).
+  - <strong>DMA-out</strong> (memory -&gt; device, memory-&gt;GIO read): before the transfer, <strong><code>cache Hit-WB-Invalidate-D</code></strong> so
+    dirty lines are flushed to DRAM and the engine reads current data.
+- This is the <em>same</em> coherence story as HPC3 (which has zero coherence hardware) — see the cache/coherence notes
+  in <code>hpc3</code> and the chip-registers digest. Henry modeling DMA as direct-to-DRAM + honoring those exact L1d ops =
+  correct, with <strong>zero coherence hardware</strong>.</p>
+<h2 id="descriptor-register-set-a-register-set-not-an-in-memory-linked-list">Descriptor register set  (a register set, not an in-memory linked list)<a class="headerlink" href="#descriptor-register-set-a-register-set-not-an-in-memory-linked-list" title="Permanent link">&para;</a></h2>
+<p>⚠️ Unlike HPC3's in-memory descriptor chain, a VDMA "descriptor" <em>is</em> the set of MC registers below. Once a DMA
+starts they implicitly hold the running state, so the whole transfer is <strong>context-switchable</strong> (read them out /
+write them back to save/restore). It is a <strong>2D strided/zoom blitter</strong> over <em>virtual</em> memory.</p>
+<table>
+<thead>
+<tr>
+<th>Register</th>
+<th>Fields</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GIO_MEMADR</code> (RW)</td>
+<td>Memory Address[31:0]</td>
+<td>next mem addr (virtual unless Xlate=0); written plain = "don't set defaults"</td>
+</tr>
+<tr>
+<td><code>GIO_MEMADRD</code> (RW)</td>
+<td>Memory Address[31:0]</td>
+<td>write <strong>also loads the default descriptor</strong> (Table 2) + clears Byte/Zoom counts — the "kick a simple DMA in few writes" path</td>
+</tr>
+<tr>
+<td><code>GIO_SIZE</code> (RW)</td>
+<td>Line Count[31:16], Line Width[15:0]</td>
+<td>#scan lines remaining; bytes per scan line</td>
+</tr>
+<tr>
+<td><code>GIO_STRIDE</code> (RW)</td>
+<td>Line Zoom[25:16], Stride[15:0]</td>
+<td>Stride is <strong>signed</strong> (negative = x-axis reflect); Line Zoom = vertical zoom replication</td>
+</tr>
+<tr>
+<td><code>GIO_ADR</code> (RW)</td>
+<td>GIO Address[31:0]</td>
+<td>phys addr of the GIO device; write does <strong>not</strong> start DMA</td>
+</tr>
+<tr>
+<td><code>GIO_ADRS</code> (RW)</td>
+<td>GIO Address[31:0]</td>
+<td>write-only alias of GIO_ADR that <strong>starts the DMA</strong></td>
+</tr>
+<tr>
+<td><code>GIO_MODE</code> (RW)</td>
+<td>Long[6] Snoop[5] Dir[4] Fill[3] Sync[2] Mode[1:0]</td>
+<td>see below</td>
+</tr>
+<tr>
+<td><code>GIO_COUNT</code> (RW)</td>
+<td>Zoom Count[25:16], Byte Count[15:0]</td>
+<td>down-counters, context-switch state only</td>
+</tr>
+</tbody>
+</table>
+<p><code>GIO_MODE</code> fields: <strong>Mode[1:0]</strong> 00 = DMA read (mem-&gt;GIO), 10 = DMA write (GIO-&gt;mem), X1 = accumulation
+(unimplemented). <strong>Long[6]</strong> = use the GIO bus time-slice (long burst) vs the CPU slice. <strong>Snoop[5]</strong> = R4000MP
+snoop (n/a on Henry). <strong>Dir[4]</strong> = scan-line address increment (1) / decrement (0). <strong>Fill[3]</strong> = on a memory
+write, use <code>GIO_ADR</code> itself as the source <em>data</em> (constant fill, GIO device not involved). <strong>Sync[2]</strong> = delay
+start until the external <code>DMASYNC</code> pin (vertical-retrace, anti-flicker). The transfer loop is the nested
+linecount→zoomcount→bytecount walk with <code>stride</code>/<code>linewidth</code> address arithmetic (vdma.pdf p.15).</p>
+<p><strong>Kernel-only control registers</strong> (<code>GIO_CTL</code> page, protected for security):
+- <code>GIO_MASK</code> / <code>GIO_SUBST</code> — per-bit clamp on the user-supplied GIO physical address: where MASK[i]=1 the engine
+  substitutes SUBST[i] for the user's bit, so user-mode can only reach the GIO range the OS allows.
+- <code>GIO_CAUSE</code> — interrupt cause: Complete[3], Clean[2], TLB miss[1], Page Fault[0]; CPU clears by writing zeros.
+- <code>GIO_CTL</code> — TLimit[29:20] (max GIO-bus cycles held before re-arbitration), SLimit[16:12] (R4000SC snoop lines),
+  DecSlv[9], <strong>Xlate[8]</strong>, IntMask[4] (masks only Complete), Cache Size[3:2], Page Size[1], PT Size[0].</p>
+<p><strong>Run/start (unprotected, user-visible):</strong>
+- <code>GIO_STDMA.Start</code> (bit0, RW) — CPU sets to begin / <strong>restart-after-fault</strong>; clears to stop (response not
+  instantaneous — engine winds down to a save-able point).
+- <code>GIO_RUN</code> (R only) — <code>Run</code> (bit4) polled to tell if a transfer is in flight; <code>[3:0]</code> mirrors the CAUSE cause
+  bits. ⚠️ A Cause bit and Run can both read 1 transiently (fault set before the engine fully halted).</p>
+<h2 id="software-model-system-call-dma-on-uniprocessor-kick-off-restartable-on-fault">Software model  (system-call DMA on uniprocessor; kick-off; restartable on fault)<a class="headerlink" href="#software-model-system-call-dma-on-uniprocessor-kick-off-restartable-on-fault" title="Permanent link">&para;</a></h2>
+<ul>
+<li>✅ On a uniprocessor R4000 (Henry), VDMA is a <strong>system call</strong> (the cache ops are privileged, and the OS wants
+  to swap in another process rather than spin). The R4000MP user-mode-DMA path needs snoop and does not apply.</li>
+<li><strong>Kick-off (short transfer):</strong> load the default descriptor via <code>GIO_MEMADRD</code>, then <code>GIO_SIZE</code>, then the
+  <code>GIO_ADRS</code> write that starts it — a <code>v3f()</code> DMA is just <strong>2–3 register writes</strong>.</li>
+<li><strong>Synchronization:</strong> the program <strong>polls <code>GIO_RUN.Run</code></strong> (the MC stalls that read until the transfer / snoop
+  completes), or the OS takes the maskable <strong>Complete</strong> interrupt and reschedules.</li>
+<li><strong>Fault path:</strong> on any of the four faults the engine stops with full state in the descriptor registers; the
+  CPU services it (load a µTLB entry, page in, set dirty) and <strong>re-asserts <code>GIO_STDMA.Start</code></strong> to resume from
+  exactly where it stopped. Context switch = read out all descriptor regs, restore later.</li>
+</ul>
+<h2 id="henry-implications-future-model-what-henry-would-add-to-model-vdma">Henry implications / future model  (what Henry would add to model VDMA)<a class="headerlink" href="#henry-implications-future-model-what-henry-would-add-to-model-vdma" title="Permanent link">&para;</a></h2>
+<p>If/when Henry grows a graphics device and someone wants VDMA:
+1. <strong>GIO-DMA state machine in the MC</strong> running the nested linecount/zoomcount/bytecount blitter loop over
+   <code>GIO_MEMADR</code>/<code>GIO_SIZE</code>/<code>GIO_STRIDE</code>/<code>GIO_MODE</code>, sourcing/sinking on the GIO64 bus as a long-burst master.
+2. <strong>4-entry PTEBase µTLB (CAM) + hardware page-table walker</strong>, gated by <code>GIO_CTL.Xlate</code>. ✅ <strong>Reuse the r9999
+   core's existing R4000 PTE/EntryLo decode</strong> — GIO_TLBLO is deliberately EntryLo-compatible — rather than a
+   second decoder. Software loads/invalidates the µTLB; HW only reads it.
+3. <strong>Restartable fault path</strong>: latch the four causes into <code>GIO_CAUSE</code>/<code>GIO_RUN</code>, stop at a save-able boundary,
+   resume on <code>GIO_STDMA.Start</code>. All descriptor state lives in the (already context-switchable) registers.
+4. <strong>Non-snooping</strong>: model the engine as <strong>direct-to-DRAM</strong> and rely entirely on the L1d cache ops
+   (<code>Hit-Invalidate-D</code> after DMA-in, <code>Hit-WB-Invalidate-D</code> before DMA-out). No snoop logic, no coherence
+   hardware — uniprocessor-correct, and identical to the HPC3 contract.</p>
+<p>This block reinforces (does not introduce) Henry's coherence rule: the cache-op discipline that makes HPC3
+correct is the <em>same</em> discipline VDMA's spec mandates, and the spec says so explicitly for the uniprocessor.</p>
+<h2 id="sources">Sources<a class="headerlink" href="#sources" title="Permanent link">&para;</a></h2>
+<ul>
+<li><code>~/code/sgi/docs/indy_docs/ip22/vdma.pdf</code> — SGI "Virtual DMA Specification", FastForward Project, Draft 1.5,
+  Feb 13 1992 (Abdalla, Tornes). §2.1 cache coherency, §2.3 + §3.3 PTEBase µTLB / why-in-HW, §5.2 Table 1
+  descriptor registers + Table 2 default descriptor, §5.3 Tables 3–4 control registers, §5.4 Table 5 µTLB entry
+  format (EntryLo-compatible).</li>
+<li><code>~/code/r9999/IP22_CHIP_REGISTERS.md</code> — VDMA section (FUTURE WORK) + coherence findings #8/#9; cross-checked
+  against this session's MAME reverse-engineering.</li>
+<li>Related Henry docs: <code>gio64</code> (the bus VDMA masters; bus-error-on-empty headless), <code>hpc3</code> (the real SCSI/enet
+  DMA path; same zero-coherence-hardware + mandatory cache-ops contract).</li>
+</ul>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../gio64/" class="btn btn-neutral float-left" title="GIO64 (bus)"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../dmux1/" class="btn btn-neutral float-right" title="DMUX (data mux)">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../gio64/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../dmux1/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

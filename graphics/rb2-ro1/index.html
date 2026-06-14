@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>RB2 & RO1 (framebuffer/output) - Henry — the wannabe IP22 SoC</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "RB2 \u0026 RO1 (framebuffer/output)";
+        var mkdocs_page_input_path = "graphics/rb2-ro1.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> Henry — the wannabe IP22 SoC
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">Overview</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../architecture/">Architecture</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../cpu-integration/">CPU integration (r9999)</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../firmware-arcs/">Firmware (ARCS shim)</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../boot-and-console/">Boot & console</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../coherence-cache-tlb/">Cache, coherence & TLB</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Peripherals</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../peripherals/mc/">MC (memory controller)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../peripherals/ioc2/">IOC2 (serial console)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../peripherals/hpc3/">HPC3 (SCSI/enet/DMA, RTC)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../peripherals/gio64/">GIO64 (bus)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../peripherals/vdma/">VDMA (virtual DMA)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../peripherals/dmux1/">DMUX (data mux)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Graphics (Newport)</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../rex3/">REX3 (raster engine)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../vc2/">VC2 (video timing/cursor)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../xmap9/">XMAP9 (colormap)</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">RB2 & RO1 (framebuffer/output)</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#rb2-frame-buffer">RB2 — frame buffer</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#ro1-raster-output">RO1 — raster output</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#the-pixel-pipeline-end-to-end">The pixel pipeline end-to-end</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#henry-relevance">Henry relevance</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#sources">Sources</a>
+    </li>
+    </ul>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../methodology/">Methodology (MAME oracle)</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">Henry — the wannabe IP22 SoC</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Graphics (Newport)</li>
+      <li class="breadcrumb-item active">RB2 & RO1 (framebuffer/output)</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="rb2-frame-buffer-ro1-raster-output-henrynewport-block-spec">RB2 (frame buffer) &amp; RO1 (raster output) — Henry/Newport block spec<a class="headerlink" href="#rb2-frame-buffer-ro1-raster-output-henrynewport-block-spec" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p>Intro: the back-end of the Newport pixel pipeline — RB2 holds the framebuffer pixels (written by REX3,
+read for scanout), RO1 handles raster output toward the DAC/video. NOT needed for headless Henry.</p>
+</blockquote>
+<p>Two small gate arrays sit at the tail of the Newport graphics board. <strong>RB2</strong> ("RAM Buffer 2") is the
+read/write formatter + LogicOp engine that fronts the VRAM frame buffer; <strong>RO1</strong> ("ReOrganizer 1")
+sits on the <em>serial</em> (scanout) side of that same VRAM, de-staggers and merges pixels, and feeds the
+XMAP9 color-lookup chips on their way to the DAC. RB2 is the <em>random-port</em> path (REX3 ↔ VRAM);
+RO1 is the <em>serial-port</em> path (VRAM ↔ display).</p>
+<h2 id="rb2-frame-buffer">RB2 — frame buffer<a class="headerlink" href="#rb2-frame-buffer" title="Permanent link">&para;</a></h2>
+<p>RB2 is a ~5K-gate LSI LCA-100K part (100-pin PQFP), located <strong>between REX3 (the Raster Engine) and
+the VRAM frame buffer</strong>. It contains the read/write formatter and the LogicOp function of the pixel
+pipe; the front end of the pixel pipe lives in REX3. It runs at up to 66 MHz internally
+(<code>RB2_CLK</code>), generated by an on-chip PLL that 2× multiplies the 33 MHz <code>SYS_CLK</code> to minimize REX3↔RB2
+clock skew (rb2.pdf p.2, p.11).</p>
+<p><strong>Organization / banks / planes.</strong> The frame buffer is 8 pixel ports = 4 memory banks × 2 pixels per
+bank. Each RB2 handles <strong>2 pixel ports</strong>, so a full board uses <strong>4 RB2 chips</strong> (one each for BankA,
+BankB, BankC, BankD); the two pixel datapaths inside one RB2 are identical (rb2.pdf p.8). Per RB2 the
+buses are: <code>RB2_DATA_A0/A1[7:0]</code> to/from REX3 (8 bits/clock each side), and <code>VRAM_DATA_A0/A1[23:0]</code>
+to/from VRAM0/VRAM1 of that bank (rb2.pdf p.4, Fig 3.1 p.7).</p>
+<p>The plane set is the classic Newport layout — <strong>RGB/CI color planes plus overlay (OLAY), pop-up (PUP),
+and CID (window/context ID)</strong> auxiliary planes — selected by the draw-register <code>planes[2:0]</code> field
+(000 none, 001 RGB/CI, 010 RGBA, 100 OLAY, 101 PUP, 110 CID) (rb2.pdf p.9). Drawn depth is
+<code>drawdepth[1:0]</code> = 4 / 8 / 12 / 24 bits (rb2.pdf p.9). Double-buffering is supported (<code>dblsrc</code> picks
+source buffer0/buffer1; <code>dblbuf</code>/<code>rgbmode</code>/<code>fastclear</code> are draw-register bits) (rb2.pdf p.8).
+The supported frame-buffer pixel formats (RGB-SB/DB 24-bit, CI-SB/DB 12-bit, 8-bit 3:3:2, RGBα 3324,
+CID/AUX 2-bit-CID + 2-bit-PUP + 8-bit-AUX, etc.) are enumerated in rb2.pdf Table 4.4 (p.12).</p>
+<p><strong>How REX3 writes it.</strong> Color+alpha from REX3 is latched into RB2, goes down the pixel pipe, and is
+written to VRAM. The function each cycle is set by <code>RB2SEL[2:0]</code> (decoded one clock earlier by the
+DEC_CNTL block): 000 none, 001 write pixel/low OLAY-CID-PUP, 010 write high OLAY-CID-PUP, 011 load
+write-mask + draw register, 100/101 read low/high, 110/111 CID-check low/high (rb2.pdf p.8). The
+<strong>LogicOp</strong> block applies the full 16 raster ops (Clear / And / Xor / Or / Copy / … / Set) between
+source (iterated) and destination (frame-buffer) pixels per <code>logicop[3:0]</code>; LogicOp is disabled
+(plain Copy) when the field = 0011 (rb2.pdf p.9–10). RB2 also holds a <strong>24-bit write-mask register</strong>
+and a <strong>12-bit draw register</strong>, loaded together by REX3 on <code>RB2SEL=011</code>; <code>RB2_SELWMSK</code> (driven by
+REX3's <code>RAS_N</code>) muxes write-mask vs. write-data onto the VRAM bus — mask out during RAS precharge,
+data out when RAS low (rb2.pdf p.8, p.10).</p>
+<p><strong>Bandwidth / interface.</strong> REX3↔RB2 runs at ¼ the VRAM page-mode cycle, 15 ns (66 MHz): 8 bits per
+clock, so a 32-bit pixel takes 4 clocks (rb2.pdf p.6). On the VRAM side, each bank does a page-mode
+read or write of two adjacent pixels in 60 ns — at max rate each bank takes/produces a new 24-bit
+word every 60 ns (rb2.pdf p.6). Reads are reformatted from 24-bit frame-buffer format back to 32-bit
+RGBA by the Read Format block before going to REX3 (rb2.pdf p.10).</p>
+<h2 id="ro1-raster-output">RO1 — raster output<a class="headerlink" href="#ro1-raster-output" title="Permanent link">&para;</a></h2>
+<p>RO1 is a ~10K-gate, 1 µm CMOS gate array (120-pin PQFP, ~97 signal pins, ~1 Kbit of FIFO), located
+<strong>between the frame buffer's serial port and the XMAP9 chips</strong>, max 70 MHz (ro1.pdf p.1). It is the
+scanout-side counterpart to RB2: where RB2 talks to the VRAM <em>random</em> port for REX3, RO1 reads the
+VRAM <strong>serial</strong> port for display.</p>
+<p>It reads the 8 banks of VRAM serial output (8 bytes per serial clock — <code>BANKA0..D1[7:0]</code>) and does two
+jobs (ro1.pdf p.1):</p>
+<ol>
+<li><strong>Overlay + color merge.</strong> The frame buffer stores, per scanline segment, 32 bytes of overlay
+   (4 bits/pixel) followed by 64 bytes of normal color (8 bits/pixel). RO1 reads 32 bytes of overlay
+   in 4 serial cycles, then 64 normal-color bytes in 8 cycles, and <strong>merges each 4-bit overlay with
+   its 8-bit normal color</strong> into a 12-bit pixel, 8 pixels in parallel. Two FIFOs (one overlay, one
+   pixel; both 64 bits wide × 8 deep) buffer the data: they cross the serial-clock → dot-clock domain
+   and keep ≥20 pixels queued so video never under-runs mid-scanline (ro1.pdf p.1, p.5).</li>
+<li><strong>Scanline de-stagger (rotate).</strong> REX3 draws with a per-scanline stagger; RO1 groups the 8 merged
+   pixels into odd/even and <strong>rotates each group by 0/1/2/3 pixels</strong> under <code>SCANLINE[1:0]</code> (2 bits
+   from REX3 tracking which line is in the VRAM shift register) to undo it (ro1.pdf p.1, Table 1 p.3).</li>
+</ol>
+<p>Outputs are two 12-bit pixels per chip — <code>Pix_out_x0[11:0]</code> to XMAP9_0 and <code>Pix_out_x1[11:0]</code> to
+XMAP9_1 — each "merged 8 bits normal color + 4 bits overlay," running at 1/2 the dot-clock rate
+(odd/even interleave → effective 70 MHz). One RO1 serves 8 bit-planes, so a <strong>24-bit system uses 3
+RO1s</strong> (ro1.pdf p.1–2, Table 2 p.4).</p>
+<p><strong>Clocking.</strong> RO1 takes <code>Pixclk_div2</code> (= 70 MHz, ½ dot clock) and <strong>generates the VRAM serial clock
+internally as 1/5 dot clock = 28 MHz</strong> (<code>Serial_clk0/1</code>, each to 4 VRAM banks); FIFOs are stuffed at
+the 1/5-dot serial rate and drained at the 1/8-dot rate (ro1.pdf p.2, p.5). The serial clock is gated
+by <strong><code>Serial_enable</code> from VC2</strong> and readout by <strong><code>Display_enable</code> from VC2</strong>; VC2 must raise
+<code>Display_enable</code> 60–65 dot clocks after <code>Serial_enable</code> so the FIFOs pre-fill (overlay ≥4 entries,
+pixel ≥6) before active video (ro1.pdf p.2, p.5). Dot-clock range supported is 6 MHz (NTSC) to 140 MHz
+(76 Hz refresh) (ro1.pdf p.3).</p>
+<h2 id="the-pixel-pipeline-end-to-end">The pixel pipeline end-to-end<a class="headerlink" href="#the-pixel-pipeline-end-to-end" title="Permanent link">&para;</a></h2>
+<pre><code>REX3 (raster engine, scan-converts triangles/spans, LogicOp front end)
+  │  RB2_DATA[7:0] × banks,  RB2SEL[2:0] op,  write-mask/draw regs
+  ▼
+RB2 ×4  (LogicOp + write-format → VRAM ;  read-format ← VRAM)   ── random port
+  │  VRAM_DATA[23:0] per bank
+  ▼
+VRAM frame buffer  (RGB/CI + OLAY/PUP/CID planes, double-buffered)
+  │  serial port,  8 bytes/serial-clk  (RO1 drives Serial_clk = 1/5 dot)
+  ▼
+RO1 ×3  (overlay+color merge → 12-bit ;  odd/even rotate de-stagger)   ── serial/scanout port
+  │  Pix_out_x0/x1[11:0]  @ ½ dot clock
+  ▼
+XMAP9 ×N  (mode/WID lookup, color-index → RGB, gamma path select)
+  │  ~26-bit
+  ▼
+CMAP1  (color map / palette RAM)
+  │  24-bit RGB
+  ▼
+DAC → CRT
+
+VC2  = video timing/cursor controller: generates Serial_enable + Display_enable to RO1,
+       and the CBLANK/sync timing the whole scanout is sequenced against.
+</code></pre>
+<p>(End-to-end topology: rb2.pdf Fig 3.1 p.7 for the REX3→RB2→VRAM front end; ro1.pdf p.1 and the "8-bit
+mode backend" diagram p.9 for VRAM→RO1→XMAP9→CMAP1, with VC2 supplying <code>serial_enable</code>/<code>display_enable</code>.)</p>
+<h2 id="henry-relevance">Henry relevance<a class="headerlink" href="#henry-relevance" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Headless (current):</strong> n/a. Henry has no Newport board; graphics-space accesses bus-error by
+  design. Nothing here is on the boot path — RB2/RO1 are pure display back-end.</li>
+<li><strong>Future (graphics console):</strong> this pair defines the back half of any "wannabe Indy" display.
+  RB2 is the <strong>framebuffer-storage + LogicOp/format</strong> model (4-bank × 2-pixel VRAM, RGB/CI + overlay
+  planes, the 16 raster ops, double-buffer/write-mask semantics REX3 expects). RO1 is the <strong>scanout</strong>
+  model (serial read, overlay/color merge, scanline de-stagger, FIFO clock-crossing, and the VC2
+  <code>serial_enable</code>/<code>display_enable</code> handshake) that produces XMAP9-ready pixels. A Henry display path
+  would re-implement RB2's formatter/LogicOp over its own framebuffer RAM and RO1's merge+scanout over
+  a scanout FIFO — most of the staggering/serial-VRAM complexity is an artifact of 1990s VRAM and can
+  collapse into a simpler linear-framebuffer + scanout-DMA on modern memory.</li>
+</ul>
+<h2 id="sources">Sources<a class="headerlink" href="#sources" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>rb2.pdf</strong> — RAM Buffer (RB2) Spec, Rev 2.3 (Fouladi/Banerjee), 16 pp.</li>
+<li>p.2 general description (REX3↔mem, LCA-100K, 66 MHz, 100-pin); p.3 Fig 1 block diagram.</li>
+<li>p.4 pin table; p.6 §3.1/3.2 REX3↔RB2 (15 ns/¼ page) + RB2↔VRAM (60 ns/2-pixel) interfaces.</li>
+<li>p.7 Fig 3.1 system interface (REX3 ↔ 4×RB2 ↔ 4 banks); p.8 §4 (4 RB2s, RB2SEL ops table,
+    draw/write-mask regs); p.9 planes / drawdepth tables; p.9–10 §4.3 LogicOp 16-op table;
+    p.10 read/write format + RB2_SELWMSK; p.11 §4.8 PLL clock; p.12 Table 4.4 frame-buffer formats.</li>
+<li><strong>ro1.pdf</strong> — ReOrganizer 1 (RO1) Spec, 15 pp.</li>
+<li>p.1 §1/§2 intro + functional (between FB and XMAPs, 8 banks in, overlay+color merge, rotate, FIFOs).</li>
+<li>p.2 pinout (Pixclk_div2, Serial_enable/Display_enable from VC2, Serial_clk0/1, Scanline[1:0],
+    Pix_out_x0/x1, BankA0..D1); p.3 Table 1 rotate encoding + dot-clock range; p.2/§3 1/5-dot serial
+    clock generation; p.5 two-FIFO depths + §5 VC2 60–65-clock handshake; p.9 8-bit-mode backend
+    diagram (VRAM→RO1→XMAP9→CMAP1, VC2).</li>
+</ul>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../xmap9/" class="btn btn-neutral float-left" title="XMAP9 (colormap)"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../../methodology/" class="btn btn-neutral float-right" title="Methodology (MAME oracle)">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../xmap9/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../../methodology/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

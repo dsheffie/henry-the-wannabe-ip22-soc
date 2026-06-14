@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>DMUX (data mux) - Henry — the wannabe IP22 SoC</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "DMUX (data mux)";
+        var mkdocs_page_input_path = "peripherals/dmux1.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> Henry — the wannabe IP22 SoC
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">Overview</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../architecture/">Architecture</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../cpu-integration/">CPU integration (r9999)</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../firmware-arcs/">Firmware (ARCS shim)</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../boot-and-console/">Boot & console</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../coherence-cache-tlb/">Cache, coherence & TLB</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Peripherals</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../mc/">MC (memory controller)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../ioc2/">IOC2 (serial console)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../hpc3/">HPC3 (SCSI/enet/DMA, RTC)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../gio64/">GIO64 (bus)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../vdma/">VDMA (virtual DMA)</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">DMUX (data mux)</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#role-in-henry-the-do-we-need-it-answer">Role in Henry (the "do we need it?" answer)</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#what-dmux-does">What DMUX does</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#register-interface">Register interface</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#relationship-to-mc-gio64-cpu-write-fifo">Relationship to MC / GIO64 / CPU write FIFO</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#minimum-for-a-henry-irix-boot">Minimum for a Henry IRIX boot</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#sources">Sources</a>
+    </li>
+    </ul>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Graphics (Newport)</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../graphics/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../graphics/rex3/">REX3 (raster engine)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../graphics/vc2/">VC2 (video timing/cursor)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../graphics/xmap9/">XMAP9 (colormap)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../graphics/rb2-ro1/">RB2 & RO1 (framebuffer/output)</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../methodology/">Methodology (MAME oracle)</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">Henry — the wannabe IP22 SoC</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Peripherals</li>
+      <li class="breadcrumb-item active">DMUX (data mux)</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="dmux-data-mux-henry-block-spec">DMUX — Data Mux (Henry block spec)<a class="headerlink" href="#dmux-data-mux-henry-block-spec" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p>DMUX ("MUX" in the chip's own spec; "DMUX" in the MC/board context) is the IP22 <strong>datapath gate array</strong> that
+sits between the R4000 SysAd bus, the interleaved DRAM (Memory A / Memory B), and the GIO64 bus. It is pure
+plumbing: a clock-domain-crossing data path with a 32-deep CPU write FIFO, an interleave mux for memory, a
+word-swap mux for GIO transfers, GIO read/write packers (32↔64-bit packing), and per-byte-lane parity gen/check.
+<strong>It has no CPU-visible registers</strong> — every control input comes from the MC chip, not from software. <strong>Bottom
+line: a Henry SoC that integrates r9999 with its own memory/GIO datapath subsumes DMUX entirely. Henry does not
+need to model DMUX as a block for a headless IRIX boot.</strong> The one externally observable behavior to keep in mind
+is end-to-end <em>parity</em> and <em>endianness/word-swap</em>, and even those are datapath properties Henry already owns.</p>
+</blockquote>
+<h2 id="role-in-henry-the-do-we-need-it-answer">Role in Henry  (the "do we need it?" answer)<a class="headerlink" href="#role-in-henry-the-do-we-need-it-answer" title="Permanent link">&para;</a></h2>
+<p><strong>No DMUX block is required.</strong> DMUX is the physical IP22 implementation of the data path that an SoC integrating
+r9999 already provides intrinsically:</p>
+<ul>
+<li>On a real IP22 board the CPU, the DRAM SIMMs, and the GIO64 bus are three separate physical interfaces running
+  on different clocks (CPU 50–65 MHz, GIO 33–40 MHz). DMUX is the gate array that physically routes 36-bit slices
+  (32 data + 4 parity) between them, crosses the clock domains with FIFOs, and does the interleave/word-swap
+  muxing. Two DMUX parts are used per machine, each handling 36 bits (dmux1.pdf p.1).</li>
+<li>In Henry, r9999's load/store path, the MC's memory interface, and the GIO64 bridge are all internal to the SoC
+  and already move data between CPU, memory, and peripherals. There is no asynchronous 36-bit gate-array boundary
+  to bridge, so the function DMUX performs has no separate existence.</li>
+<li>DMUX exposes <strong>zero memory-mapped registers</strong>. IRIX never addresses it. Nothing in the boot/PROM/kernel path
+  reads or writes a "DMUX register," so there is no register model to implement (the <em>MC</em> registers that <em>control</em>
+  DMUX — e.g. the FIFO high-water mark — live in the MC, and are documented in <code>mc.md</code>).</li>
+</ul>
+<p>What Henry must still get right is the <em>effect</em> DMUX has, which Henry's own datapath is responsible for anyway:
+correct data parity end-to-end (or simply not modeling parity errors), and correct byte/word ordering for
+big-endian IRIX. Those are not "model DMUX"; they are "make loads/stores and GIO transfers return the right
+bytes," which any working SoC datapath does.</p>
+<h2 id="what-dmux-does">What DMUX does<a class="headerlink" href="#what-dmux-does" title="Permanent link">&para;</a></h2>
+<p>DMUX is a sliced data path (two parts × 36 bits) performing <strong>six</strong> primitive operations, selected by a pair of
+mutually-exclusive selects driven by MC: <code>cpu_sel</code> (CPU↔memory) and <code>gio_sel</code> (the other four). The two are never
+asserted together (dmux1.pdf p.2). The six operations and how parity is handled (p.2):</p>
+<table>
+<thead>
+<tr>
+<th>Operation</th>
+<th>cpu_sel</th>
+<th>gio_sel</th>
+<th>mux_dir</th>
+<th>parity</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CPU GIO64 device read</td>
+<td>0</td>
+<td>1</td>
+<td>0</td>
+<td>generated</td>
+</tr>
+<tr>
+<td>GIO64 write to memory</td>
+<td>0</td>
+<td>1</td>
+<td>0</td>
+<td>generated</td>
+</tr>
+<tr>
+<td>CPU GIO64 device write</td>
+<td>0</td>
+<td>1</td>
+<td>1</td>
+<td>generated</td>
+</tr>
+<tr>
+<td>GIO64 read from memory</td>
+<td>0</td>
+<td>1</td>
+<td>1</td>
+<td>from memory</td>
+</tr>
+<tr>
+<td>CPU memory write</td>
+<td>1</td>
+<td>0</td>
+<td>—</td>
+<td>generated</td>
+</tr>
+<tr>
+<td>CPU memory read</td>
+<td>1</td>
+<td>0</td>
+<td>—</td>
+<td>from memory</td>
+</tr>
+</tbody>
+</table>
+<p>Functional blocks (dmux1.pdf pp.2–3, 6–19):</p>
+<ul>
+<li><strong>CPU write FIFO</strong> — a <strong>32-entry × 40-bit</strong> ("40 bits 32 data, 4 generated parity, 4 parity-error") write
+  buffer on the CPU→memory and CPU→GIO path. It decouples the 50 MHz CPU from the slower memory/GIO sides and
+  acts as the CPU write buffer. Data is pushed with <code>cpu_push</code> (a dedicated signal — data can be pushed even when
+  DMUX is busy with another op). 32 deep so it can hold <strong>two complete 32-word cache block writes</strong>, the largest
+  block the CPU issues. The MC tracks fill level; DMUX itself "does not have to worry about the write buffer
+  being over filled." Implemented as a 32×40 triple-port RAM with bypass muxes (ping-pong read) to meet 65 MHz
+  (pp.4, 7).</li>
+<li><strong>Interleave mux (CPU reads from memory)</strong> — DRAM is 2-way interleaved (Memory A / Memory B, each 36 bits).
+  On a CPU read, DMUX selects/merges the two 36-bit memory ports onto SysAd under <code>data_sel</code>, with the swap
+  options listed below (pp.8–9).</li>
+<li><strong>Word-swap mux (CPU↔GIO)</strong> — On CPU reads from / writes to GIO, DMUX performs one of several
+  word-swap/duplicate operations so a 32-bit GIO device, a 64-bit GIO device, and the high/low SysAd words line
+  up. <code>data_sel(1:0)</code> picks: pass-through <code>gio_ad(63:0)→sysad(63:0)</code>, duplicate-low-word-onto-both (needed when
+  R4000 reads a 32-bit GIO device), or move-high-word-to-low (R3000 reading high bits) (pp.10–11).</li>
+<li><strong>GIO write packer + GIO64 write buffer</strong> — packs 32- and 64-bit GIO bus-master writes into 128-bit quad words
+  for memory; a <strong>six-entry</strong> write buffer between GIO and the memory data outputs isolates GIO stalls from the
+  memory write. Driven by GIO <em>commands</em> the MC feeds via a <strong>12-entry command FIFO</strong> (pp.12, 14–16).</li>
+<li><strong>GIO read buffer / unpacker</strong> — a <strong>three-entry</strong> GIO memory-read FIFO; unpacks memory data back onto the GIO
+  bus, again command-driven from MC (pp.17–19).</li>
+<li><strong>Parity</strong> — DMUX carries parity on every 36-bit slice (32 data + 4 parity). It <strong>generates</strong> parity on writes
+  and on reads sourced from the CPU/GIO, and <strong>passes/checks</strong> parity on reads sourced from memory. <code>par_err(3:0)</code>
+  reports detected parity errors to MC. <code>par_flush</code> (qualified with <code>cpu_sel</code> after the Rev 1.2 fix) can
+  deliberately write <em>bad</em> parity to memory for diagnostics (pp.2, 5, 36 [Rev 1.2], 37 [problems]).</li>
+</ul>
+<p>Two clock domains: <code>cpu_clk</code> (50–65 MHz) and <code>gio_clk</code> (33–40 MHz). All MC control signals are flopped before
+use; <code>cpu_sel</code> ops are synchronous to <code>cpu_clk</code>, <code>gio_sel</code> ops to <code>gio_clk</code> (p.2). <code>csize64</code> (R4000 = full 64-bit
+SysAd) was removed as a pin — pulled high internally; R3000 support is gone (pp.2, 4).</p>
+<h2 id="register-interface">Register interface<a class="headerlink" href="#register-interface" title="Permanent link">&para;</a></h2>
+<p><strong>None.</strong> DMUX has no CPU-addressable registers and is not in any peripheral address map. It is a slave to the MC
+chip: all of its behavior is selected cycle-by-cycle by MC-driven control pins, not by software. The pins are
+(dmux1.pdf pp.20–22):</p>
+<ul>
+<li><strong>Selects / direction:</strong> <code>gio_sel</code>, <code>cpu_sel</code>, <code>mux_dir</code>, <code>cpu_push</code>, <code>cpu_mem_oe</code>.</li>
+<li><strong>Mux source / packing:</strong> <code>data_sel(2:0)</code>, <code>graphics(1:0)</code> (which slave delay signal), <code>aen_mem</code>, <code>ben_ctrl</code>,
+  <code>cen_fifo</code>, <code>giostb</code> (a valid GIO command), <code>par_flush</code>.</li>
+<li><strong>Delay / handshake in:</strong> <code>masdly</code>, <code>slvdly</code>, <code>grxdly(2:0)</code>, <code>mc_dly</code>.</li>
+<li><strong>Data buses:</strong> <code>sysad(31:0)+sysad_par(3:0)</code> (R4000), <code>gio_data(31:0)+gio_par(3:0)</code> (GIO64),
+  <code>mem_a(31:0)+par</code>, <code>mem_b(31:0)+par</code> (interleaved DRAM).</li>
+<li><strong>Out:</strong> <code>par_err(3:0)</code> (parity error to MC).</li>
+<li><strong>Infra:</strong> <code>cpu_clk</code>/<code>gio_clk</code> + PLLs, <code>reset_n</code>, JTAG/ATPG (<code>jtdi/jtdo/jtms/jtck/tp0/tp1/entei</code>).</li>
+</ul>
+<p>Total 189 signal pins; 240-pin and 299-pin MQFP packages (pp.20, 23–31). None of this is software-visible.</p>
+<h2 id="relationship-to-mc-gio64-cpu-write-fifo">Relationship to MC / GIO64 / CPU write FIFO<a class="headerlink" href="#relationship-to-mc-gio64-cpu-write-fifo" title="Permanent link">&para;</a></h2>
+<p>DMUX is the <em>muscle</em>; MC is the <em>brain</em>. The MC decodes the CPU/GIO addresses, arbitrates the GIO64 bus, tracks
+how full the CPU write FIFO is, and drives every DMUX control pin (including <code>cpu_push</code> to load CPU write data and
+the <code>giostb</code>/command stream for GIO packing). DMUX just routes bytes when told.</p>
+<p>The <strong>"MUX HWM" / CPU-write-FIFO high-water mark</strong> referenced from the MC spec lives in MC's CPUCTRL1 (see
+<code>mc.md</code>, where <code>MC fifo HWM[3:0]</code> defaults to <code>0xC</code>). That is the MC telling itself how full to let <em>DMUX's</em>
+32-entry CPU write FIFO get before it deasserts <code>cpu_wrrdy_n</code> to throttle the processor (dmux1.pdf p.4: "When the
+fifo is full the MC chip will deassert the processor cpu_wrrdy_n signal"). So the HWM is an MC register about a
+DMUX resource — and in Henry it's purely an MC-side concern. From the GIO64 side, MC throttles GIO bus masters
+with <code>slvdly</code> when DMUX's GIO write/read FIFOs back up.</p>
+<h2 id="minimum-for-a-henry-irix-boot">Minimum for a Henry IRIX boot<a class="headerlink" href="#minimum-for-a-henry-irix-boot" title="Permanent link">&para;</a></h2>
+<p><strong>Nothing DMUX-specific.</strong> Concretely:</p>
+<ul>
+<li><strong>No register model</strong> — DMUX has no software-visible registers, so there is nothing for the PROM/ARCS/kernel to
+  probe. (The HWM and friends are already covered by the MC model.)</li>
+<li><strong>No separate block</strong> — Henry's r9999↔memory and r9999↔GIO64 datapaths are the SoC-internal equivalent of what
+  DMUX does on a physical IP22 board; integrating the core subsumes the gate array. The clock-domain FIFOs, the
+  interleave mux, and the GIO packers are artifacts of three physical chips on different clocks — Henry doesn't
+  have that boundary.</li>
+<li><strong>Do get the datapath <em>effects</em> right</strong> (these are Henry's datapath responsibility, not a "DMUX block"):</li>
+<li><strong>Endianness / word ordering.</strong> Big-endian IRIX expects the byte/word lane mapping DMUX's word-swap muxes
+     produce. Henry's load/store and GIO paths must return the correct bytes. (Compare with the MC big-endian
+     alias note in <code>mc.md</code> — same theme: get the lanes right.)</li>
+<li><strong>Parity</strong> can be ignored. DMUX parity exists to <em>detect DRAM faults</em>; on simulated/SoC memory there are no
+     bit flips, and the parity-error interrupt path is maskable. Henry need not model parity gen/check to boot.</li>
+<li>The known DMUX silicon bug (bad-parity-on-<code>par_flush</code> corrupting the GIO FIFO, IDE-then-SCSI failure, p.37) is
+  a hardware erratum with no bearing on a clean Henry datapath — do not replicate it.</li>
+</ul>
+<p>If Henry ever grows a <em>cycle-accurate, multi-chip</em> model of an IP22 board (separate MC + DMUX + GIO devices on
+real clocks), DMUX becomes a real block: the 32-entry CPU write FIFO, the 6-entry GIO write buffer, the 3-entry
+GIO read buffer, the 12-entry GIO command FIFO, and the interleave/word-swap muxes would all need modeling. For a
+<em>functional headless IRIX boot</em> on an r9999 SoC, none of that is needed.</p>
+<h2 id="sources">Sources<a class="headerlink" href="#sources" title="Permanent link">&para;</a></h2>
+<ul>
+<li>dmux1.pdf p.1 — full-machine block diagram; "two MUX parts handle 36 bits including parity."</li>
+<li>dmux1.pdf p.2 — block overview, two clock domains, <code>cpu_sel</code>/<code>gio_sel</code>, six-operation/parity table, <code>csize64</code> removed.</li>
+<li>dmux1.pdf p.3 — MUX block diagram (CPU write buffer, packer, GIO/MEM FIFOs, parity gen/chk).</li>
+<li>dmux1.pdf p.4 — CPU writes to memory: two-part write, <strong>32-entry</strong> FIFO, <code>cpu_push</code>, <code>cpu_wrrdy_n</code> throttle, <code>csize64</code> pulled high.</li>
+<li>dmux1.pdf pp.5–7 — write control signals (<code>aen_mem</code>/<code>ben_ctrl</code>/<code>cen_fifo</code>/<code>par_flush</code>), CPU write buffer = 32×40 triple-port RAM.</li>
+<li>dmux1.pdf pp.8–9 — CPU reads from memory: interleave mux, <code>data_sel</code> source select.</li>
+<li>dmux1.pdf pp.10–11 — CPU reads from GIO64/EISA: word-swap mux options.</li>
+<li>dmux1.pdf pp.12–13 — CPU writes to GIO64: 12-entry GIO command FIFO.</li>
+<li>dmux1.pdf pp.14–16 — GIO writes to memory: packer, <strong>6-entry</strong> write buffer, 8×72 triple-port RAM.</li>
+<li>dmux1.pdf pp.17–19 — GIO reads from memory: unpacker, <strong>3-entry</strong> read FIFO.</li>
+<li>dmux1.pdf pp.20–22 — MUX pins: data buses, control signals, GIO64/clock/JTAG signals (189 pins, no registers).</li>
+<li>dmux1.pdf pp.23–31 — pin cross-reference (299- and 240-pin packages).</li>
+<li>dmux1.pdf p.36 — Rev 1.2: <code>par_flush</code> qualified with <code>cpu_sel</code>.</li>
+<li>dmux1.pdf p.37 — known problem (par_flush/GIO-FIFO, IDE→SCSI), power (1.28 W).</li>
+<li>mc.md — MC CPUCTRL1 <code>MC fifo HWM[3:0]=0xC</code> (the high-water mark that governs DMUX's CPU write FIFO).</li>
+</ul>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../vdma/" class="btn btn-neutral float-left" title="VDMA (virtual DMA)"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../../graphics/" class="btn btn-neutral float-right" title="Overview">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../vdma/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../../graphics/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

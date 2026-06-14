@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>IOC2 (serial console) - Henry — the wannabe IP22 SoC</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "IOC2 (serial console)";
+        var mkdocs_page_input_path = "peripherals/ioc2.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> Henry — the wannabe IP22 SoC
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">Overview</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../architecture/">Architecture</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../cpu-integration/">CPU integration (r9999)</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../firmware-arcs/">Firmware (ARCS shim)</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../boot-and-console/">Boot & console</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../coherence-cache-tlb/">Cache, coherence & TLB</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Peripherals</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../mc/">MC (memory controller)</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">IOC2 (serial console)</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#role-in-henry-and-why-its-the-first-peripheral-to-implement">Role in Henry (and why it's the first peripheral to implement)</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#serial-console-z8530-scc-the-priority">Serial console (Z8530 SCC) — THE priority</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#int3-interrupt-controller">INT3 interrupt controller</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#8254-timer">8254 timer</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#boot-identification-power-regs">Boot-identification &amp; power regs</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#minimum-for-a-henry-irix-boot">Minimum for a Henry IRIX boot</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#golden-vectors-from-mame">Golden vectors (from MAME)</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#open-not-yet-needed">Open / not-yet-needed</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#sources">Sources</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../hpc3/">HPC3 (SCSI/enet/DMA, RTC)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../gio64/">GIO64 (bus)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../vdma/">VDMA (virtual DMA)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../dmux1/">DMUX (data mux)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Graphics (Newport)</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../graphics/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../graphics/rex3/">REX3 (raster engine)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../graphics/vc2/">VC2 (video timing/cursor)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../graphics/xmap9/">XMAP9 (colormap)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../graphics/rb2-ro1/">RB2 & RO1 (framebuffer/output)</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../methodology/">Methodology (MAME oracle)</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">Henry — the wannabe IP22 SoC</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Peripherals</li>
+      <li class="breadcrumb-item active">IOC2 (serial console)</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="ioc2-io-controller-henry-block-spec">IOC2 — I/O Controller (Henry block spec)<a class="headerlink" href="#ioc2-io-controller-henry-block-spec" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p>Intro: IOC2 @ phys base 0x1FBD9800 — serial (Z8530 SCC), INT3 interrupt controller, 8254 timer, kbd/mouse,
+parallel, boot-ID/power regs. THE serial console lives here and is the #1 Henry bring-up target. Legend ✅ = MAME-validated / must-have; ⚠️ = stub or not-yet-needed.</p>
+<p>The IOC2 is a single VTI ASIC ("Guinness" variant for Indy) holding six macrocells: VTI 85CX30 serial DUART,
+SGI PI1 parallel, Intel 8042 kbd/mouse, Intel 8254 timer, SGI INT3 interrupt mux, and miscellaneous glue
+(power/ID/reset). It hangs off the HPC3 P-bus (PBUS_CS_N&lt;6&gt;); registers are 64 word-spaced (×4) slots at base
+0x1FBD9800. All addresses below are absolute physical (k1seg uncached: OR 0xA0000000).</p>
+</blockquote>
+<h2 id="role-in-henry-and-why-its-the-first-peripheral-to-implement">Role in Henry  (and why it's the first peripheral to implement)<a class="headerlink" href="#role-in-henry-and-why-its-the-first-peripheral-to-implement" title="Permanent link">&para;</a></h2>
+<p>Henry is a headless, PROM-less r9999 SoC whose entire observable output during IRIX bring-up is the <strong>serial
+console</strong>. MEASURED (2026-06-13, IRIX 6.5 boot, <code>console=d</code>): the IRIX kernel does <strong>NOT</strong> route the console
+through ARCS — <code>arcs_write</code>=0, <code>romvec[Write]</code>=0 over a full boot. Both the PROM diagnostic phase
+("Running power-on diagnostics…") and the kernel phase ("IRIX Release 6.5 IP22…") write the <strong>Z8530 SCC
+directly</strong> via the <code>du_*</code> serial driver (<code>du_putchar</code>/<code>ducons_write</code>). The "free output via the ARCS Write
+hook" path therefore does <strong>not</strong> work — Henry must emulate a minimal Z8530 at the IOC2 SCC address or it boots
+blind. That makes IOC2 the first peripheral: get ~10 lines of polled TX working and Henry can print, after
+which every other bring-up step is observable. Ground truth for the stream was captured with a C++ hook on the
+SCC TX register (<code>scc_dc_w</code> in MAME <code>src/mame/sgi/ioc2.cpp</code>).</p>
+<h2 id="serial-console-z8530-scc-the-priority">Serial console (Z8530 SCC) — THE priority<a class="headerlink" href="#serial-console-z8530-scc-the-priority" title="Permanent link">&para;</a></h2>
+<p>The 85CX30 is a Zilog Z85230-class <strong>dual-channel</strong> ESCC. <strong>Indy console = Port 1, channel A.</strong> The macrocell
+uses Zilog <strong>indirect addressing</strong>: the IOC2 decodes two address lines into 4 byte addresses, where
+<strong>addr bit1 = channel</strong> (0 = Port1/chan A, 1 = Port2/chan B) and <strong>addr bit0 = data/command</strong> (0 = command/
+register, 1 = data). ✅ Confirmed against MAME <code>map(0x0c,0x0f) -&gt; z80scc ab_dc_r/w</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Addr (phys)</th>
+<th>IOC word</th>
+<th>Z8530 access</th>
+<th>r9999 behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0x1FBD9830</code></td>
+<td>0x0c</td>
+<td>Port1 (chan A) <strong>command/RR0</strong></td>
+<td><strong>read → return <code>0x04</code></strong> (RR0 bit2 Tx Buffer Empty). write → swallow (WR pointer/select). ✅</td>
+</tr>
+<tr>
+<td><code>0x1FBD9834</code></td>
+<td>0x0d</td>
+<td>Port1 (chan A) <strong>data</strong></td>
+<td><strong>write[7:0] → emit byte to console sink (stdout).</strong> read → 0 (no Rx). ✅ THIS is <code>du_putchar</code>'s store.</td>
+</tr>
+<tr>
+<td><code>0x1FBD9838</code></td>
+<td>0x0e</td>
+<td>Port2 (chan B) command/RR0</td>
+<td>return <code>0x04</code>, swallow writes (2nd serial port — not console). ⚠️</td>
+</tr>
+<tr>
+<td><code>0x1FBD983C</code></td>
+<td>0x0f</td>
+<td>Port2 (chan B) data</td>
+<td>swallow / 0. ⚠️</td>
+</tr>
+</tbody>
+</table>
+<p>Minimal TX recipe (the whole console for Henry):
+1. <strong>Write <code>0x1FBD9834</code></strong> → take <code>data[7:0]</code>, append to the console output sink. That's the printed character.
+2. <strong>Read <code>0x1FBD9830</code></strong> → always return <strong><code>0x04</code></strong> so the driver's "wait for Tx empty" poll (<code>while(!(RR0&amp;4));</code>)
+   never stalls. (Real RR0: bit2 = Tx Buffer Empty, bit0 = Rx Char Available, bit3 = DCD, …; Henry only needs
+   bit2 = 1, rest 0.)
+3. <strong>Write <code>0x1FBD9830</code></strong> → <strong>swallow.</strong> These are WR-pointer selects and WR-register loads (baud, mode, IE).
+   Henry models no internal SCC register file; a stateless drain ignores them. Baud (DMA_SEL <code>0x9868[5:4]</code>,
+   default 00 = 10 MHz internal) is irrelevant to a stdout drain.</p>
+<p>Note: IRIX talks to this register <strong>directly</strong>, not through ARCS — so emulating these 4 addresses is mandatory,
+not optional. ~10 lines of logic (decode 2 addrs, mux a constant, forward a byte) buys the entire boot log.</p>
+<h2 id="int3-interrupt-controller">INT3 interrupt controller<a class="headerlink" href="#int3-interrupt-controller" title="Permanent link">&para;</a></h2>
+<p>Base <code>0x1FBD9880</code>. INT3 multiplexes system interrupts onto <strong>5 CPU interrupt outputs</strong> CPU_INT_N&lt;4:0&gt;, wired to
+CP0 Cause IP2..IP6. INT3 does <strong>no internal latching</strong> except the two 8254 timer interrupts; it expects already-
+latched, level-triggered, <strong>active-high</strong> status (a <code>1</code> = active interrupt regardless of mask/polarity).</p>
+<p>5 output levels (priority): <strong>Level0 = Local0 → IP2</strong>, <strong>Level1 = Local1 → IP3</strong>, <strong>Level2 = Timer0 → IP4</strong>,
+<strong>Level3 = Timer1 → IP5</strong>, <strong>Level4 = Bus Error → IP6</strong> (bus-error is non-maskable).</p>
+<table>
+<thead>
+<tr>
+<th>Reg</th>
+<th>Addr</th>
+<th>Notable bits</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Local0 Status</td>
+<td><code>0x9880</code></td>
+<td>b0 FIFO-full, b1 SCSI0, b2 SCSI1, b3 ENET, b4 MC-DMA-done, <strong>b5 Parallel</strong>, b6 Graphics, b7 MAP_INT0</td>
+</tr>
+<tr>
+<td>Local0 Mask</td>
+<td><code>0x9884</code></td>
+<td>RW, same bit order; <code>1</code>=enable, default 0 (masked) after reset</td>
+</tr>
+<tr>
+<td>Local1 Status</td>
+<td><code>0x9888</code></td>
+<td>b0 GP0, <strong>b1 Panel</strong> (power/vol), b2 GP_LOCAL1&lt;2&gt;, b3 MAP_INT1, b4 HPC-DMA-done, b5 AC-Fail, b6 Vsync, b7 Vretrace</td>
+</tr>
+<tr>
+<td>Local1 Mask</td>
+<td><code>0x988C</code></td>
+<td>RW, same order, default 0</td>
+</tr>
+<tr>
+<td>Map Status</td>
+<td><code>0x9890</code></td>
+<td>mappable ints; <strong>b5 = Serial DUART</strong>, b4 = Kbd/Mouse, b&lt;7:6&gt;/b&lt;3:0&gt; general. Status unaffected by mask/pol</td>
+</tr>
+<tr>
+<td>Map Mask0</td>
+<td><code>0x9894</code></td>
+<td>RW → routes to MAP_INT0 (Local0 b7); b5 reserved=serial, b4 reserved=kbd</td>
+</tr>
+<tr>
+<td>Map Mask1</td>
+<td><code>0x9898</code></td>
+<td>RW → routes to MAP_INT1 (Local1 b3)</td>
+</tr>
+<tr>
+<td>Map Pol</td>
+<td><code>0x989C</code></td>
+<td>RW polarity; <code>1</code>=active-high, <code>0</code>=active-low (default). <strong>Serial(b5)/Kbd(b4) are active-low → leave 0</strong></td>
+</tr>
+<tr>
+<td>Timer Clear</td>
+<td><code>0x98A0</code></td>
+<td>W; b0 clears Timer0 int, b1 clears Timer1 int</td>
+</tr>
+<tr>
+<td>Error Status</td>
+<td><code>0x98A4</code></td>
+<td>R; b0 EISA-err, b1 MC-bus-err, b2 HPC-bus-err (the 3 non-maskable bus errors → IP6)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Serial IRQ path:</strong> the SCC interrupt is a <em>mappable</em> int → Map Status <code>0x9890</code> <strong>bit5</strong>; routed via Map Mask0/1
+to a Local0/Local1 line, then to IP2/IP3. <strong>Not needed for a polled-TX console</strong> (IRIX's du driver polls RR0).
+Implement the registers as plain R/W storage first; wire real assertions only when adding Rx or interrupt-driven
+TX.</p>
+<h2 id="8254-timer">8254 timer<a class="headerlink" href="#8254-timer" title="Permanent link">&para;</a></h2>
+<p>Standard Intel 82C54 PIT, 3 counters, fed by a divide-by-20 state machine off CLK_20MHz → <strong>1 MHz / 1 µs tick</strong>.
+Counter2 output clocks Counter0 and Counter1; Counter0 terminal count → Timer0 int (INT3 IP4, the system tick),
+Counter1 TC → Timer1 int (IP5). Registers at base <code>0x1FBD98B0</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Reg</th>
+<th>Addr</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Counter 0</td>
+<td><code>0x98B0</code></td>
+</tr>
+<tr>
+<td>Counter 1</td>
+<td><code>0x98B4</code></td>
+</tr>
+<tr>
+<td>Counter 2</td>
+<td><code>0x98B8</code></td>
+</tr>
+<tr>
+<td>Control Word</td>
+<td><code>0x98BC</code></td>
+</tr>
+</tbody>
+</table>
+<p>⚠️ Not on the critical console path. IRIX needs a working tick eventually (scheduler/<code>clock</code>), but the polled
+serial boot reaches its first console output before the timer matters. Implement as a real 82C54 (mode-3 square
+wave on C0) when chasing past early boot.</p>
+<h2 id="boot-identification-power-regs">Boot-identification &amp; power regs<a class="headerlink" href="#boot-identification-power-regs" title="Permanent link">&para;</a></h2>
+<p>PROM/IRIX probe these during early init; Henry must return plausible values or init stalls/branches wrong. Most
+are simple constant-return or accept-and-store.</p>
+<table>
+<thead>
+<tr>
+<th>Reg</th>
+<th>Addr</th>
+<th>r9999 must return / accept</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>System ID</td>
+<td><code>0x9858</code></td>
+<td><strong><code>0x26</code></strong> (Guinness)</td>
+<td>b&lt;7:5&gt;=001 chip rev (≠0 = real IOC, not discrete), b&lt;4:1&gt;=board rev (0x3), <strong>b0=0 = Sapphire/Guinness</strong> (1 would = Full House). ✅ MAME <code>get_system_id()=0x26</code>.</td>
+</tr>
+<tr>
+<td>Read Reg</td>
+<td><code>0x9860</code></td>
+<td>power/PTC-good bits high, e.g. <strong><code>0xF0</code></strong></td>
+<td>b7 ENET-link, b6 ENET-pwr, b5 SCSI1-pwr (FH only), b4 SCSI0-pwr. High = power good; return upper bits set so PROM sees healthy rails.</td>
+</tr>
+<tr>
+<td>Front Panel</td>
+<td><code>0x9850</code></td>
+<td>reset value <strong><code>0xE1</code></strong></td>
+<td>b0 Power-State (1=on), b1 power-button-int (W1C), b4/b6 vol-down/up int (W1C), b5/b7 vol-down/up hold. PROM clears the power-button int by writing 1 to b1. Accept <code>0x03</code> to mean "power on." ✅ MAME init = VOL_UP_HOLD|VOL_DOWN_HOLD|POWER_STATE = 0xE1.</td>
+</tr>
+<tr>
+<td>GC Select</td>
+<td><code>0x9848</code></td>
+<td>RW storage (=0xFF ok)</td>
+<td>configures GEN_CNTL&lt;7:0&gt; dir; b=1 output. Accept writes.</td>
+</tr>
+<tr>
+<td>General Control</td>
+<td><code>0x984C</code></td>
+<td>RW storage</td>
+<td>GEN_CNTL&lt;7:0&gt; data lines, last-minute control. Accept.</td>
+</tr>
+<tr>
+<td>DMA Select</td>
+<td><code>0x9868</code></td>
+<td><strong>0</strong> (default)</td>
+<td>b&lt;5:4&gt; serial clk sel (00=10 MHz), b2 parallel-DMA, b&lt;1:0&gt; ISDN-DMA. Accept; 0 is fine.</td>
+</tr>
+<tr>
+<td>Reset</td>
+<td><code>0x9870</code></td>
+<td>RW, self-clearing</td>
+<td>b0 parallel rst, b1 kbd/mouse rst, b&lt;5:4&gt; LED, b3 ISDN rst. Accept and read back 0.</td>
+</tr>
+<tr>
+<td>Write</td>
+<td><code>0x9878</code></td>
+<td>RW storage</td>
+<td>margin (b7/b6), UART PC-mode (b5/b4), ENET select bits. Accept; defaults (0) are fine for console.</td>
+</tr>
+</tbody>
+</table>
+<p>Henry rule of thumb: every "Not Used" slot and every unmodeled control reg → <strong>accept writes (swallow), return 0
+on read</strong> (except the four constants above). That keeps PROM/IRIX init walking forward.</p>
+<h2 id="minimum-for-a-henry-irix-boot">Minimum for a Henry IRIX boot<a class="headerlink" href="#minimum-for-a-henry-irix-boot" title="Permanent link">&para;</a></h2>
+<p>Implement, in order:
+1. <strong>Polled serial TX (~10 lines, do this first):</strong> decode <code>0x1FBD9830</code>/<code>0x34</code>; read 0x30 → <code>0x04</code>; write 0x34 →
+   emit byte; swallow 0x30 writes. This alone produces the entire boot console.
+2. <strong>Boot-ID constants:</strong> System ID <code>0x9858</code>→<code>0x26</code>; Read <code>0x9860</code>→<code>0xF0</code>; Front Panel <code>0x9850</code>→<code>0xE1</code> (W1C on
+   b1/b4/b6).
+3. <strong>Accept-and-ignore the rest:</strong> GC/General/DMA-Sel/Reset/Write regs and all INT3 regs as plain R/W storage;
+   reads of unmodeled/Not-Used → 0.
+4. (Later, post-first-output) 8254 Timer0 → IP4 tick; INT3 serial mappable int (b5) for interrupt-driven console.</p>
+<p>Everything past step 1 is "don't stall init"; step 1 is the actual deliverable.</p>
+<h2 id="golden-vectors-from-mame">Golden vectors (from MAME)<a class="headerlink" href="#golden-vectors-from-mame" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>SCC TX stream</strong> captured via <code>scc_dc_w</code> hook (<code>SCCW off=1 data=XX c</code>): <code>off=1</code> (= addr 0x34, Port1 data) bytes
+  are the console chars. Full IRIX serial boot reconstructed at <code>~/code/mame/irix_serial_console.txt</code> (~972 bytes
+  through the SCC-write hook; the <code>du_putchar</code> entry-breakpoint undercounts because TX is buffered).</li>
+<li><strong>RR0 read</strong> (addr 0x30) golden value = <code>0x04</code> (Tx Buffer Empty) — the value that keeps the poll loop moving.</li>
+<li><strong>System ID</strong> (0x9858) golden for Guinness/Indy = <strong><code>0x26</code></strong> (<code>ioc2_guinness_device::get_system_id()</code>).</li>
+<li><strong>Front Panel</strong> (0x9850) power-on reset golden = <strong><code>0xE1</code></strong>; "power on" written value the PROM accepts = <code>0x03</code>.</li>
+<li><strong>Address decode</strong> golden: MAME <code>map(0x0c,0x0f)</code> = SCC (word 0x0c–0x0f = byte 0x30–0x3C); <code>map(0x14)</code> Front
+  Panel, <code>map(0x16)</code> System ID (word indices; ×4 → 0x50, 0x58 absolute).</li>
+</ul>
+<h2 id="open-not-yet-needed">Open / not-yet-needed<a class="headerlink" href="#open-not-yet-needed" title="Permanent link">&para;</a></h2>
+<ul>
+<li>⚠️ <strong>Kbd/mouse (8042)</strong> <code>0x9840/0x9844</code> — headless Henry has no console keyboard; stub (return 0).</li>
+<li>⚠️ <strong>Parallel port (PI1)</strong> <code>0x9800–0x982C</code> — no printer; stub.</li>
+<li>⚠️ <strong>Port2 serial (chan B)</strong> <code>0x9838/0x983C</code> — second UART, not the console; stub <code>0x04</code>/0.</li>
+<li>⚠️ <strong>Interrupt-driven serial / Rx</strong> — IRIX boot console is polled-TX; Rx and the INT3 serial mappable int
+  (Map Status b5) only needed for an interactive console (input echo, getty).</li>
+<li>⚠️ <strong>8254 real timing</strong> — needed for scheduler tick eventually, not for first boot output.</li>
+<li>⚠️ <strong>Power/volume state machine, ISDN glue, EISA</strong> — pure storage stubs; never exercised headless.</li>
+</ul>
+<h2 id="sources">Sources<a class="headerlink" href="#sources" title="Permanent link">&para;</a></h2>
+<ul>
+<li><code>~/code/sgi/docs/indy_docs/ip22/ioc.pdf</code> — VTI IOC2 spec (Vic Alessi, 1993): §2.1 85CX30 DUART, §2.5 INT3,
+  §4.0 register map (p.13), §4.5 INT3 reg bits (p.14–16), §4.6 misc/ID/power regs (p.16–18).</li>
+<li><code>~/code/r9999/IP22_CHIP_REGISTERS.md</code> — IOC2 section (absolute base 0x1FBD9800 correction; SCC console recipe).</li>
+<li><code>~/code/r9999/IRIX_KERNEL_GAPS.md</code> — console section (measured: IRIX boot console = Z8530 direct, arcs_write=0).</li>
+<li><code>~/code/mame/src/mame/sgi/ioc2.cpp</code> / <code>ioc2.h</code> — golden reference (<code>scc_dc_w</code> TX hook, <code>get_system_id()=0x26</code>,
+  Front Panel reset = 0xE1, <code>map(0x0c,0x0f)</code> SCC decode).</li>
+<li><code>~/code/mame/irix_serial_console.txt</code> — captured golden console stream.</li>
+</ul>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../mc/" class="btn btn-neutral float-left" title="MC (memory controller)"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../hpc3/" class="btn btn-neutral float-right" title="HPC3 (SCSI/enet/DMA, RTC)">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../mc/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../hpc3/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>
