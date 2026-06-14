@@ -1269,11 +1269,12 @@ space bus-errors); this is future-work for a real display console.</p>
 <p>Part: VC2, SGI 099-8918-001, Toshiba TC160G, 144 PQFP, ~27.5k gates (vc2.pdf p.2).</p>
 <h2 id="role-architecture">Role &amp; architecture<a class="headerlink" href="#role-architecture" title="Permanent link">&para;</a></h2>
 <p>VC2 is one chip in the Newport pipeline. Newport datapath (p.3 block diagram):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>REX3 ──DCB──&gt; VC2 ──CURSOR──&gt; XMAP9 ──&gt; CMAP ──&gt; RAMDAC ──&gt; R/G/B
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>                │  ──DID────&gt;          (video timing channels fan out to XMAP9, CMAP,
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>                │                        RAMDAC, RO1, and the monitor sync pins)
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>           32Kx16 SRAM
-</code></pre></div>
+<pre class="mermaid"><code>flowchart LR
+    REX3["REX3"] -.-&gt;|DCB| VC2["&lt;b&gt;VC2&lt;/b&gt;&lt;br/&gt;video timing + cursor"]
+    SRAM[("32K×16 SRAM&lt;br/&gt;&lt;small&gt;cursor / DID / timing tables&lt;/small&gt;")] --- VC2
+    XMAP9["XMAP9"] --&gt; CMAP["CMAP"] --&gt; RAMDAC["RAMDAC"] --&gt; RGB([R/G/B])
+    VC2 --&gt;|CURSOR| XMAP9
+    VC2 -.-&gt;|"DID · video timing&lt;br/&gt;(→ XMAP9, CMAP, RAMDAC, RO1, monitor sync)"| XMAP9</code></pre>
 <p>The host (via REX3/DCB) writes three table types into the external SRAM; VC2 walks them in real
 time to drive its outputs. It has six internal blocks (p.24):</p>
 <ul>

@@ -1296,29 +1296,15 @@ by <strong><code>Serial_enable</code> from VC2</strong> and readout by <strong><
 pixel ≥6) before active video (ro1.pdf p.2, p.5). Dot-clock range supported is 6 MHz (NTSC) to 140 MHz
 (76 Hz refresh) (ro1.pdf p.3).</p>
 <h2 id="the-pixel-pipeline-end-to-end">The pixel pipeline end-to-end<a class="headerlink" href="#the-pixel-pipeline-end-to-end" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>REX3 (raster engine, scan-converts triangles/spans, LogicOp front end)
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>  │  RB2_DATA[7:0] × banks,  RB2SEL[2:0] op,  write-mask/draw regs
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>  ▼
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>RB2 ×4  (LogicOp + write-format → VRAM ;  read-format ← VRAM)   ── random port
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>  │  VRAM_DATA[23:0] per bank
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>  ▼
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>VRAM frame buffer  (RGB/CI + OLAY/PUP/CID planes, double-buffered)
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>  │  serial port,  8 bytes/serial-clk  (RO1 drives Serial_clk = 1/5 dot)
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>  ▼
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>RO1 ×3  (overlay+color merge → 12-bit ;  odd/even rotate de-stagger)   ── serial/scanout port
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>  │  Pix_out_x0/x1[11:0]  @ ½ dot clock
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>  ▼
-<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>XMAP9 ×N  (mode/WID lookup, color-index → RGB, gamma path select)
-<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>  │  ~26-bit
-<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>  ▼
-<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>CMAP1  (color map / palette RAM)
-<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>  │  24-bit RGB
-<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>  ▼
-<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>DAC → CRT
-<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>
-<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>VC2  = video timing/cursor controller: generates Serial_enable + Display_enable to RO1,
-<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>       and the CBLANK/sync timing the whole scanout is sequenced against.
-</code></pre></div>
+<pre class="mermaid"><code>flowchart TD
+    REX3["&lt;b&gt;REX3&lt;/b&gt;&lt;br/&gt;&lt;small&gt;scan-convert · LogicOp front end&lt;/small&gt;"]
+    REX3 --&gt;|"RB2_DATA[7:0]×banks · RB2SEL[2:0] · masks"| RB2["&lt;b&gt;RB2 ×4&lt;/b&gt;&lt;br/&gt;&lt;small&gt;LogicOp + write/read format · random port&lt;/small&gt;"]
+    RB2 &lt;--&gt;|"VRAM_DATA[23:0]/bank"| VRAM[("&lt;b&gt;VRAM&lt;/b&gt; frame buffer&lt;br/&gt;&lt;small&gt;RGB/CI + OLAY/PUP/CID · double-buffered&lt;/small&gt;")]
+    VRAM --&gt;|"serial port · 8 B/serial-clk (1/5 dot)"| RO1["&lt;b&gt;RO1 ×3&lt;/b&gt;&lt;br/&gt;&lt;small&gt;overlay+color merge → 12b · de-stagger&lt;/small&gt;"]
+    RO1 --&gt;|"Pix_out[11:0] @ ½ dot"| XMAP9["&lt;b&gt;XMAP9 ×N&lt;/b&gt;&lt;br/&gt;&lt;small&gt;mode/WID · CI→RGB · gamma select&lt;/small&gt;"]
+    XMAP9 --&gt;|"~26-bit"| CMAP["&lt;b&gt;CMAP1&lt;/b&gt;&lt;br/&gt;color map / palette RAM"]
+    CMAP --&gt;|"24-bit RGB"| DAC["DAC"] --&gt; CRT([CRT])
+    VC2["&lt;b&gt;VC2&lt;/b&gt;&lt;br/&gt;&lt;small&gt;video timing / cursor&lt;/small&gt;"] -.-&gt;|"Serial_enable · Display_enable · CBLANK/sync"| RO1</code></pre>
 <p>(End-to-end topology: rb2.pdf Fig 3.1 p.7 for the REX3→RB2→VRAM front end; ro1.pdf p.1 and the "8-bit
 mode backend" diagram p.9 for VRAM→RO1→XMAP9→CMAP1, with VC2 supplying <code>serial_enable</code>/<code>display_enable</code>.)</p>
 <h2 id="henry-relevance">Henry relevance<a class="headerlink" href="#henry-relevance" title="Permanent link">&para;</a></h2>

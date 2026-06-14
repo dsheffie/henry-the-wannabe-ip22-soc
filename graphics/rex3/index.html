@@ -1268,13 +1268,17 @@ engine</strong> — the host CPU's FPU does the geometry, and Z-buffering is don
 in host memory. REX3's job begins when the host writes primitive coordinates and
 mode bits into its registers; REX3 turns those into screen pixels. (p.5)</p>
 <p><strong>The Newport display pipeline</strong> (rendering → scanout), Figure 1, p.6–8:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>  GIO64 host ── REX3 ──(FB CNTL / DATA)── RB2 ×4 ── VRAM framebuffer
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>                  │                                       │ serial ports
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>                  │ DCB (8-bit)                           ▼
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>                  ├──────────► VC2 (video timing) ◄──► RO1 ×3 (reorganizer)
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>                  ├──────────► XMAP9 ×2 (CI lookup / RGB path) ◄──► CMAP ×2 (CI SRAM)
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>                  └──────────► RAMDAC (gamma + R/G/B out) ──► monitor
-</code></pre></div>
+<pre class="mermaid"><code>flowchart LR
+    HOST([GIO64 host]) --&gt; REX3["&lt;b&gt;REX3&lt;/b&gt;&lt;br/&gt;raster engine"]
+    REX3 --&gt;|"FB CNTL / DATA"| RB2["&lt;b&gt;RB2 ×4&lt;/b&gt;&lt;br/&gt;format + LogicOp"]
+    RB2 &lt;--&gt; VRAM[("VRAM framebuffer")]
+    VRAM --&gt;|serial ports| RO1["&lt;b&gt;RO1 ×3&lt;/b&gt;&lt;br/&gt;reorganizer"]
+    REX3 -.-&gt;|"DCB (8-bit)"| VC2["&lt;b&gt;VC2&lt;/b&gt;&lt;br/&gt;video timing"]
+    REX3 -.-&gt;|DCB| XMAP9["&lt;b&gt;XMAP9 ×2&lt;/b&gt;&lt;br/&gt;CI lookup / RGB"]
+    REX3 -.-&gt;|DCB| RAMDAC["RAMDAC&lt;br/&gt;gamma + R/G/B"]
+    VC2 &lt;--&gt; RO1
+    XMAP9 &lt;--&gt; CMAP[("CMAP ×2&lt;br/&gt;CI SRAM")]
+    RAMDAC --&gt; MON([monitor])</code></pre>
 <ul>
 <li><strong>REX3</strong> rasterizes and writes pixels; masters the DCB.</li>
 <li><strong>RB2</strong> ×4 — the framebuffer "back-end" chips that sit between REX3 and the VRAM.
