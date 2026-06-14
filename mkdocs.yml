@@ -51,6 +51,7 @@ nav:
   - Firmware (ARCS shim): firmware-arcs.md
   - Boot & console: boot-and-console.md
   - Cache, coherence & TLB: coherence-cache-tlb.md
+  - FPU (COP1): fpu-cop1.md
   - Peripherals:
       - MC (memory controller): peripherals/mc.md
       - IOC2 (serial console): peripherals/ioc2.md
