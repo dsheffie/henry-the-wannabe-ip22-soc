@@ -11,10 +11,10 @@
       
       
       
-        <link rel="prev" href="../vdma/">
+        <link rel="prev" href="../rb2-ro1/">
       
       
-        <link rel="next" href="../../graphics/">
+        <link rel="next" href="../../methodology/">
       
       
         
@@ -25,7 +25,7 @@
     
     
       
-        <title>DMUX — data mux - Henry — the wannabe IP22 SoC</title>
+        <title>Express / XZ — hardware-geometry graphics (Indy's other option) - Henry — the wannabe IP22 SoC</title>
       
     
     
@@ -76,7 +76,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#dmux-data-mux-henry-block-spec" class="md-skip">
+        <a href="#express-xz-the-indys-hardware-geometry-graphics-option" class="md-skip">
           Skip to content
         </a>
       
@@ -112,7 +112,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              DMUX — data mux
+              Express / XZ — hardware-geometry graphics (Indy's other option)
             
           </span>
         </div>
@@ -435,10 +435,8 @@
       
   
   
-    
   
   
-  
     
     
       
@@ -463,11 +461,11 @@
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
         
           
           <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
@@ -488,7 +486,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_7">
             <span class="md-nav__icon md-icon"></span>
             
@@ -506,7 +504,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../mc/" class="md-nav__link">
+      <a href="../../peripherals/mc/" class="md-nav__link">
         
   
   
@@ -541,7 +539,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../ioc2/" class="md-nav__link">
+      <a href="../../peripherals/ioc2/" class="md-nav__link">
         
   
   
@@ -576,7 +574,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../hpc3/" class="md-nav__link">
+      <a href="../../peripherals/hpc3/" class="md-nav__link">
         
   
   
@@ -611,7 +609,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../gio64/" class="md-nav__link">
+      <a href="../../peripherals/gio64/" class="md-nav__link">
         
   
   
@@ -646,7 +644,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../vdma/" class="md-nav__link">
+      <a href="../../peripherals/vdma/" class="md-nav__link">
         
   
   
@@ -678,44 +676,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    DMUX (data mux)
-  
-
-    
-  </span>
-  
-  
-    
-  
-  
-    <span class="md-status md-status--draft"></span>
-  
-
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../peripherals/dmux1/" class="md-nav__link">
         
   
   
@@ -738,92 +702,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#role-in-henry-the-do-we-need-it-answer" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Role in Henry (the "do we need it?" answer)
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#what-dmux-does" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        What DMUX does
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#register-interface" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Register interface
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#relationship-to-mc-gio64-cpu-write-fifo" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Relationship to MC / GIO64 / CPU write FIFO
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#minimum-for-a-henry-irix-boot" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Minimum for a Henry IRIX boot
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#sources" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Sources
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -840,6 +718,8 @@
       
   
   
+    
+  
   
   
     
@@ -868,15 +748,15 @@
       
     
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" checked>
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../../graphics/" class="md-nav__link ">
+            <a href="../" class="md-nav__link ">
               
   
   
@@ -907,7 +787,7 @@
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_8">
             <span class="md-nav__icon md-icon"></span>
             
@@ -927,7 +807,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../graphics/rex3/" class="md-nav__link">
+      <a href="../rex3/" class="md-nav__link">
         
   
   
@@ -962,7 +842,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../graphics/vc2/" class="md-nav__link">
+      <a href="../vc2/" class="md-nav__link">
         
   
   
@@ -997,7 +877,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../graphics/xmap9/" class="md-nav__link">
+      <a href="../xmap9/" class="md-nav__link">
         
   
   
@@ -1032,7 +912,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../graphics/rb2-ro1/" class="md-nav__link">
+      <a href="../rb2-ro1/" class="md-nav__link">
         
   
   
@@ -1064,10 +944,44 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../graphics/express-xz/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Express / XZ (hardware geometry)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft / future-work"></span>
+  
+
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1090,6 +1004,114 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#why-it-exists-hardware-geometry-vs-newports-host-geometry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why it exists: hardware geometry vs Newport's host geometry
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-pipeline-and-the-real-asics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The pipeline and the real ASICs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#geometry-engine-ge7-the-custom-fp-core" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Geometry Engine (GE7) — the custom FP core
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#simd-array-hq2-the-ge7s" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SIMD array (HQ2 + the GE7s)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#raster-engine-re3-hyper-pipelined" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Raster Engine (RE3) — hyper-pipelined
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#indy-board-set-gr4-express" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Indy board set (GR4 Express)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#henry-relevance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Henry relevance
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sources" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sources
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1163,10 +1185,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#role-in-henry-the-do-we-need-it-answer" class="md-nav__link">
+  <a href="#why-it-exists-hardware-geometry-vs-newports-host-geometry" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Role in Henry (the "do we need it?" answer)
+        Why it exists: hardware geometry vs Newport's host geometry
       
     </span>
   </a>
@@ -1174,10 +1196,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#what-dmux-does" class="md-nav__link">
+  <a href="#the-pipeline-and-the-real-asics" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What DMUX does
+        The pipeline and the real ASICs
       
     </span>
   </a>
@@ -1185,10 +1207,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#register-interface" class="md-nav__link">
+  <a href="#geometry-engine-ge7-the-custom-fp-core" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Register interface
+        Geometry Engine (GE7) — the custom FP core
       
     </span>
   </a>
@@ -1196,10 +1218,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#relationship-to-mc-gio64-cpu-write-fifo" class="md-nav__link">
+  <a href="#simd-array-hq2-the-ge7s" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Relationship to MC / GIO64 / CPU write FIFO
+        SIMD array (HQ2 + the GE7s)
       
     </span>
   </a>
@@ -1207,10 +1229,32 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#minimum-for-a-henry-irix-boot" class="md-nav__link">
+  <a href="#raster-engine-re3-hyper-pipelined" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Minimum for a Henry IRIX boot
+        Raster Engine (RE3) — hyper-pipelined
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#indy-board-set-gr4-express" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Indy board set (GR4 Express)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#henry-relevance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Henry relevance
       
     </span>
   </a>
@@ -1245,188 +1289,223 @@
 
 
 
-<h1 id="dmux-data-mux-henry-block-spec">DMUX — Data Mux (Henry block spec)<a class="headerlink" href="#dmux-data-mux-henry-block-spec" title="Permanent link">&para;</a></h1>
+<h1 id="express-xz-the-indys-hardware-geometry-graphics-option">Express / XZ — the Indy's hardware-geometry graphics option<a class="headerlink" href="#express-xz-the-indys-hardware-geometry-graphics-option" title="Permanent link">&para;</a></h1>
 <blockquote>
-<p>DMUX ("MUX" in the chip's own spec; "DMUX" in the MC/board context) is the IP22 <strong>datapath gate array</strong> that
-sits between the R4000 SysAd bus, the interleaved DRAM (Memory A / Memory B), and the GIO64 bus. It is pure
-plumbing: a clock-domain-crossing data path with a 32-deep CPU write FIFO, an interleave mux for memory, a
-word-swap mux for GIO transfers, GIO read/write packers (32↔64-bit packing), and per-byte-lane parity gen/check.
-<strong>It has no CPU-visible registers</strong> — every control input comes from the MC chip, not from software. <strong>Bottom
-line: a Henry SoC that integrates r9999 with its own memory/GIO datapath subsumes DMUX entirely. Henry does not
-need to model DMUX as a block for a headless IRIX boot.</strong> The one externally observable behavior to keep in mind
-is end-to-end <em>parity</em> and <em>endianness/word-swap</em>, and even those are datapath properties Henry already owns.</p>
+<p>The SGI Indy shipped with <strong>two</strong> mutually-exclusive graphics options on its GIO slot:
+<strong>XL / Newport</strong> (documented <a href="../">here</a> — host does geometry, REX3 is raster-only) and
+<strong>Express / XZ</strong> (this page — a dedicated <strong>hardware geometry</strong> pipeline). Express is the
+"Elan-class" board: a SIMD array of floating-point <strong>Geometry Engines</strong> feeding a
+hyper-pipelined <strong>Raster Engine</strong>.</p>
+<p><strong>NOT needed for headless Henry</strong> — like Newport, a headless Henry bus-errors the GIO aperture so
+IRIX never probes the slot (see <a href="../../peripherals/gio64/">../peripherals/gio64.md</a>). This page is
+reference / future-work: it captures the architecture and maps it onto the real Indy ASICs. If you
+ever wanted Henry to do graphics, <strong>Newport is the far smaller target</strong> — Express adds a microcoded
+SIMD FP array <em>and</em> a command-FIFO front-end on top of a REX3-class rasterizer.</p>
 </blockquote>
-<h2 id="role-in-henry-the-do-we-need-it-answer">Role in Henry  (the "do we need it?" answer)<a class="headerlink" href="#role-in-henry-the-do-we-need-it-answer" title="Permanent link">&para;</a></h2>
-<p><strong>No DMUX block is required.</strong> DMUX is the physical IP22 implementation of the data path that an SoC integrating
-r9999 already provides intrinsically:</p>
-<ul>
-<li>On a real IP22 board the CPU, the DRAM SIMMs, and the GIO64 bus are three separate physical interfaces running
-  on different clocks (CPU 50–65 MHz, GIO 33–40 MHz). DMUX is the gate array that physically routes 36-bit slices
-  (32 data + 4 parity) between them, crosses the clock domains with FIFOs, and does the interleave/word-swap
-  muxing. Two DMUX parts are used per machine, each handling 36 bits (dmux1.pdf p.1).</li>
-<li>In Henry, r9999's load/store path, the MC's memory interface, and the GIO64 bridge are all internal to the SoC
-  and already move data between CPU, memory, and peripherals. There is no asynchronous 36-bit gate-array boundary
-  to bridge, so the function DMUX performs has no separate existence.</li>
-<li>DMUX exposes <strong>zero memory-mapped registers</strong>. IRIX never addresses it. Nothing in the boot/PROM/kernel path
-  reads or writes a "DMUX register," so there is no register model to implement (the <em>MC</em> registers that <em>control</em>
-  DMUX — e.g. the FIFO high-water mark — live in the MC, and are documented in <code>mc.md</code>).</li>
-</ul>
-<p>What Henry must still get right is the <em>effect</em> DMUX has, which Henry's own datapath is responsible for anyway:
-correct data parity end-to-end (or simply not modeling parity errors), and correct byte/word ordering for
-big-endian IRIX. Those are not "model DMUX"; they are "make loads/stores and GIO transfers return the right
-bytes," which any working SoC datapath does.</p>
-<h2 id="what-dmux-does">What DMUX does<a class="headerlink" href="#what-dmux-does" title="Permanent link">&para;</a></h2>
-<p>DMUX is a sliced data path (two parts × 36 bits) performing <strong>six</strong> primitive operations, selected by a pair of
-mutually-exclusive selects driven by MC: <code>cpu_sel</code> (CPU↔memory) and <code>gio_sel</code> (the other four). The two are never
-asserted together (dmux1.pdf p.2). The six operations and how parity is handled (p.2):</p>
+<p>The canonical architecture reference is <strong>Harrell &amp; Fouladi, "Graphics Rendering Architecture for a High
+Performance Desktop Workstation"</strong> (ACM, 1993) — the SGI design paper for this pipeline, shipping as the
+<strong>IRIS Indigo Extreme</strong> and (scaled) the <strong>Indigo² Elan</strong>. sgistuff.net cites the same paper as the
+Express reference. The paper describes the <em>full</em> <strong>8-GE / 2-RE</strong> topology (that maximal config is
+<em>Extreme</em>); the <strong>Indy</strong> runs the scaled <strong>4-GE / 1-RE</strong> Elan-class variant.</p>
+<h2 id="why-it-exists-hardware-geometry-vs-newports-host-geometry">Why it exists: hardware geometry vs Newport's host geometry<a class="headerlink" href="#why-it-exists-hardware-geometry-vs-newports-host-geometry" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
-<th>Operation</th>
-<th>cpu_sel</th>
-<th>gio_sel</th>
-<th>mux_dir</th>
-<th>parity</th>
+<th></th>
+<th><strong>XL / Newport</strong></th>
+<th><strong>Express / XZ</strong></th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>CPU GIO64 device read</td>
-<td>0</td>
-<td>1</td>
-<td>0</td>
-<td>generated</td>
+<td>Geometry (transform + slope)</td>
+<td>on the <strong>host CPU FPU</strong></td>
+<td><strong>in hardware</strong> — SIMD array of GE7 Geometry Engines</td>
 </tr>
 <tr>
-<td>GIO64 write to memory</td>
-<td>0</td>
-<td>1</td>
-<td>0</td>
-<td>generated</td>
+<td>Rasterization</td>
+<td>REX3</td>
+<td>RE3 Raster Engine (hyper-pipelined)</td>
 </tr>
 <tr>
-<td>CPU GIO64 device write</td>
-<td>0</td>
-<td>1</td>
-<td>1</td>
-<td>generated</td>
+<td>Z-buffer</td>
+<td>host system memory</td>
+<td><strong>hardware</strong> 24-bit Z (ZRB4)</td>
 </tr>
 <tr>
-<td>GIO64 read from memory</td>
-<td>0</td>
-<td>1</td>
-<td>1</td>
-<td>from memory</td>
+<td>CPU-facing interface</td>
+<td>REX3 register writes</td>
+<td><strong>command FIFO over GIO + FIFO-full interrupt</strong></td>
 </tr>
 <tr>
-<td>CPU memory write</td>
-<td>1</td>
-<td>0</td>
-<td>—</td>
-<td>generated</td>
+<td>Board form factor</td>
+<td>single board</td>
+<td><strong>two-board set, one GIO slot</strong> (blocks other GIO options)</td>
 </tr>
 <tr>
-<td>CPU memory read</td>
-<td>1</td>
-<td>0</td>
-<td>—</td>
-<td>from memory</td>
+<td>Indy config</td>
+<td>XL8 / XL24</td>
+<td><strong>4× GE7 + 1× RE3</strong>, 24-bit color + 24-bit Z</td>
 </tr>
 </tbody>
 </table>
-<p>Functional blocks (dmux1.pdf pp.2–3, 6–19):</p>
+<p>Curiosity worth noting: on an <strong>R5000 Indy the CPU is often faster than the GE7s</strong>, so XL/Newport can
+out-run XZ — Express only clearly wins when you need <strong>hardware depth-buffering</strong>. More silicon was not
+automatically more speed; XZ was a Z-buffer/fill play.</p>
+<h2 id="the-pipeline-and-the-real-asics">The pipeline and the real ASICs<a class="headerlink" href="#the-pipeline-and-the-real-asics" title="Permanent link">&para;</a></h2>
+<p>The paper's abstract blocks map onto named Indy ASICs (the right column is what <code>gfxinfo</code> prints):</p>
+<table>
+<thead>
+<tr>
+<th>Paper block</th>
+<th>ASIC</th>
+<th><code>gfxinfo</code> (Indy)</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Command Parser (CP)</td>
+<td><strong>HQ2</strong></td>
+<td><strong>HQ2.1</strong></td>
+<td>reads FIFO, distributes primitives to the GEs</td>
+</tr>
+<tr>
+<td>Geometry Engine (GE)</td>
+<td><strong>GE7</strong></td>
+<td>—</td>
+<td>custom FP core, <strong>32 MFLOPS each</strong>; per-vertex + slope calc</td>
+</tr>
+<tr>
+<td>Raster Engine (RE)</td>
+<td><strong>RE3</strong></td>
+<td><strong>HQ3.1</strong></td>
+<td>edge/span scan-conversion, per-pixel ops, framebuffer writes</td>
+</tr>
+<tr>
+<td><em>(output, not in paper)</em></td>
+<td><strong>VC1</strong></td>
+<td>—</td>
+<td>video timing (cf. Newport's VC2)</td>
+</tr>
+<tr>
+<td><em>(output, not in paper)</em></td>
+<td><strong>XMAP5 → XMAP7</strong></td>
+<td>—</td>
+<td>colormap / pixel-mode (cf. Newport's XMAP9)</td>
+</tr>
+<tr>
+<td><em>(output, not in paper)</em></td>
+<td><strong>ZRB4</strong></td>
+<td>—</td>
+<td>Z-buffer + RAMDAC</td>
+</tr>
+</tbody>
+</table>
+<pre class="mermaid"><code>flowchart LR
+    HOST([host CPU]) --&gt;|"writes render cmds&lt;br/&gt;over GIO (GIO32 on Indy)"| FIFO[["command FIFO&lt;br/&gt;&lt;small&gt;full → IRQ to CPU&lt;/small&gt;"]]
+    FIFO --&gt; HQ2["&lt;b&gt;HQ2&lt;/b&gt; — Command Parser&lt;br/&gt;&lt;small&gt;round-robin distribute · primitive-type compare&lt;/small&gt;"]
+    HQ2 --&gt;|ping-pong buffers| SIMD["&lt;b&gt;GE7 ×4&lt;/b&gt; — SIMD geometry&lt;br/&gt;&lt;small&gt;shared sequencer + microcode + globals&lt;/small&gt;"]
+    SIMD --&gt;|output FIFO| RE3["&lt;b&gt;RE3&lt;/b&gt; — Raster Engine&lt;br/&gt;&lt;small&gt;edge + span + per-pixel ops&lt;/small&gt;"]
+    RE3 --&gt; FB[("framebuffer&lt;br/&gt;+ 24-bit Z (ZRB4)")]
+    FB --&gt;|scanout| VID["VC1 timing · XMAP5/7 colormap · RAMDAC"]
+    VID --&gt;|R/G/B| CRT([CRT])</code></pre>
+<p>Flow (matches sgistuff's functional description beat-for-beat): a <strong>command token + data</strong> is written into
+the <strong>FIFO</strong>; <strong>HQ2</strong> reads it, detects primitive boundaries, and round-robins data into the <strong>GE7</strong> input
+ping-pong buffers; the GE7s do per-vertex and slope math and write an <strong>output FIFO</strong>; <strong>RE3</strong> reads that
+FIFO, does edge + span scan-conversion and per-pixel operations, and writes pixels (and Z) to the
+framebuffer; the output chain (VC1 / XMAP / RAMDAC) scans it out.</p>
+<h2 id="geometry-engine-ge7-the-custom-fp-core">Geometry Engine (GE7) — the custom FP core<a class="headerlink" href="#geometry-engine-ge7-the-custom-fp-core" title="Permanent link">&para;</a></h2>
+<p>A single-chip microcoded floating-point processor, deliberately fused to do <strong>both</strong> per-vertex transform
+<strong>and</strong> triangle/line slope calculation (their cycle costs are ~equal; slope math is too irregular to
+hardwire). Design philosophy = <em>never starve the expensive FP units</em>:</p>
 <ul>
-<li><strong>CPU write FIFO</strong> — a <strong>32-entry × 40-bit</strong> ("40 bits 32 data, 4 generated parity, 4 parity-error") write
-  buffer on the CPU→memory and CPU→GIO path. It decouples the 50 MHz CPU from the slower memory/GIO sides and
-  acts as the CPU write buffer. Data is pushed with <code>cpu_push</code> (a dedicated signal — data can be pushed even when
-  DMUX is busy with another op). 32 deep so it can hold <strong>two complete 32-word cache block writes</strong>, the largest
-  block the CPU issues. The MC tracks fill level; DMUX itself "does not have to worry about the write buffer
-  being over filled." Implemented as a 32×40 triple-port RAM with bypass muxes (ping-pong read) to meet 65 MHz
-  (pp.4, 7).</li>
-<li><strong>Interleave mux (CPU reads from memory)</strong> — DRAM is 2-way interleaved (Memory A / Memory B, each 36 bits).
-  On a CPU read, DMUX selects/merges the two 36-bit memory ports onto SysAd under <code>data_sel</code>, with the swap
-  options listed below (pp.8–9).</li>
-<li><strong>Word-swap mux (CPU↔GIO)</strong> — On CPU reads from / writes to GIO, DMUX performs one of several
-  word-swap/duplicate operations so a 32-bit GIO device, a 64-bit GIO device, and the high/low SysAd words line
-  up. <code>data_sel(1:0)</code> picks: pass-through <code>gio_ad(63:0)→sysad(63:0)</code>, duplicate-low-word-onto-both (needed when
-  R4000 reads a 32-bit GIO device), or move-high-word-to-low (R3000 reading high bits) (pp.10–11).</li>
-<li><strong>GIO write packer + GIO64 write buffer</strong> — packs 32- and 64-bit GIO bus-master writes into 128-bit quad words
-  for memory; a <strong>six-entry</strong> write buffer between GIO and the memory data outputs isolates GIO stalls from the
-  memory write. Driven by GIO <em>commands</em> the MC feeds via a <strong>12-entry command FIFO</strong> (pp.12, 14–16).</li>
-<li><strong>GIO read buffer / unpacker</strong> — a <strong>three-entry</strong> GIO memory-read FIFO; unpacks memory data back onto the GIO
-  bus, again command-driven from MC (pp.17–19).</li>
-<li><strong>Parity</strong> — DMUX carries parity on every 36-bit slice (32 data + 4 parity). It <strong>generates</strong> parity on writes
-  and on reads sourced from the CPU/GIO, and <strong>passes/checks</strong> parity on reads sourced from memory. <code>par_err(3:0)</code>
-  reports detected parity errors to MC. <code>par_flush</code> (qualified with <code>cpu_sel</code> after the Rev 1.2 fix) can
-  deliberately write <em>bad</em> parity to memory for diagnostics (pp.2, 5, 36 [Rev 1.2], 37 [problems]).</li>
+<li><strong>1 FMPY + 1 FALU</strong> (measured near-even multiply/add balance).</li>
+<li><strong>6 busses + 4 register-file ports</strong> feed the 4 FMPY/FALU inputs; 2 busses are <strong>result→input
+  wrap-around</strong> for single-thread dependency chains.</li>
+<li><strong>Multiple in-flight threads</strong> of the same algorithm: when one thread stalls waiting on a result,
+  another fills the unit; a multi-port register file parks intermediates.</li>
+<li><strong>3 vertex data stores</strong> (input ping-pong + 2 "special" stores) because slope calc needs all three
+  triangle vertices simultaneously and the register file is too small. A <strong>6th bus</strong> reaches off-chip
+  <strong>globals</strong> memory.</li>
 </ul>
-<p>Two clock domains: <code>cpu_clk</code> (50–65 MHz) and <code>gio_clk</code> (33–40 MHz). All MC control signals are flopped before
-use; <code>cpu_sel</code> ops are synchronous to <code>cpu_clk</code>, <code>gio_sel</code> ops to <code>gio_clk</code> (p.2). <code>csize64</code> (R4000 = full 64-bit
-SysAd) was removed as a pin — pulled high internally; R3000 support is gone (pp.2, 4).</p>
-<h2 id="register-interface">Register interface<a class="headerlink" href="#register-interface" title="Permanent link">&para;</a></h2>
-<p><strong>None.</strong> DMUX has no CPU-addressable registers and is not in any peripheral address map. It is a slave to the MC
-chip: all of its behavior is selected cycle-by-cycle by MC-driven control pins, not by software. The pins are
-(dmux1.pdf pp.20–22):</p>
+<h2 id="simd-array-hq2-the-ge7s">SIMD array (HQ2 + the GE7s)<a class="headerlink" href="#simd-array-hq2-the-ge7s" title="Permanent link">&para;</a></h2>
+<p>The GE7s run as a <strong>SIMD</strong> array sharing one sequencer, one microcode store, and one globals memory —
+chosen over a pipeline (unequal stages → sublinear) and MIMD (per-processor sequencer overhead). The
+<em>only</em> cost over a uniprocessor is the <strong>distribution function</strong> in HQ2.</p>
 <ul>
-<li><strong>Selects / direction:</strong> <code>gio_sel</code>, <code>cpu_sel</code>, <code>mux_dir</code>, <code>cpu_push</code>, <code>cpu_mem_oe</code>.</li>
-<li><strong>Mux source / packing:</strong> <code>data_sel(2:0)</code>, <code>graphics(1:0)</code> (which slave delay signal), <code>aen_mem</code>, <code>ben_ctrl</code>,
-  <code>cen_fifo</code>, <code>giostb</code> (a valid GIO command), <code>par_flush</code>.</li>
-<li><strong>Delay / handshake in:</strong> <code>masdly</code>, <code>slvdly</code>, <code>grxdly(2:0)</code>, <code>mc_dly</code>.</li>
-<li><strong>Data buses:</strong> <code>sysad(31:0)+sysad_par(3:0)</code> (R4000), <code>gio_data(31:0)+gio_par(3:0)</code> (GIO64),
-  <code>mem_a(31:0)+par</code>, <code>mem_b(31:0)+par</code> (interleaved DRAM).</li>
-<li><strong>Out:</strong> <code>par_err(3:0)</code> (parity error to MC).</li>
-<li><strong>Infra:</strong> <code>cpu_clk</code>/<code>gio_clk</code> + PLLs, <code>reset_n</code>, JTAG/ATPG (<code>jtdi/jtdo/jtms/jtck/tp0/tp1/entei</code>).</li>
+<li><strong>HQ2 (Command Parser)</strong> round-robins primitives GE0→GEn and detects primitive-type boundaries via a
+  <strong>current-vs-previous command-token compare</strong> (a different token → swap ping-pongs and fire the loaded
+  GEs).</li>
+<li><strong>Load-bearing assumption:</strong> primitives must arrive <strong>clumped</strong> (runs of all-triangles, then all-lines).
+  Alternating lines/polys is the SIMD <strong>worst case → collapses to uniprocessor</strong> throughput. (SGI
+  validated that CAD/CAE workloads clump.)</li>
+<li><strong>Input ping-pong buffer</strong> (HQ2 fills one side while the GE runs the other) + <strong>output FIFO</strong> (lockstep
+  writes) are both essential to the SIMD scheme. <strong>Indirect addressing</strong> into the data stores lets each
+  lane address its vertices per its primitive's screen orientation while staying in lockstep; SIMD
+  divergence (lighting / clip branches) is handled by <strong>stalling the non-taken subset</strong> during conditional
+  subroutine calls.</li>
 </ul>
-<p>Total 189 signal pins; 240-pin and 299-pin MQFP packages (pp.20, 23–31). None of this is software-visible.</p>
-<h2 id="relationship-to-mc-gio64-cpu-write-fifo">Relationship to MC / GIO64 / CPU write FIFO<a class="headerlink" href="#relationship-to-mc-gio64-cpu-write-fifo" title="Permanent link">&para;</a></h2>
-<p>DMUX is the <em>muscle</em>; MC is the <em>brain</em>. The MC decodes the CPU/GIO addresses, arbitrates the GIO64 bus, tracks
-how full the CPU write FIFO is, and drives every DMUX control pin (including <code>cpu_push</code> to load CPU write data and
-the <code>giostb</code>/command stream for GIO packing). DMUX just routes bytes when told.</p>
-<p>The <strong>"MUX HWM" / CPU-write-FIFO high-water mark</strong> referenced from the MC spec lives in MC's CPUCTRL1 (see
-<code>mc.md</code>, where <code>MC fifo HWM[3:0]</code> defaults to <code>0xC</code>). That is the MC telling itself how full to let <em>DMUX's</em>
-32-entry CPU write FIFO get before it deasserts <code>cpu_wrrdy_n</code> to throttle the processor (dmux1.pdf p.4: "When the
-fifo is full the MC chip will deassert the processor cpu_wrrdy_n signal"). So the HWM is an MC register about a
-DMUX resource — and in Henry it's purely an MC-side concern. From the GIO64 side, MC throttles GIO bus masters
-with <code>slvdly</code> when DMUX's GIO write/read FIFOs back up.</p>
-<h2 id="minimum-for-a-henry-irix-boot">Minimum for a Henry IRIX boot<a class="headerlink" href="#minimum-for-a-henry-irix-boot" title="Permanent link">&para;</a></h2>
-<p><strong>Nothing DMUX-specific.</strong> Concretely:</p>
+<h2 id="raster-engine-re3-hyper-pipelined">Raster Engine (RE3) — hyper-pipelined<a class="headerlink" href="#raster-engine-re3-hyper-pipelined" title="Permanent link">&para;</a></h2>
+<p>Instead of replicating N parallel iterators (the era's default), Express <strong>deep-pipelines a single
+iterator</strong> — <strong>26 stages</strong>, input ping-pong → color write — because pipe stages cost far fewer gates than
+replicated iterators. The <strong>DDA unit</strong> (adder + 2:1 mux + feedback register) is the critical path that
+sets the stage count; the clock is <strong>5× DRAM page-mode rate</strong>, matched to a <strong>5-way interleaved color
+buffer</strong> (1 pixel/clock, contentionless along a span).</p>
 <ul>
-<li><strong>No register model</strong> — DMUX has no software-visible registers, so there is nothing for the PROM/ARCS/kernel to
-  probe. (The HWM and friends are already covered by the MC model.)</li>
-<li><strong>No separate block</strong> — Henry's r9999↔memory and r9999↔GIO64 datapaths are the SoC-internal equivalent of what
-  DMUX does on a physical IP22 board; integrating the core subsumes the gate array. The clock-domain FIFOs, the
-  interleave mux, and the GIO packers are artifacts of three physical chips on different clocks — Henry doesn't
-  have that boundary.</li>
-<li><strong>Do get the datapath <em>effects</em> right</strong> (these are Henry's datapath responsibility, not a "DMUX block"):</li>
-<li><strong>Endianness / word ordering.</strong> Big-endian IRIX expects the byte/word lane mapping DMUX's word-swap muxes
-     produce. Henry's load/store and GIO paths must return the correct bytes. (Compare with the MC big-endian
-     alias note in <code>mc.md</code> — same theme: get the lanes right.)</li>
-<li><strong>Parity</strong> can be ignored. DMUX parity exists to <em>detect DRAM faults</em>; on simulated/SoC memory there are no
-     bit flips, and the parity-error interrupt path is maskable. Henry need not model parity gen/check to boot.</li>
-<li>The known DMUX silicon bug (bad-parity-on-<code>par_flush</code> corrupting the GIO FIFO, IDE-then-SCSI failure, p.37) is
-  a hardware erratum with no bearing on a clean Henry datapath — do not replicate it.</li>
+<li><strong>Edge processor</strong> (10 stages, new span every other clock): decomposes a triangle into horizontal spans
+  via major / first-minor / second-minor edge swap at the middle-Y vertex; emits per-span start
+  R,G,B,A,X,Y,Z + pixel count.</li>
+<li><strong>Span processor</strong> (6 iterators, 3-clock latency): <strong>1 px/clk</strong> when gouraud-shaded and/or Z-buffered;
+  <strong>4 px/clk</strong> when flat-shaded and non-Z, using VRAM <strong>block-write</strong> → 4× on screen clears / flat 2D.</li>
+<li><strong>Per-pixel operators</strong> (10 stages): 3 blend multipliers (R/G/B) + a logicop ALU; <strong>Z-compare and
+  stencil run in parallel</strong> in the same stage count.</li>
+<li><strong>Memory interleave:</strong> color buffer <strong>5-way</strong>, Z-buffer <strong>10-way</strong> — Z is read-modify-write (2× accesses,
+  10-clock RMW), so 10 banks = no contention along a span. Z banks <strong>share a page address</strong> (single
+  page-fault block) with a per-bank busy <strong>scoreboard</strong>; color blend/logicop RMW runs at <strong>half</strong> fill rate.</li>
+<li>In the maximal <em>Extreme</em> config there are <strong>two</strong> REs (odd RE → odd scanlines, even RE → even scanlines);
+  the <strong>Indy runs a single RE3</strong>.</li>
 </ul>
-<p>If Henry ever grows a <em>cycle-accurate, multi-chip</em> model of an IP22 board (separate MC + DMUX + GIO devices on
-real clocks), DMUX becomes a real block: the 32-entry CPU write FIFO, the 6-entry GIO write buffer, the 3-entry
-GIO read buffer, the 12-entry GIO command FIFO, and the interleave/word-swap muxes would all need modeling. For a
-<em>functional headless IRIX boot</em> on an r9999 SoC, none of that is needed.</p>
+<p><strong>Performance</strong> (paper, full <strong>8-GE / 2-RE Extreme</strong> config): &gt;1.3M depth-cued lines/s, &gt;0.5M gouraud
+Z-buffered triangles/s, 80M pixels/s sustained fill. The Indy's <strong>4-GE / 1-RE</strong> board is the scaled-down
+fraction of this.</p>
+<h2 id="indy-board-set-gr4-express">Indy board set (GR4 Express)<a class="headerlink" href="#indy-board-set-gr4-express" title="Permanent link">&para;</a></h2>
+<p>Two boards in the Indy's <strong>GIO32 slot</strong> (occupies the slot; no other GIO option can coexist):</p>
+<ul>
+<li><strong>GP1</strong> — the Geometry Engine board (the 4× GE7 + HQ2 + RE3 side).</li>
+<li><strong>VB3</strong> — RAMDAC, the external <strong>13W3</strong> video connector, and the connector to the Indy mainboard.</li>
+</ul>
+<p>General display features: 1280×1024 @ 60/72 Hz, 24-bit color, 24-bit Z, 4 stencil planes, 4 overlay + 4
+window/clip-ID planes, accumulation buffer, hardware texture mapping, 8 light sources, full-scene
+antialiasing, genlock/stereo. (Indigo² uses the analogous <strong>GR3</strong> boards: XZ = 2-GE, Elan = 4-GE.)</p>
+<h2 id="henry-relevance">Henry relevance<a class="headerlink" href="#henry-relevance" title="Permanent link">&para;</a></h2>
+<p><strong>Headless (current):</strong> identical to Newport — Henry bus-errors the entire <code>0x1f000000–0x1fffffff</code> GIO
+region, the slot reads empty, and IRIX never probes for HQ2/GE7/RE3. Nothing here is on the boot path.</p>
+<p><strong>Future (graphics console):</strong> Express is a <strong>much bigger lift than Newport</strong>, in roughly this order:</p>
+<ol>
+<li>A <strong>command-FIFO</strong> front-end over GIO with a <strong>FIFO-full interrupt</strong> — a different (and larger) CPU
+   contract than Newport's "write REX3 registers."</li>
+<li><strong>HQ2</strong> distribution + a <strong>microcoded SIMD GE7 array</strong> doing hardware geometry — there is no Newport
+   equivalent; this is the part Newport deliberately pushed onto the host CPU.</li>
+<li>An <strong>RE3-class rasterizer</strong> (comparable in scope to REX3) plus the <strong>ZRB4</strong> hardware Z-buffer.</li>
+<li>The output chain (VC1 / XMAP / RAMDAC).</li>
+</ol>
+<p>For a Henry graphics path, <strong>Newport remains the recommended target</strong> precisely because it omits items
+1–2 (and 3's hardware Z). This page exists to document the high-end alternative and to tie the Harrell &amp;
+Fouladi paper to gfxinfo-visible Indy silicon — not as a build recommendation.</p>
 <h2 id="sources">Sources<a class="headerlink" href="#sources" title="Permanent link">&para;</a></h2>
 <ul>
-<li>dmux1.pdf p.1 — full-machine block diagram; "two MUX parts handle 36 bits including parity."</li>
-<li>dmux1.pdf p.2 — block overview, two clock domains, <code>cpu_sel</code>/<code>gio_sel</code>, six-operation/parity table, <code>csize64</code> removed.</li>
-<li>dmux1.pdf p.3 — MUX block diagram (CPU write buffer, packer, GIO/MEM FIFOs, parity gen/chk).</li>
-<li>dmux1.pdf p.4 — CPU writes to memory: two-part write, <strong>32-entry</strong> FIFO, <code>cpu_push</code>, <code>cpu_wrrdy_n</code> throttle, <code>csize64</code> pulled high.</li>
-<li>dmux1.pdf pp.5–7 — write control signals (<code>aen_mem</code>/<code>ben_ctrl</code>/<code>cen_fifo</code>/<code>par_flush</code>), CPU write buffer = 32×40 triple-port RAM.</li>
-<li>dmux1.pdf pp.8–9 — CPU reads from memory: interleave mux, <code>data_sel</code> source select.</li>
-<li>dmux1.pdf pp.10–11 — CPU reads from GIO64/EISA: word-swap mux options.</li>
-<li>dmux1.pdf pp.12–13 — CPU writes to GIO64: 12-entry GIO command FIFO.</li>
-<li>dmux1.pdf pp.14–16 — GIO writes to memory: packer, <strong>6-entry</strong> write buffer, 8×72 triple-port RAM.</li>
-<li>dmux1.pdf pp.17–19 — GIO reads from memory: unpacker, <strong>3-entry</strong> read FIFO.</li>
-<li>dmux1.pdf pp.20–22 — MUX pins: data buses, control signals, GIO64/clock/JTAG signals (189 pins, no registers).</li>
-<li>dmux1.pdf pp.23–31 — pin cross-reference (299- and 240-pin packages).</li>
-<li>dmux1.pdf p.36 — Rev 1.2: <code>par_flush</code> qualified with <code>cpu_sel</code>.</li>
-<li>dmux1.pdf p.37 — known problem (par_flush/GIO-FIFO, IDE→SCSI), power (1.28 W).</li>
-<li>mc.md — MC CPUCTRL1 <code>MC fifo HWM[3:0]=0xC</code> (the high-water mark that governs DMUX's CPU write FIFO).</li>
+<li><strong>Harrell, C. &amp; Fouladi, F.</strong>, "Graphics Rendering Architecture for a High Performance Desktop
+  Workstation," <em>ACM</em> (Graphics Hardware), 1993 — local copy <code>chd-dumper/166117.166129.pdf</code>. The Express
+  architecture spec (GE custom FP core, 8-GE SIMD, hyper-pipelined 26-stage RE, 5-way color / 10-way Z
+  interleave). Ships as IRIS Indigo Extreme; scaled = Indigo² Elan.</li>
+<li><strong>sgistuff.net — Express graphics</strong>, <a href="http://www.sgistuff.net/hardware/graphics/express.html">http://www.sgistuff.net/hardware/graphics/express.html</a> — ASIC
+  names (HQ2 / GE7 / RE3 / VC1 / XMAP5→7 / ZRB4), <code>gfxinfo</code> IDs (HQ2.1, HQ3.1), the Indy <strong>GR4</strong> board set
+  (GP1 + VB3), per-system summary table, and the functional-flow description. (This page cites the same
+  Harrell &amp; Fouladi paper as its reference.)</li>
+<li>Henry GIO64 peripheral notes — <a href="../../peripherals/gio64/">../peripherals/gio64.md</a> (slot map, Product-ID
+  probe, empty-slot bus-error behavior).</li>
+<li>Newport overview (the other Indy graphics option) — <a href="../">index.md</a>.</li>
 </ul>
 
 

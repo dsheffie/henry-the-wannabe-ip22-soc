@@ -737,6 +737,8 @@
       
         
       
+        
+      
     
     
     
@@ -761,7 +763,7 @@
   <span class="md-ellipsis">
     
   
-    Graphics (Newport)
+    Graphics
   
 
     
@@ -790,7 +792,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    Graphics (Newport)
+    Graphics
   
 
           </label>
@@ -918,6 +920,41 @@
     
   
     RB2 & RO1 (framebuffer/output)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft / future-work"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="express-xz/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Express / XZ (hardware geometry)
   
 
     
@@ -1082,6 +1119,11 @@
 <p>Intro: the Indy "XL" graphics board on GIO64 slot 0 (phys <code>0x1f000000</code>). NOT needed for a headless
 Henry boot (bus-error the aperture → IRIX skips it, see <a href="../peripherals/gio64/">../peripherals/gio64.md</a>).
 This is the future-work path for a Henry graphics console.</p>
+<p><strong>The Indy had two graphics options.</strong> This page covers <strong>XL / Newport</strong> (host geometry, raster-only).
+The other was <strong>Express / XZ</strong> — a hardware-geometry pipeline (SIMD Geometry Engines + a hyper-pipelined
+Raster Engine); see <a href="express-xz/">Express / XZ</a>. For a Henry graphics path, Newport is the far smaller
+target — Express adds a microcoded SIMD FP array and a command-FIFO front-end on top of a REX3-class
+rasterizer.</p>
 </blockquote>
 <p>Newport is the entry-level (8-bit, upgradable to 24-bit) framebuffer graphics board for the SGI Indy.
 SGI's own tagline for it was "the least graphics you'll ever need." There is <strong>no geometry/transform
