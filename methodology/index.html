@@ -1114,6 +1114,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#related-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related work
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#source-material" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1207,6 +1218,17 @@
     <span class="md-ellipsis">
       
         Boot bring-up order (what to make work, in order)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related work
       
     </span>
   </a>
@@ -1324,6 +1346,28 @@ ambiguity), so the C++ SCC hook is the reliable headless serial sink. Getting se
 <li><strong>HPC3 SCSI + WD33C93</strong> → read the root disk. See <a href="../peripherals/hpc3/">HPC3</a>.</li>
 <li>GIO64 bus-errors empty slots → IRIX skips graphics cleanly. See <a href="../peripherals/gio64/">GIO64</a>.</li>
 </ol>
+<h2 id="related-work">Related work<a class="headerlink" href="#related-work" title="Permanent link">&para;</a></h2>
+<p><strong>Project CYAN</strong> (<a href="https://wiki.unix-haters.org/doku.php?id=sgimips:cyan">wiki.unix-haters.org</a>) — by
+<strong>finder</strong> (tr0n) — is a from-scratch FPGA SoC of the SGI <strong>Indigo IP20</strong>, the board generation just
+<em>before</em> Henry's Indy IP22. It's a sibling effort and the inspiration for this one, and it cross-checks
+Henry from an independent direction.</p>
+<ul>
+<li><strong>haterMIPS</strong> — finder's clean-room <strong>R4000SC</strong> core (8-stage R4000 pipeline, 48-entry TLB, 8 KB L1s +
+  1 MB secondary cache, MIPS III + FPU; PRId <code>0x430</code>; verified vs Sail, cheritest, and the SGI PROM). It
+  <strong>independently corroborates</strong> Henry's cache model: incoherent L1 + software <code>CACHE</code> flush for SMC, no
+  snoop (see <a href="../coherence-cache-tlb/">Cache, coherence &amp; TLB</a>). Confirms <code>PageMask</code>-invalid → Machine
+  Check <code>ExcCode=24</code> and the Wired/Random interaction too.</li>
+<li><strong>CYAN Express/Elan study</strong> — the best open register-level reconstruction of the <strong>GR2</strong> graphics
+  programming model (FIFO token interface, HQ2 registers, the <code>0xDEADBEEF</code> board probe, RE2/RE3 register
+  map, from NetBSD <code>grtworeg.h</code> + MAME <code>sgi_re2</code>). Henry's <a href="../graphics/express-xz/">Express / XZ</a> page
+  borrows it for the Indy <strong>GR4</strong> equivalent.</li>
+</ul>
+<p><strong>Different theses, deliberately.</strong> CYAN aims for an <strong>exact</strong> SGI replica (precise R4000 microarchitecture).
+Henry keeps only the <strong>software-visible contract</strong> IRIX/PROM probe (48-entry TLB, MIPS III, CP0, PRId,
+<code>CACHE</code> semantics, phys-addr width) and is free to <strong>modernize the microarchitecture</strong> behind it (e.g. a
+micro-TLB in front of the 48-entry JTLB to close timing — not something a faithful R4000 would have). Two
+independent implementations triangulating the same under-documented machine is exactly why mining CYAN is
+useful here: where finder and MAME agree, Henry's spec is on solid ground.</p>
 <h2 id="source-material">Source material<a class="headerlink" href="#source-material" title="Permanent link">&para;</a></h2>
 <ul>
 <li>MAME (the oracle): <code>~/code/mame</code> (v0.287), Indy <code>indy_4610</code> + the IRIX 6.5.22 CHD.</li>

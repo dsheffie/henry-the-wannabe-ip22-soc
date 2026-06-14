@@ -1076,6 +1076,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#host-programming-interface-the-fifo-token-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Host programming interface (the FIFO token model)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#indy-board-set-gr4-express" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1233,6 +1244,17 @@
     <span class="md-ellipsis">
       
         Raster Engine (RE3) — hyper-pipelined
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#host-programming-interface-the-fifo-token-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Host programming interface (the FIFO token model)
       
     </span>
   </a>
@@ -1469,6 +1491,195 @@ buffer</strong> (1 pixel/clock, contentionless along a span).</p>
 <p><strong>Performance</strong> (paper, full <strong>8-GE / 2-RE Extreme</strong> config): &gt;1.3M depth-cued lines/s, &gt;0.5M gouraud
 Z-buffered triangles/s, 80M pixels/s sustained fill. The Indy's <strong>4-GE / 1-RE</strong> board is the scaled-down
 fraction of this.</p>
+<h2 id="host-programming-interface-the-fifo-token-model">Host programming interface (the FIFO token model)<a class="headerlink" href="#host-programming-interface-the-fifo-token-model" title="Permanent link">&para;</a></h2>
+<p>The paper describes the <em>datapath</em>; it omits the <em>programming model</em> (the <code>sys/gr2hw.h</code> struct was never
+open-sourced). That gap is filled by <strong>finder's CYAN reverse-engineering</strong> (NetBSD <code>grtworeg.h</code> + MAME's
+<code>sgi_re2</code>) — see <a href="../../methodology/#related-work">Related work</a>. ⚠️ The addresses below are the <strong>IP20
+GR2</strong> reconstruction; the Indy's <strong>GR4</strong> shares the chips and this programming model, but exact sub-offsets
+may differ — treat as the model, not a verified GR4 register map.</p>
+<p><strong>Key principle: the CPU never touches RE3 directly.</strong> All rendering is a <strong>token write into a FIFO</strong>:
+<code>base-&gt;fifo[TOKEN] = DATA</code>. The <strong>HQ2</strong> microcode reads the token, dispatches it to a <strong>GE7</strong>, which runs
+geometry microcode that emits <strong>RE3</strong> raster commands. (For a software/HLE model you intercept at the FIFO
+token level and skip the microcode entirely.)</p>
+<p><strong>GIO slot-0 memory map</strong> (base <code>0x1f000000</code>, 4 MB):</p>
+<table>
+<thead>
+<tr>
+<th>Range</th>
+<th>Region</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0x1f000000–0x1f01ffff</code></td>
+<td>shared data RAM (CPU↔GE communication, 128 KB)</td>
+</tr>
+<tr>
+<td><code>0x1f040000–0x1f05ffff</code></td>
+<td><strong>FIFO write port</strong> (indexed by token number)</td>
+</tr>
+<tr>
+<td><code>0x1f060000</code></td>
+<td>HQ2 microcode RAM (32 KB)</td>
+</tr>
+<tr>
+<td><code>0x1f068000</code></td>
+<td>GE7 instances (×8)</td>
+</tr>
+<tr>
+<td><code>0x1f06a000</code></td>
+<td><strong>HQ2 registers</strong></td>
+</tr>
+<tr>
+<td><code>0x1f06c000…</code></td>
+<td>board rev / clock PLL / VC1 / Bt457 DACs / XMAP5 ×5 / RE3 register banks</td>
+</tr>
+</tbody>
+</table>
+<p><strong>HQ2 registers</strong> (offset from <code>0x1f06a000</code>, selected):</p>
+<table>
+<thead>
+<tr>
+<th>Off</th>
+<th>Name</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0x40</code></td>
+<td><code>VERSION</code></td>
+<td>RO; <code>[12:6]</code>=fifo_count, <code>[5]</code>=fifo_overflow, <code>[22:20]</code>=ge_ptr</td>
+</tr>
+<tr>
+<td><code>0x44</code></td>
+<td><code>NUMGE</code></td>
+<td>number of GE7s (OR <code>FASTSHRAMCNT_4</code> for 8)</td>
+</tr>
+<tr>
+<td><code>0x5c/0x60</code></td>
+<td><code>FIFO_FULL</code>/<code>FIFO_EMPTY</code></td>
+<td>high/low water marks (full → IRQ to CPU)</td>
+</tr>
+<tr>
+<td><code>0x64</code></td>
+<td><code>GE7_LOAD_UCODE</code></td>
+<td>GE7 microcode word <code>[25:0]</code> (triggers load)</td>
+</tr>
+<tr>
+<td><code>0x74</code></td>
+<td><code>INTR</code></td>
+<td>interrupt bit (host clears)</td>
+</tr>
+<tr>
+<td><code>0x78</code></td>
+<td><code>UNSTALL</code></td>
+<td>WO; write 0 to start HQ+GE</td>
+</tr>
+<tr>
+<td><code>0x7c</code></td>
+<td><code>MYSTERY</code></td>
+<td>RO; <strong>must read <code>0xDEADBEEF</code></strong> — the board-presence probe</td>
+</tr>
+<tr>
+<td><code>0x80</code></td>
+<td><code>REFRESH</code></td>
+<td>typ <code>0x10</code>/<code>0xf0</code></td>
+</tr>
+</tbody>
+</table>
+<p>So Henry's board-probe contract for this option is concrete: <strong><code>MYSTERY</code> returns <code>0xDEADBEEF</code></strong>, <code>VERSION</code>
+returns a sane version, and <code>ge[i].ram0[]</code> is read/write (the GE-count probe) — the equivalent of Newport's
+GIO Product-ID handshake.</p>
+<p><strong>PROM textport tokens</strong> (<code>PUC_*</code>, FIFO base <code>0x1f040000</code>) — the minimal set the PROM uses for the console
+<em>before</em> IRIX downloads its GL microcode:</p>
+<table>
+<thead>
+<tr>
+<th>Token</th>
+<th>Val</th>
+<th>Operation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PUC_INIT</code></td>
+<td><code>0x191</code></td>
+<td>init GE7 for textport mode</td>
+</tr>
+<tr>
+<td><code>PUC_COLOR</code></td>
+<td><code>0x192</code></td>
+<td>set drawing color (CI8)</td>
+</tr>
+<tr>
+<td><code>PUC_FINISH</code></td>
+<td><code>0x193</code></td>
+<td>sync</td>
+</tr>
+<tr>
+<td><code>PUC_PNT2I</code> / <code>PUC_RECTI2D</code></td>
+<td><code>0x194</code>/<code>0x195</code></td>
+<td>pixel / filled rect</td>
+</tr>
+<tr>
+<td><code>PUC_CMOV2I</code> / <code>PUC_LINE2I</code></td>
+<td><code>0x196</code>/<code>0x197</code></td>
+<td>char-move / line</td>
+</tr>
+<tr>
+<td><code>PUC_DRAWCHAR</code> / <code>PUC_RECTCOPY</code></td>
+<td><code>0x198</code>/<code>0x199</code></td>
+<td>glyph / rect copy-scroll</td>
+</tr>
+<tr>
+<td><code>PUC_DATA</code></td>
+<td><code>0x1df</code></td>
+<td>data word for the previous command</td>
+</tr>
+</tbody>
+</table>
+<p><strong>RE3 <code>IR</code> (instruction register) commands</strong> — what the GE microcode ultimately drives RE3 with (RE2 set,
+the documented predecessor; RE3 is an evolution):</p>
+<table>
+<thead>
+<tr>
+<th>IR</th>
+<th>Op</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>SHADED</code></td>
+<td>Gouraud span</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>FLAT</code></td>
+<td>1×5 flat span</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>FLAT4</code>/<code>BLOCKWRITE</code></td>
+<td>1×20 flat span / block write</td>
+</tr>
+<tr>
+<td>4 / 5</td>
+<td><code>TOPLINE</code> / <code>BOTLINE</code></td>
+<td>anti-aliased line halves</td>
+</tr>
+<tr>
+<td>6 / 7</td>
+<td><code>READBUF</code> / <code>WRITEBUF</code></td>
+<td>framebuffer read / write</td>
+</tr>
+</tbody>
+</table>
+<p>Nice cross-check on the paper: <code>FLAT</code> writes <strong>1×5</strong> and <code>FLAT4</code>/<code>BLOCKWRITE</code> writes <strong>1×20</strong> — i.e. the
+5-way color interleave × the 4-pixel VRAM block-write, exactly the paper's "1 px/clk shaded, 4 px/clk flat
+block-write" span processor.</p>
 <h2 id="indy-board-set-gr4-express">Indy board set (GR4 Express)<a class="headerlink" href="#indy-board-set-gr4-express" title="Permanent link">&para;</a></h2>
 <p>Two boards in the Indy's <strong>GIO32 slot</strong> (occupies the slot; no other GIO option can coexist):</p>
 <ul>

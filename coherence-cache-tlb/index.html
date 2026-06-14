@@ -1301,6 +1301,16 @@ interpreter), including C++-instrumented op histograms.</p>
    D-side ops are functionally moot — but the moment real incoherent DMA sits behind L1d, the
    invalidate-vs-writeback distinction becomes correctness-critical (see routing table).</li>
 </ol>
+<div class="admonition note">
+<p class="admonition-title">External corroboration (independent R4000SC implementation)</p>
+<p>finder's <strong>haterMIPS</strong> — a clean-room R4000SC core for the SGI Indigo <strong>IP20</strong> (Project CYAN, see
+<a href="../methodology/#related-work">methodology → related work</a>) — reaches the <strong>same</strong> conclusion from the
+CPU side: self-modifying code only works when software issues the full <code>CACHE</code> sequence —
+<strong>D-cache Hit-Writeback-Invalidate + I-cache Hit-Invalidate</strong> — exactly axes 1 and 2 above. Its <code>Config</code>
+reports <code>SC=0/SB=11</code> (a 1 MB / 128 B-line secondary cache) and it implements I$/D$ coherency <em>only</em> via
+those <code>CACHE</code> ops, no snoop. Two independent implementations agreeing the <code>cache</code> op is <strong>load-bearing,
+not NOP-able</strong> is strong evidence the model is right.</p>
+</div>
 <div class="admonition question">
 <p class="admonition-title">FAQ: Do we need snoops (hardware cache coherence) in r9999? — <strong>No.</strong></p>
 <p>Snooping is a <strong>multiprocessor / coherent-DMA</strong> feature: it exists to keep one cache coherent with another
