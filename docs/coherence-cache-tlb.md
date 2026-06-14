@@ -37,6 +37,33 @@ Two independent coherence axes, both software-managed:
    D-side ops are functionally moot — but the moment real incoherent DMA sits behind L1d, the
    invalidate-vs-writeback distinction becomes correctness-critical (see routing table).
 
+!!! question "FAQ: Do we need snoops (hardware cache coherence) in r9999? — **No.**"
+
+    Snooping is a **multiprocessor / coherent-DMA** feature: it exists to keep one cache coherent with another
+    bus agent (a second CPU or a snooping DMA engine). Henry is a faithful **uniprocessor** IP22 with
+    **non-coherent DMA**, so there is no other agent to snoop and nothing to build. The whole platform does
+    **software** cache coherence instead — which is exactly the contract above.
+
+    The evidence is unanimous:
+
+    - **HPC3** (the real SCSI/Ethernet DMA path) has **zero snoop hardware** — it just masters the bus to/from
+      physical DRAM; coherence is the driver's job (hpc3.pdf has no coherence language).
+    - **VDMA**'s snoop is **R4000MP-only** — a per-transfer `GIO_MODE[5]` bit that exists only on the
+      multiprocessor part; on a uniprocessor R4000PC/SC (what r9999 presents as) it is never used, and the
+      kernel software-flushes instead (vdma.pdf p.1–2). The MC's `CPUCTRL0.SNOOP_EN` bit is for that same
+      MP graphics-DMA path → Henry treats it as a no-op storage bit.
+    - **IRIX confirms it dynamically:** the ~5.2M `cache` ops/boot we measured *are* the software coherence —
+      the kernel would not issue them if hardware snooped.
+
+    **What r9999 needs *instead* of snoops** is just to **execute the software cache-management ops correctly
+    (not NOP them)** — drive the L1i flush on I-cache invalidate (code coherence), and invalidate-*without*-
+    writeback on `Hit-Invalidate-D` (DMA-in). See the routing table below. Not building snoop logic is a
+    genuine **simplification**, not a shortcut.
+
+    Snoops would only ever be needed if Henry went **multiprocessor** (multiple r9999 cores sharing memory) or
+    chose to model **coherent DMA hardware** to spare IRIX the flushes — neither is in scope, and the latter
+    would diverge from the real IP22.
+
 ## The `cache` instruction — decode & routing
 
 r9999 must **fully decode `cache`** (opcode `0x2f`) and route by the op field — a blanket NOP is a
