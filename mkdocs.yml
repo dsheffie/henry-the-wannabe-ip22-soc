@@ -58,10 +58,11 @@ nav:
       - GIO64 (bus): peripherals/gio64.md
       - VDMA (virtual DMA): peripherals/vdma.md
       - DMUX (data mux): peripherals/dmux1.md
-  - Graphics (Newport):
-      - Overview: graphics/index.md
+  - Graphics:
+      - Newport overview: graphics/index.md
       - REX3 (raster engine): graphics/rex3.md
       - VC2 (video timing/cursor): graphics/vc2.md
       - XMAP9 (colormap): graphics/xmap9.md
       - RB2 & RO1 (framebuffer/output): graphics/rb2-ro1.md
+      - Express / XZ (hardware geometry): graphics/express-xz.md
   - Methodology (MAME oracle): methodology.md

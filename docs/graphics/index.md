@@ -8,6 +8,12 @@ status: draft / future-work
 > Henry boot (bus-error the aperture → IRIX skips it, see [../peripherals/gio64.md](../peripherals/gio64.md)).
 > This is the future-work path for a Henry graphics console.
 
+> **The Indy had two graphics options.** This page covers **XL / Newport** (host geometry, raster-only).
+> The other was **Express / XZ** — a hardware-geometry pipeline (SIMD Geometry Engines + a hyper-pipelined
+> Raster Engine); see [Express / XZ](express-xz.md). For a Henry graphics path, Newport is the far smaller
+> target — Express adds a microcoded SIMD FP array and a command-FIFO front-end on top of a REX3-class
+> rasterizer.
+
 Newport is the entry-level (8-bit, upgradable to 24-bit) framebuffer graphics board for the SGI Indy.
 SGI's own tagline for it was "the least graphics you'll ever need." There is **no geometry/transform
 ASIC** — the host MIPS FPU is the geometry engine, and Z-buffering lives in host system memory. The
