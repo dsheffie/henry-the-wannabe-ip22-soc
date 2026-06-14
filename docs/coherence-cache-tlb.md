@@ -170,7 +170,9 @@ global wired high-kseg3 entry resolving an access across ASID changes).
 **Two prime suspects:**
 1. **`tlbwr` not clamping Random to `[Wired..47]`** — a `tlbwr` between `wirepda` and the access
    overwrites the wired PDA entry (slot 0); the access then misses and refill can't find it (no
-   page-table entry backs a wired-only mapping) → spins in EXL=1.
+   page-table entry backs a wired-only mapping) → spins in EXL=1. *(Cross-check: CYAN's independent
+   haterMIPS explicitly resets `Random→47` on a `Wired` write and constrains `tlbwr` to `[Wired..47]` —
+   it implements exactly the behavior this suspect says r9999 may be missing, which raises the prior on #1.)*
 2. **Segment decode for the high kseg3 VA `0xFFFFFFFF_FFFFA000`** — r9999 may mis-handle the
    sign-extended top-of-space mapped address (treat as unmapped / wrong region / 64-bit VA mishandling).
 
