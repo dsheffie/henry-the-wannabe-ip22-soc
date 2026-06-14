@@ -81,6 +81,30 @@ ambiguity), so the C++ SCC hook is the reliable headless serial sink. Getting se
 5. **HPC3 SCSI + WD33C93** → read the root disk. See [HPC3](peripherals/hpc3.md).
 6. GIO64 bus-errors empty slots → IRIX skips graphics cleanly. See [GIO64](peripherals/gio64.md).
 
+## Related work
+
+**Project CYAN** ([wiki.unix-haters.org](https://wiki.unix-haters.org/doku.php?id=sgimips:cyan)) — by
+**CYAN** (CYAN) — is a from-scratch FPGA SoC of the SGI **Indigo IP20**, the board generation just
+*before* Henry's Indy IP22. It's a sibling effort and the inspiration for this one, and it cross-checks
+Henry from an independent direction.
+
+- **haterMIPS** — CYAN's clean-room **R4000SC** core (8-stage R4000 pipeline, 48-entry TLB, 8 KB L1s +
+  1 MB secondary cache, MIPS III + FPU; PRId `0x430`; verified vs Sail, cheritest, and the SGI PROM). It
+  **independently corroborates** Henry's cache model: incoherent L1 + software `CACHE` flush for SMC, no
+  snoop (see [Cache, coherence & TLB](coherence-cache-tlb.md)). Confirms `PageMask`-invalid → Machine
+  Check `ExcCode=24` and the Wired/Random interaction too.
+- **CYAN Express/Elan study** — the best open register-level reconstruction of the **GR2** graphics
+  programming model (FIFO token interface, HQ2 registers, the `0xDEADBEEF` board probe, RE2/RE3 register
+  map, from NetBSD `grtworeg.h` + MAME `sgi_re2`). Henry's [Express / XZ](graphics/express-xz.md) page
+  borrows it for the Indy **GR4** equivalent.
+
+**Different theses, deliberately.** CYAN aims for an **exact** SGI replica (precise R4000 microarchitecture).
+Henry keeps only the **software-visible contract** IRIX/PROM probe (48-entry TLB, MIPS III, CP0, PRId,
+`CACHE` semantics, phys-addr width) and is free to **modernize the microarchitecture** behind it (e.g. a
+micro-TLB in front of the 48-entry JTLB to close timing — not something a faithful R4000 would have). Two
+independent implementations triangulating the same under-documented machine is exactly why mining CYAN is
+useful here: where CYAN and MAME agree, Henry's spec is on solid ground.
+
 ## Source material
 
 - MAME (the oracle): `~/code/mame` (v0.287), Indy `indy_4610` + the IRIX 6.5.22 CHD.

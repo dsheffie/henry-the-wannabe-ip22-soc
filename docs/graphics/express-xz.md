@@ -127,6 +127,75 @@ buffer** (1 pixel/clock, contentionless along a span).
 Z-buffered triangles/s, 80M pixels/s sustained fill. The Indy's **4-GE / 1-RE** board is the scaled-down
 fraction of this.
 
+## Host programming interface (the FIFO token model)
+
+The paper describes the *datapath*; it omits the *programming model* (the `sys/gr2hw.h` struct was never
+open-sourced). That gap is filled by **CYAN's CYAN reverse-engineering** (NetBSD `grtworeg.h` + MAME's
+`sgi_re2`) — see [Related work](../methodology.md#related-work). ⚠️ The addresses below are the **IP20
+GR2** reconstruction; the Indy's **GR4** shares the chips and this programming model, but exact sub-offsets
+may differ — treat as the model, not a verified GR4 register map.
+
+**Key principle: the CPU never touches RE3 directly.** All rendering is a **token write into a FIFO**:
+`base->fifo[TOKEN] = DATA`. The **HQ2** microcode reads the token, dispatches it to a **GE7**, which runs
+geometry microcode that emits **RE3** raster commands. (For a software/HLE model you intercept at the FIFO
+token level and skip the microcode entirely.)
+
+**GIO slot-0 memory map** (base `0x1f000000`, 4 MB):
+
+| Range | Region |
+|---|---|
+| `0x1f000000–0x1f01ffff` | shared data RAM (CPU↔GE communication, 128 KB) |
+| `0x1f040000–0x1f05ffff` | **FIFO write port** (indexed by token number) |
+| `0x1f060000` | HQ2 microcode RAM (32 KB) |
+| `0x1f068000` | GE7 instances (×8) |
+| `0x1f06a000` | **HQ2 registers** |
+| `0x1f06c000…` | board rev / clock PLL / VC1 / Bt457 DACs / XMAP5 ×5 / RE3 register banks |
+
+**HQ2 registers** (offset from `0x1f06a000`, selected):
+
+| Off | Name | Notes |
+|---|---|---|
+| `0x40` | `VERSION` | RO; `[12:6]`=fifo_count, `[5]`=fifo_overflow, `[22:20]`=ge_ptr |
+| `0x44` | `NUMGE` | number of GE7s (OR `FASTSHRAMCNT_4` for 8) |
+| `0x5c/0x60` | `FIFO_FULL`/`FIFO_EMPTY` | high/low water marks (full → IRQ to CPU) |
+| `0x64` | `GE7_LOAD_UCODE` | GE7 microcode word `[25:0]` (triggers load) |
+| `0x74` | `INTR` | interrupt bit (host clears) |
+| `0x78` | `UNSTALL` | WO; write 0 to start HQ+GE |
+| `0x7c` | `MYSTERY` | RO; **must read `0xDEADBEEF`** — the board-presence probe |
+| `0x80` | `REFRESH` | typ `0x10`/`0xf0` |
+
+So Henry's board-probe contract for this option is concrete: **`MYSTERY` returns `0xDEADBEEF`**, `VERSION`
+returns a sane version, and `ge[i].ram0[]` is read/write (the GE-count probe) — the equivalent of Newport's
+GIO Product-ID handshake.
+
+**PROM textport tokens** (`PUC_*`, FIFO base `0x1f040000`) — the minimal set the PROM uses for the console
+*before* IRIX downloads its GL microcode:
+
+| Token | Val | Operation |
+|---|---|---|
+| `PUC_INIT` | `0x191` | init GE7 for textport mode |
+| `PUC_COLOR` | `0x192` | set drawing color (CI8) |
+| `PUC_FINISH` | `0x193` | sync |
+| `PUC_PNT2I` / `PUC_RECTI2D` | `0x194`/`0x195` | pixel / filled rect |
+| `PUC_CMOV2I` / `PUC_LINE2I` | `0x196`/`0x197` | char-move / line |
+| `PUC_DRAWCHAR` / `PUC_RECTCOPY` | `0x198`/`0x199` | glyph / rect copy-scroll |
+| `PUC_DATA` | `0x1df` | data word for the previous command |
+
+**RE3 `IR` (instruction register) commands** — what the GE microcode ultimately drives RE3 with (RE2 set,
+the documented predecessor; RE3 is an evolution):
+
+| IR | Op | Note |
+|---|---|---|
+| 1 | `SHADED` | Gouraud span |
+| 2 | `FLAT` | 1×5 flat span |
+| 3 | `FLAT4`/`BLOCKWRITE` | 1×20 flat span / block write |
+| 4 / 5 | `TOPLINE` / `BOTLINE` | anti-aliased line halves |
+| 6 / 7 | `READBUF` / `WRITEBUF` | framebuffer read / write |
+
+Nice cross-check on the paper: `FLAT` writes **1×5** and `FLAT4`/`BLOCKWRITE` writes **1×20** — i.e. the
+5-way color interleave × the 4-pixel VRAM block-write, exactly the paper's "1 px/clk shaded, 4 px/clk flat
+block-write" span processor.
+
 ## Indy board set (GR4 Express)
 
 Two boards in the Indy's **GIO32 slot** (occupies the slot; no other GIO option can coexist):
