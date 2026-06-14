@@ -1517,8 +1517,14 @@ If real incoherent DMA is ever added, honor the invalidate-vs-writeback distinct
   overwrite) rather than asserting a machine-check.</li>
 </ul>
 <h2 id="the-wirepda-wired-entry-finding">The wirepda / wired-entry finding<a class="headerlink" href="#the-wirepda-wired-entry-finding" title="Permanent link">&para;</a></h2>
-<p><strong>MAME-confirmed (Q1, 2026-06-13): real HW takes NO miss at <code>wirepda</code>'s <code>jr $ra</code>; r9999 faults
-spuriously.</strong> This is the live VM-init bug that strands r9999 ~805K cycles into boot.</p>
+<p><strong>MAME-confirmed (Q1, 2026-06-13): real HW takes NO miss at <code>wirepda</code>'s <code>jr $ra</code>; r9999 faulted
+spuriously.</strong> This was the VM-init bug that stranded r9999 ~805K cycles into boot.</p>
+<div class="admonition success">
+<p class="admonition-title">Resolved in RTL (r9999 <code>tlb.sv</code>, commit <code>e451d50</code>)</p>
+<p>The root cause was <strong>suspect #2</strong> (high-VA match), now fixed; <strong>suspect #1</strong> (Random clamp) was
+refuted by RTL inspection. End-to-end confirmation ("IRIX boots past the 805K-cycle wall") is the
+remaining check; unit coverage exists (<code>tests/cheri/tlb/test_tlb_xkseg.s</code>, <code>test_tlb_wired.s</code>).</p>
+</div>
 <p><code>wirepda</code> (@<code>0x881689b0</code>) <code>jal</code>s <code>tlbwired</code> (@<code>0x88004ba0</code>) to wire the per-CPU PDA. The golden wired
 entry captured at the <code>tlbwi</code> inside <code>tlbwired</code> (0x88004c28):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>EntryHi  = 0x00000000_FFFFA000   ; VPN2 for VA 0xFFFFFFFF_FFFFA000, ASID=0x00
@@ -1534,22 +1540,32 @@ entry captured at the <code>tlbwi</code> inside <code>tlbwired</code> (0x88004c2
   <strong>no store miss</strong>.
 - Returns to <strong><code>0x8814a184</code></strong> (= <code>mlsetup+0xb4</code>, <strong>kseg0 / UNMAPPED</strong>) — clean, <strong>no exception vector,
   Cause=0, no BadVAddr</strong>.</p>
-<p><strong>⇒ r9999 is faulting spuriously</strong> — the fix is in r9999's TLB/Wired/segment/ASID handling, NOT a
-missing mapping. The wired mechanism is <strong>untested</strong> in r9999/tests/ (existing tests only R/W the Wired
-register, round-trip <code>tlbwr</code> with Wired=0, and test the global bit on a non-wired low-VA entry — never a
-global wired high-kseg3 entry resolving an access across ASID changes).</p>
-<p><strong>Two prime suspects:</strong>
-1. <strong><code>tlbwr</code> not clamping Random to <code>[Wired..47]</code></strong> — a <code>tlbwr</code> between <code>wirepda</code> and the access
-   overwrites the wired PDA entry (slot 0); the access then misses and refill can't find it (no
-   page-table entry backs a wired-only mapping) → spins in EXL=1. <em>(Cross-check: finder's independent
-   haterMIPS explicitly resets <code>Random→47</code> on a <code>Wired</code> write and constrains <code>tlbwr</code> to <code>[Wired..47]</code> —
-   it implements exactly the behavior this suspect says r9999 may be missing, which raises the prior on #1.)</em>
-2. <strong>Segment decode for the high kseg3 VA <code>0xFFFFFFFF_FFFFA000</code></strong> — r9999 may mis-handle the
-   sign-extended top-of-space mapped address (treat as unmapped / wrong region / 64-bit VA mishandling).</p>
+<p><strong>⇒ r9999 <em>was</em> faulting spuriously</strong> — the fix was in r9999's TLB high-VA matching, NOT a missing
+mapping (see the resolution box above). Generic xkseg/wired unit tests now exist
+(<code>tests/cheri/tlb/test_tlb_xkseg.s</code>, <code>test_tlb_wired.s</code>), but a <strong>directed regression test for the exact
+wirepda scenario</strong> — a <em>global wired high-kseg3</em> entry resolving an access <em>across ASID changes and <code>tlbwr</code>
+churn</em> — is still worth adding, since the imported CHERI tests don't combine all three.</p>
+<p><strong>Root cause &amp; fix (the two original suspects, resolved):</strong></p>
+<ol>
+<li><strong>Suspect #1 — <code>tlbwr</code> not clamping Random to <code>[Wired..47]</code>: REFUTED.</strong> exec.sv resets <code>Random→47</code> on
+   a <code>Wired</code> write (<code>n_random='d47</code>), decrements with wrap at <code>Wired</code> (<code>r_random==r_wired ? 47 :
+   r_random-1</code>), and <code>TLBWR</code> writes index <code>r_random</code> (exec.sv:1965). So <code>Random ∈ [Wired..47]</code> always and
+   <code>tlbwr</code> can never overwrite the wired slots 0–7. <em>(finder's independent haterMIPS implements the same
+   clamp — confirming it's the correct behavior, which r9999 already has.)</em></li>
+<li><strong>Suspect #2 — high kseg3 VA <code>0xFFFFFFFF_FFFFA000</code> never matched: ROOT CAUSE, FIXED (<code>e451d50</code>).</strong> The
+   real asymmetry: <code>mtc0 EntryHi</code> stored <code>VPN2</code> <strong>zero-extended</strong>, while kseg VAs <strong>sign-extend</strong>
+   (<code>va[63:62]=11</code>, <code>va[39:32]=ff</code>). Comparing the full <code>va[39:13]</code>+region against the zero-extended stored
+   VPN2 → the wired high-VA entry never hit → spurious refill, EXL=1 spin. <strong>Fix:</strong> match only the low
+   19-bit VPN2 (<code>r_tlb[i].vpn[18:0] == va[31:13]</code>), ignoring region <code>R</code> and <code>va[39:32]</code> (tlb.sv:81–88).
+   ⚠️ This is a compare-side workaround valid under 32-bit addressing; the cleaner fix is sign-extending
+   <code>VPN2</code> at the <code>mtc0 EntryHi</code> source. Could alias only if true 64-bit/region-distinguished VAs are used —
+   not the case on the IRIX boot path.</li>
+</ol>
 <p><strong>Suggested directed test (golden values above):</strong> set <code>Wired=8</code>; write the PDA entry
 (EntryHi=0xFFFFA000, EntryLo0=0x20E39F, EntryLo1=0x00000001, PageMask=0) at Index 0; churn the TLB with
 many <code>tlbwr</code> and change ASID; then <strong>store to <code>0xFFFFFFFF_FFFFA240</code> and load it back</strong> — must hit
-PA <code>0x0838E240</code> with no miss. Reproduces the bug if either suspect is real.</p>
+PA <code>0x0838E240</code> with no miss. With <code>e451d50</code> in place this should now <strong>pass</strong>; it guards against a
+regression in the high-VA match (and would catch a re-introduction of the zero-extend asymmetry).</p>
 <h2 id="cp0-timekeeping-misc">CP0 timekeeping &amp; misc<a class="headerlink" href="#cp0-timekeeping-misc" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>Steady-state timekeeping = on-chip <code>Count</code>/<code>Compare</code></strong> (not ARCS). The handler re-arms
