@@ -36,9 +36,8 @@ jobs:
         with:
           python-version: '3.x'
 
-      - name: Install mkdocs
-        run: pip install mkdocs
-        # If you switch mkdocs.yml to the Material theme, also: pip install mkdocs-material
+      - name: Install mkdocs + Material (Mermaid support)
+        run: pip install mkdocs-material   # pulls mkdocs + pymdown-extensions
 
       - name: Build & deploy to gh-pages
         run: mkdocs gh-deploy --force --strict

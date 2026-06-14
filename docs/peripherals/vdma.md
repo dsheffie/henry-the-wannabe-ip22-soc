@@ -33,18 +33,22 @@ Draft 1.5 (1992).
 The novel feature: the engine translates user virtual addresses *itself*, page-by-page, so the OS no longer has
 to pre-translate + lock-down a long physical descriptor list per transfer. Flow:
 
-```
- user virtual addr  ──split──>  VPNhi  +  VPNlo  +  page-offset
-                                  │
-                  VPNhi ── associative lookup ──> 4-entry PTEBase µTLB (CAM)
-                                  │  hit -> PTEBase[25:6] (phys base of that page table) + V
-                                  ▼
-        PTE_addr = PTEBase  indexed by  VPNlo     (one memory indirection)
-                                  │  HW reads the PTE from DRAM
-                                  ▼
-                          PTE  ── decode ──>  PFN  (+ valid / dirty bits)
-                                  │
-              physical addr = PFN | page-offset   ──> DMA the data
+```mermaid
+flowchart TD
+    VA([User virtual address]) -->|split| F["VPNhi · VPNlo · page-offset"]
+    F -->|VPNhi| UTLB{{"4-entry PTEBase µTLB (CAM)"}}
+    UTLB -->|"hit → PTEBase[25:6] + V"| PB[PTEBase = phys base of page table]
+    PB -->|"index by VPNlo<br/>(one DRAM read)"| PTE[Read PTE from DRAM]
+    PTE -->|"decode → PFN (+ valid/dirty)"| PFN[PFN]
+    PFN -->|"PFN &#124; page-offset"| PA[Physical address]
+    PA --> DMA([DMA the data])
+
+    UTLB -.->|miss / invalid| FB[["PTEBase fault → CPU supplies a PTEBase"]]
+    PTE -.->|"PTE invalid (GIO_CAUSE[1])"| TM[["TLB-miss interrupt"]]
+    PTE -.->|"page not resident (GIO_CAUSE[0])"| PFa[["Page-Fault interrupt"]]
+
+    classDef fault fill:#fbe9e7,stroke:#d84315,color:#bf360c;
+    class FB,TM,PFa fault;
 ```
 
 - **The µTLB** (`GIO_TLBHI[n]` / `GIO_TLBLO[n]`, n = 0..3). Each PTEBase maps one ~2 MB-aligned slice of user

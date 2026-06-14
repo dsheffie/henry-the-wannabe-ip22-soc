@@ -20,23 +20,18 @@ vectors. Tags: ✅ = confirmed in MAME, ⚠️ = a correction to an earlier reve
 
 ## The system at a glance
 
-```
-                +-------------------+
-                |   r9999 (R4000)   |   CPU core (git submodule)
-                |  L1i  L1d   L2     |   L1i/L1d incoherent; L2 transparent/coherent
-                +----------+--------+
-                           | sysad (64b, big-endian)
-                +----------+--------+
-                |        MC          |   memory controller + RAM banks + GIO64 arbiter + (V)DMA
-                +--+-------+--------+
-       main RAM |          | GIO64 bus (0x1f000000–0x1f9fffff)
-   0x08000000+  |          +-----------+-------------+
-                |          | graphics  | exp slot 0  | exp slot 1   (probe → bus-error when empty)
-                |
-                +--- local I/O bus ---+--------------------------------+
-                                      | HPC3  (SCSI×2, Ethernet, PBUS DMA, ds1386 RTC/NVRAM, EEPROM)
-                                      | IOC2  (Z8530 serial console, INT3, 8254 timer, kbd, parallel)
-                                      | Boot PROM / ARCS shim
+```mermaid
+flowchart TD
+    CPU["<b>r9999</b> — MIPS R4000 core<br/><small>L1i + L1d (incoherent) · L2 (coherent) · git submodule</small>"]
+    CPU -->|"sysad — 64-bit, big-endian"| MC["<b>MC</b> — memory controller<br/><small>RAM banks · GIO64 arbiter · (V)DMA</small>"]
+    MC --> RAM[("Main RAM<br/>0x08000000+")]
+    MC -->|"GIO64 bus<br/>0x1f000000–0x1f9fffff"| GIO{{GIO64}}
+    GIO --> GFX["graphics — slot 0"]
+    GIO --> EXP["exp slot 0 / 1<br/><small>bus-error when empty</small>"]
+    MC -->|local I/O bus| LIO{{local I/O}}
+    LIO --> HPC3["<b>HPC3</b><br/><small>SCSI×2 · Ethernet · PBUS DMA<br/>ds1386 RTC/NVRAM · EEPROM</small>"]
+    LIO --> IOC2["<b>IOC2</b><br/><small>Z8530 serial console · INT3<br/>8254 timer · kbd · parallel</small>"]
+    LIO --> PROM["Boot PROM / ARCS shim"]
 ```
 
 ## Canonical physical address map (IP22 / Henry)

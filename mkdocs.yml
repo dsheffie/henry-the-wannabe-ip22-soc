@@ -1,16 +1,49 @@
 site_name: Henry — the wannabe IP22 SoC
 site_description: A from-scratch SoC that impersonates the SGI Indy (IP22) well enough to boot IRIX, built around the r9999 MIPS core.
 docs_dir: docs
-# Built-in theme (no extra pip deps). Swap to `material` if mkdocs-material is installed.
+
 theme:
-  name: readthedocs
-  highlightjs: true
+  name: material
+  icon:
+    logo: material/chip
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - navigation.tracking
+    - toc.follow
+    - content.code.copy
+  palette:
+    - scheme: default
+      primary: teal
+      accent: amber
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: teal
+      accent: amber
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
 markdown_extensions:
   - tables
-  - fenced_code
   - admonition
+  - attr_list
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - toc:
       permalink: true
+
 nav:
   - Overview: index.md
   - Architecture: architecture.md

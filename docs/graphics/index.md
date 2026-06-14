@@ -20,25 +20,18 @@ command set, not a 3D pipeline.
 Five ASIC types (plus VRAM, a colormap SRAM, and an external RAMDAC) form a one-way pixel pipeline from
 the host bus to the CRT. REX3 is the only host-facing chip; everything downstream is display/scanout.
 
-```
-                              DISPLAY CONTROL BUS (DCB)  — REX3 is bus master
-        ┌──────────────┬──────────────────────┬─────────────┬──────────────┐
-        │              │                      │             │              │
-  host  │   ┌──────┐   │   ┌──────┐  cursor   │   ┌──────┐  │  ┌──────┐     │
- ───────┼──►│ REX3 │   ├──►│ VC2  │──────────►├──►│XMAP9 │─►├─►│ CMAP │     │
- GIO64  │   │      │   │   │      │  DID      │   │      │  │  │(SRAM)│     │
-  slot0 │   │raster│   │   │video │           │   │pixel │  │  └──┬───┘     │
-0x1f00… │   │engine│   │   │timing│           │   │mode /│  │     │ ▲       │
-        │   └──┬───┘   │   │cursor│           │   │mux   │  │     ▼ │       │
-        │      │ writes│   └──────┘           │   └──▲───┘  │  ┌──────┐ R   │
-        │      ▼ (RB2) │                      │      │      └─►│RAMDAC│─G──►CRT
-        │   ┌──────┐   │   ┌──────────────┐   │   ┌──┴───┐     │(gamma│ B   │
-        │   │ RB2  │◄──┴──►│ VRAM frame-  │──►│   │ RO1  │     │ +DAC)│     │
-        │   │fmt/  │       │ buffer       │   │   │raster│     └──────┘     │
-        │   │logicop│      │ (8-way ileave)│  │   │output│                  │
-        │   └──────┘       └──────────────┘   │   └──────┘                  │
-        │                  serial (video) port┘   reorg/rotate              │
-        └──────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    HOST([host]) -->|"GIO64 slot 0 · 0x1f00_0000"| REX3["<b>REX3</b><br/>raster engine"]
+    REX3 -->|"draw / writes"| RB2["<b>RB2</b><br/>fmt + logic-op"]
+    RB2 <--> VRAM[("VRAM frame buffer<br/>(8-way interleave)")]
+    VRAM -->|scanout| RO1["<b>RO1</b><br/>raster output<br/>reorg / rotate"]
+    RO1 --> XMAP9["<b>XMAP9</b><br/>pixel mode / mux"]
+    XMAP9 --> CMAP[("CMAP<br/>colormap SRAM")]
+    CMAP --> RAMDAC["RAMDAC<br/>gamma + DAC"]
+    RAMDAC -->|"R / G / B"| CRT([CRT])
+    REX3 -.->|"DCB"| VC2["<b>VC2</b><br/>video timing + cursor"]
+    VC2 -.->|"timing · cursor · DID"| RAMDAC
 ```
 
 Flow: **host → REX3** (programs primitives over GIO64) **→ framebuffer** (REX3 reads/writes VRAM
