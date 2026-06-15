@@ -1337,7 +1337,7 @@ interpreter), including C++-instrumented op histograms.</p>
 </ol>
 <div class="admonition note">
 <p class="admonition-title">External corroboration (independent R4000SC implementation)</p>
-<p>finder's <strong>haterMIPS</strong> — a clean-room R4000SC core for the SGI Indigo <strong>IP20</strong> (Project CYAN, see
+<p><strong>haterMIPS</strong> — Project CYAN's clean-room R4000SC core for the SGI Indigo <strong>IP20</strong> (see
 <a href="../methodology/#related-work">methodology → related work</a>) — reaches the <strong>same</strong> conclusion from the
 CPU side: self-modifying code only works when software issues the full <code>CACHE</code> sequence —
 <strong>D-cache Hit-Writeback-Invalidate + I-cache Hit-Invalidate</strong> — exactly axes 1 and 2 above. Its <code>Config</code>
@@ -1584,7 +1584,7 @@ churn</em> — is still worth adding, since the imported CHERI tests don't combi
 <li><strong>Suspect #1 — <code>tlbwr</code> not clamping Random to <code>[Wired..47]</code>: REFUTED.</strong> exec.sv resets <code>Random→47</code> on
    a <code>Wired</code> write (<code>n_random='d47</code>), decrements with wrap at <code>Wired</code> (<code>r_random==r_wired ? 47 :
    r_random-1</code>), and <code>TLBWR</code> writes index <code>r_random</code> (exec.sv:1965). So <code>Random ∈ [Wired..47]</code> always and
-   <code>tlbwr</code> can never overwrite the wired slots 0–7. <em>(finder's independent haterMIPS implements the same
+   <code>tlbwr</code> can never overwrite the wired slots 0–7. <em>(CYAN's independent haterMIPS implements the same
    clamp — confirming it's the correct behavior, which r9999 already has.)</em></li>
 <li><strong>Suspect #2 — high kseg3 VA <code>0xFFFFFFFF_FFFFA000</code> never matched: ROOT CAUSE, FIXED (<code>e451d50</code>).</strong> The
    real asymmetry: <code>mtc0 EntryHi</code> stored <code>VPN2</code> <strong>zero-extended</strong>, while kseg VAs <strong>sign-extend</strong>
