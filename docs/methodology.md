@@ -83,8 +83,8 @@ ambiguity), so the C++ SCC hook is the reliable headless serial sink. Getting se
 
 ## Related work
 
-**Project CYAN** ([wiki.unix-haters.org](https://wiki.unix-haters.org/doku.php?id=sgimips:cyan)) — by
-**CYAN** (CYAN) — is a from-scratch FPGA SoC of the SGI **Indigo IP20**, the board generation just
+**Project CYAN** ([wiki.unix-haters.org](https://wiki.unix-haters.org/doku.php?id=sgimips:cyan))
+is a from-scratch FPGA SoC of the SGI **Indigo IP20**, the board generation just
 *before* Henry's Indy IP22. It's a sibling effort and the inspiration for this one, and it cross-checks
 Henry from an independent direction.
 

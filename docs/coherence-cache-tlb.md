@@ -39,7 +39,7 @@ Two independent coherence axes, both software-managed:
 
 !!! note "External corroboration (independent R4000SC implementation)"
 
-    CYAN's **haterMIPS** — a clean-room R4000SC core for the SGI Indigo **IP20** (Project CYAN, see
+    **haterMIPS** — Project CYAN's clean-room R4000SC core for the SGI Indigo **IP20** (see
     [methodology → related work](methodology.md#related-work)) — reaches the **same** conclusion from the
     CPU side: self-modifying code only works when software issues the full `CACHE` sequence —
     **D-cache Hit-Writeback-Invalidate + I-cache Hit-Invalidate** — exactly axes 1 and 2 above. Its `Config`

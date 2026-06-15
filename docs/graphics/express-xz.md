@@ -130,7 +130,7 @@ fraction of this.
 ## Host programming interface (the FIFO token model)
 
 The paper describes the *datapath*; it omits the *programming model* (the `sys/gr2hw.h` struct was never
-open-sourced). That gap is filled by **CYAN's CYAN reverse-engineering** (NetBSD `grtworeg.h` + MAME's
+open-sourced). That gap is filled by **Project CYAN's reverse-engineering** (NetBSD `grtworeg.h` + MAME's
 `sgi_re2`) — see [Related work](../methodology.md#related-work). ⚠️ The addresses below are the **IP20
 GR2** reconstruction; the Indy's **GR4** shares the chips and this programming model, but exact sub-offsets
 may differ — treat as the model, not a verified GR4 register map.
