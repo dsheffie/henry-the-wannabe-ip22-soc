@@ -22,16 +22,29 @@ source: r9999/IRIX_CPU_REQUIREMENTS.md (P0-A/B/C); ARCS section of r9999/IP22_CH
 Henry jumps to `/unix` `start` (entry **`0x88005960`**, kseg0) with:
 
 ```
-a0 = 0x00000008   a1 = 0   a2 = 0   a3 = 0
+a0 = 0x00000008          ; argc = 8
+a1 = argv  (kseg0 ptr)   ; MAME: 0x88fff300 — array of 8 char* + NULL (boot path + OSLoad* strings)
+a2 = envp  (kseg0 ptr)   ; MAME: 0x88fff908 — array of "KEY=value" char* + NULL (PROM env vars)
+a3 = 0
 sp = 0   gp = 0   ra = 0   fp = 0          ; clean GPRs; the kernel sets up its own gp/sp
 SR = 0x30004801                            ; CU1|BEV|... (MAME-observed entry Status)
 ```
 
-⚠️ **This is NOT `start(argc, argv, envp)`.** `a1=a2=0` — there is no argv/envp pointer array to walk. The ARC
-`Main(Argc,Argv,Envp)` convention (Argc=0, non-NULL Argv/Envp) applies to the **OSLoader (sash)** that ARC loads —
-**not** to `/unix`, which sash loads one level down via an SGI-private handoff. Henry replaces sash, so Henry must
-emit the SGI handoff: **`a0=8, a1=0, a2=0`** and a clean register file. `a0=8` is an SGI boot flag (a small
-integer, not a pointer; exact meaning TBD — `start` just `sw`s it to a global and boot succeeds regardless).
+✅ **CORRECTION (2026-06-15, MAME-measured — this overturns the earlier `a1=a2=0` claim).** It **IS**
+`start(argc, argv, envp)`. An earlier P0 note recorded `a1=a2=0`; **MAME disproves it** — at `0x88005960`,
+`a0=8` (**argc**), `a1=0x88fff300` (**argv**), `a2=0x88fff908` (**envp**), both real kseg0 pointers near the top
+of 16 MB RAM. The standard `ARCS PROM → sash → /unix` chain has **sash** (the ARC `OSLoader`) marshal
+`argc/argv/envp` per ARC §4.4 "Loaded Program Conventions" + `Invoke(…,Argc,Argv,Envp)`, then jump to `start`.
+**The kernel consumes them:** `start` saves `a0→_argc`, `a1→_argv`, **`a2→_envirn`** (`0x8832d7c0`), and
+`mlsetup→getargs` reads `_envirn` — `getargs` branches on `sltu(envp, 0x80000000)`, so a **NULL/low `a2`
+mis-routes the boot** (this is exactly why a sash-replacement that passes `a2=0` walls). **Henry replaces sash,
+so Henry MUST synthesize the `argv`/`envp` arrays in RAM** (kseg0 `char*` arrays, NULL-terminated) with at least
+a valid `envp` — see [Environment variables](#environment-variables) for the exact strings. `a0=8` is argc (8
+boot args), **not** a flag.
+
+The real **`sash`** is a MIPSEB MIPS-II ECOFF executable ("SGI Version 6.5 ARCS") living in the disk **volume
+header** (`sash` standalone @ LBN 672 of the volhdr / partition 8); it can be extracted with `dd` from the
+chdman'd disk image and disassembled (`objdump -d`, format `ecoff-bigmips`).
 
 `start` does **not** rely on register-passed pointers: it immediately saves `a0/a1/a2` to globals, then calls its
 first C routine `0x880255e8(a0,a1,a2,a3=0x880059b0)`. Everything else IRIX needs it pulls from the **SPB + romvec**
@@ -158,6 +171,21 @@ the env block** that `GetEnvironmentVariable` reads. Standard ARC vars (arcs_spe
 `LoadIdentifier`, `AutoLoad`, `TimeZone`, `FWSearchPath`. SGI adds non-standard ones: **`eaddr`** (MAC — its
 absence caused early kernel panics in MAME until a one-time PROM `setenv -f eaddr <mac>`), `dbaud`, `rbaud`,
 `bootfile`, `path`, `console`.
+
+### The exact `argv`/`envp` MAME's sash hands `/unix` (✅ captured 2026-06-15)
+
+The kernel reads these **two ways**: the `a2=envp` pointer (→ `_envirn` → `getargs`, see the handoff section)
+*and* `GetEnvironmentVariable(30)` romvec calls. The live values from MAME (synthesize at least `envp`):
+
+```
+argv[8] :  scsi(0)disk(1)rdisk(0)partition(0)/unix   OSLoadOptions=auto   ConsoleIn=serial(0)
+           ConsoleOut=serial(0)   SystemPartition=scsi(0)disk(1)rdisk(0)partition(8)   OSLoader=sash
+           OSLoadPartition=scsi(0)disk(1)rdisk(0)partition(0)   OSLoadFilename=/unix
+envp[]  :  AutoLoad=Yes  TimeZone=PST8PDT  console=d  diskless=0  dbaud=9600  volume=80  sgilogo=y
+           autopower=y  eaddr=08:01:02:03:04:05  ConsoleOut=serial(0)  ConsoleIn=serial(0)  cpufreq=100
+           SystemPartition=...  OSLoadPartition=...  OSLoadFilename=/unix  OSLoader=sash
+           kernname=scsi(0)disk(1)rdisk(0)partition(0)/unix
+```
 
 What matters for a direct `/unix` boot:
 - **`eaddr`** — *load-bearing*: set it (e.g. `eaddr=08:00:69:xx:xx:xx`) or the kernel panics early in network init.
