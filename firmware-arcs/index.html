@@ -451,6 +451,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Environment variables">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-exact-argvenvp-mames-sash-hands-unix-captured-2026-06-15" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The exact argv/envp MAME's sash hands /unix (✅ captured 2026-06-15)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1258,6 +1275,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Environment variables">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-exact-argvenvp-mames-sash-hands-unix-captured-2026-06-15" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The exact argv/envp MAME's sash hands /unix (✅ captured 2026-06-15)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1335,15 +1369,27 @@ Legend: ✅ confirmed in MAME, ⚠️ correction vs an earlier assumption.</p>
 <hr />
 <h2 id="the-kernel-entry-handoff">The kernel entry handoff<a class="headerlink" href="#the-kernel-entry-handoff" title="Permanent link">&para;</a></h2>
 <p>Henry jumps to <code>/unix</code> <code>start</code> (entry <strong><code>0x88005960</code></strong>, kseg0) with:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>a0 = 0x00000008   a1 = 0   a2 = 0   a3 = 0
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>sp = 0   gp = 0   ra = 0   fp = 0          ; clean GPRs; the kernel sets up its own gp/sp
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>SR = 0x30004801                            ; CU1|BEV|... (MAME-observed entry Status)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>a0 = 0x00000008          ; argc = 8
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>a1 = argv  (kseg0 ptr)   ; MAME: 0x88fff300 — array of 8 char* + NULL (boot path + OSLoad* strings)
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>a2 = envp  (kseg0 ptr)   ; MAME: 0x88fff908 — array of &quot;KEY=value&quot; char* + NULL (PROM env vars)
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>a3 = 0
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>sp = 0   gp = 0   ra = 0   fp = 0          ; clean GPRs; the kernel sets up its own gp/sp
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>SR = 0x30004801                            ; CU1|BEV|... (MAME-observed entry Status)
 </code></pre></div>
-<p>⚠️ <strong>This is NOT <code>start(argc, argv, envp)</code>.</strong> <code>a1=a2=0</code> — there is no argv/envp pointer array to walk. The ARC
-<code>Main(Argc,Argv,Envp)</code> convention (Argc=0, non-NULL Argv/Envp) applies to the <strong>OSLoader (sash)</strong> that ARC loads —
-<strong>not</strong> to <code>/unix</code>, which sash loads one level down via an SGI-private handoff. Henry replaces sash, so Henry must
-emit the SGI handoff: <strong><code>a0=8, a1=0, a2=0</code></strong> and a clean register file. <code>a0=8</code> is an SGI boot flag (a small
-integer, not a pointer; exact meaning TBD — <code>start</code> just <code>sw</code>s it to a global and boot succeeds regardless).</p>
+<p>✅ <strong>CORRECTION (2026-06-15, MAME-measured — this overturns the earlier <code>a1=a2=0</code> claim).</strong> It <strong>IS</strong>
+<code>start(argc, argv, envp)</code>. An earlier P0 note recorded <code>a1=a2=0</code>; <strong>MAME disproves it</strong> — at <code>0x88005960</code>,
+<code>a0=8</code> (<strong>argc</strong>), <code>a1=0x88fff300</code> (<strong>argv</strong>), <code>a2=0x88fff908</code> (<strong>envp</strong>), both real kseg0 pointers near the top
+of 16 MB RAM. The standard <code>ARCS PROM → sash → /unix</code> chain has <strong>sash</strong> (the ARC <code>OSLoader</code>) marshal
+<code>argc/argv/envp</code> per ARC §4.4 "Loaded Program Conventions" + <code>Invoke(…,Argc,Argv,Envp)</code>, then jump to <code>start</code>.
+<strong>The kernel consumes them:</strong> <code>start</code> saves <code>a0→_argc</code>, <code>a1→_argv</code>, <strong><code>a2→_envirn</code></strong> (<code>0x8832d7c0</code>), and
+<code>mlsetup→getargs</code> reads <code>_envirn</code> — <code>getargs</code> branches on <code>sltu(envp, 0x80000000)</code>, so a <strong>NULL/low <code>a2</code>
+mis-routes the boot</strong> (this is exactly why a sash-replacement that passes <code>a2=0</code> walls). <strong>Henry replaces sash,
+so Henry MUST synthesize the <code>argv</code>/<code>envp</code> arrays in RAM</strong> (kseg0 <code>char*</code> arrays, NULL-terminated) with at least
+a valid <code>envp</code> — see <a href="#environment-variables">Environment variables</a> for the exact strings. <code>a0=8</code> is argc (8
+boot args), <strong>not</strong> a flag.</p>
+<p>The real <strong><code>sash</code></strong> is a MIPSEB MIPS-II ECOFF executable ("SGI Version 6.5 ARCS") living in the disk <strong>volume
+header</strong> (<code>sash</code> standalone @ LBN 672 of the volhdr / partition 8); it can be extracted with <code>dd</code> from the
+chdman'd disk image and disassembled (<code>objdump -d</code>, format <code>ecoff-bigmips</code>).</p>
 <p><code>start</code> does <strong>not</strong> rely on register-passed pointers: it immediately saves <code>a0/a1/a2</code> to globals, then calls its
 first C routine <code>0x880255e8(a0,a1,a2,a3=0x880059b0)</code>. Everything else IRIX needs it pulls from the <strong>SPB + romvec</strong>
 (below) and from the <strong>MC registers</strong> (memory map) — not from registers. Verified prologue:</p>
@@ -1448,6 +1494,17 @@ the env block</strong> that <code>GetEnvironmentVariable</code> reads. Standard 
 <code>LoadIdentifier</code>, <code>AutoLoad</code>, <code>TimeZone</code>, <code>FWSearchPath</code>. SGI adds non-standard ones: <strong><code>eaddr</code></strong> (MAC — its
 absence caused early kernel panics in MAME until a one-time PROM <code>setenv -f eaddr &lt;mac&gt;</code>), <code>dbaud</code>, <code>rbaud</code>,
 <code>bootfile</code>, <code>path</code>, <code>console</code>.</p>
+<h3 id="the-exact-argvenvp-mames-sash-hands-unix-captured-2026-06-15">The exact <code>argv</code>/<code>envp</code> MAME's sash hands <code>/unix</code> (✅ captured 2026-06-15)<a class="headerlink" href="#the-exact-argvenvp-mames-sash-hands-unix-captured-2026-06-15" title="Permanent link">&para;</a></h3>
+<p>The kernel reads these <strong>two ways</strong>: the <code>a2=envp</code> pointer (→ <code>_envirn</code> → <code>getargs</code>, see the handoff section)
+<em>and</em> <code>GetEnvironmentVariable(30)</code> romvec calls. The live values from MAME (synthesize at least <code>envp</code>):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>argv[8] :  scsi(0)disk(1)rdisk(0)partition(0)/unix   OSLoadOptions=auto   ConsoleIn=serial(0)
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>           ConsoleOut=serial(0)   SystemPartition=scsi(0)disk(1)rdisk(0)partition(8)   OSLoader=sash
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>           OSLoadPartition=scsi(0)disk(1)rdisk(0)partition(0)   OSLoadFilename=/unix
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>envp[]  :  AutoLoad=Yes  TimeZone=PST8PDT  console=d  diskless=0  dbaud=9600  volume=80  sgilogo=y
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>           autopower=y  eaddr=08:01:02:03:04:05  ConsoleOut=serial(0)  ConsoleIn=serial(0)  cpufreq=100
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>           SystemPartition=...  OSLoadPartition=...  OSLoadFilename=/unix  OSLoader=sash
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>           kernname=scsi(0)disk(1)rdisk(0)partition(0)/unix
+</code></pre></div>
 <p>What matters for a direct <code>/unix</code> boot:
 - <strong><code>eaddr</code></strong> — <em>load-bearing</em>: set it (e.g. <code>eaddr=08:00:69:xx:xx:xx</code>) or the kernel panics early in network init.
 - <strong><code>console</code></strong> — selects the serial console (<code>d</code> / <code>g</code>); Henry's console is IOC2 serial (see <code>peripherals/ioc2.md</code>).
@@ -1463,11 +1520,11 @@ name the single kernel <code>GetEnvironmentVariable(NULL)</code> resolves to.)</
 <p>⚠️ <strong>NOT via <code>GetMemoryDescriptor</code>.</strong> P0-B/P0-C: the kernel makes <strong>zero</strong> <code>GetMemoryDescriptor</code> calls — sash's 14
 calls are pre-kernel and irrelevant to a sash-less boot. Instead, <code>szmem</code> (<code>0x8800790c</code>, "size memory") reads the
 <strong>MC MEMCFG registers directly</strong> (<code>0x880077c0</code>):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>lui  a5,0xbfa0        ; 0xbfa00000 kseg1 uncached -&gt; phys 0x1fa00000 = the MC
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>lw   a3,196(a5)       ; MEMCFG0 @ 0xbfa000c4  (BE +4 alias of table offset 0xc0)
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>lw   a3,204(a5)       ; MEMCFG1 @ 0xbfa000cc  (BE +c alias of 0xc8)
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>srlv v0,a3,a4         ; pick the bank&#39;s 16-bit half (two banks packed per 32-bit reg)
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>andi v0,v0,0xffff
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>lui  a5,0xbfa0        ; 0xbfa00000 kseg1 uncached -&gt; phys 0x1fa00000 = the MC
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>lw   a3,196(a5)       ; MEMCFG0 @ 0xbfa000c4  (BE +4 alias of table offset 0xc0)
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>lw   a3,204(a5)       ; MEMCFG1 @ 0xbfa000cc  (BE +c alias of 0xc8)
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>srlv v0,a3,a4         ; pick the bank&#39;s 16-bit half (two banks packed per 32-bit reg)
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>andi v0,v0,0xffff
 </code></pre></div>
 <p><strong>Implication for Henry:</strong> the shim does <strong>NOT</strong> need a working <code>GetMemoryDescriptor</code> (idx 18 may stub→NULL). It
 <strong>must</strong> present correct <strong>MC MEMCFG0/MEMCFG1</strong> values describing Henry's DRAM. The decode and SIMM-size table live
