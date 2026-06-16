@@ -161,7 +161,11 @@ module henry_soc
    //  big-endian IRIX reads the +4/+c alias, so register select ignores bit 2:
    //  index = (offs>>3)&1.
    // =====================================================================
-   localparam [31:0] MC_SYSID = 32'h00000003;   // sgi_mc.hh sys_id (rev c)
+   // MC sysid/rev @0x1fa0001c.  MAME's kernel lw sees 0x00000013; the core's BE
+   // lw bswaps device words, so store 0x13000000 (was 0x00000003 -> kernel saw
+   // 0x03000000, wrong; a value-only bug the PC-diff misses, caught by the
+   // tests/devregs check).  Low nibble = MC rev (3); rev<5 keeps the 22/14 shifts.
+   localparam [31:0] MC_SYSID = 32'h13000000;
 
    logic [31:0] r_cpu_control [0:1];
    logic [31:0] r_memcfg      [0:1];
