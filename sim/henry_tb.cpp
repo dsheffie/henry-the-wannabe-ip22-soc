@@ -176,12 +176,14 @@ int main(int argc, char **argv) {
   std::string kernel, arcs;
   uint64_t max_cyc = 120000000ull;
   std::vector<uint64_t> dump_pas;
+  std::string trace_file;
   for(int i = 1; i < argc; i++) {
     std::string a = argv[i];
     if(a == "--kernel" && i+1 < argc)      kernel = argv[++i];
     else if(a == "--arcs" && i+1 < argc)   arcs   = argv[++i];
     else if(a == "--maxcyc" && i+1 < argc) max_cyc = strtoull(argv[++i], nullptr, 0);
     else if(a == "--dump" && i+1 < argc)   dump_pas.push_back(strtoull(argv[++i], nullptr, 0));
+    else if(a == "--trace" && i+1 < argc)  trace_file = argv[++i];
   }
   if(kernel.empty()) { fprintf(stderr, "usage: %s --kernel <elf> [--arcs <blob>] [--maxcyc N]\n", argv[0]); return 1; }
 
@@ -190,9 +192,19 @@ int main(int argc, char **argv) {
   if(g_mem == MAP_FAILED) { perror("mmap ram"); return 1; }
 
   uint32_t entry = load_elf_be32(kernel.c_str());
+  uint32_t kentry = entry;                  // real kernel entry (trace starts here)
   if(!arcs.empty()) {
     load_blob(arcs.c_str(), 0x1000);
     entry = install_arcs_handoff(entry);   // sash-style argv/envp handoff -> stub -> kernel
+  }
+
+  // retired-PC trace (for the MAME co-sim diff): one 32-bit vPC per line, in
+  // retire order incl. delay slots, starting at the kernel entry (skip the stub).
+  FILE *trace = nullptr;
+  bool trace_started = false;
+  if(!trace_file.empty()) {
+    trace = fopen(trace_file.c_str(), "w");
+    if(!trace) { perror("open trace"); return 1; }
   }
 
   setvbuf(stdout, nullptr, _IONBF, 0);   // unbuffered: banner appears promptly
@@ -223,7 +235,7 @@ int main(int argc, char **argv) {
   uint32_t req_sd[4] = {0,0,0,0};
   const int MEM_LAT = 4;
   uint64_t retired = 0, last_pc = 0;
-  uint64_t prev_epc = 0; int exc_prints = 0;
+  uint64_t prev_epc = 0; int exc_prints = 0; uint32_t prev_sr = 0; uint64_t prev_badv = 0;
 
   // Loop mirrors r9999 top.cc phase ordering: posedge eval FIRST (core samples
   // the mem_rsp set last cycle), THEN read mem_req and present mem_rsp for the
@@ -241,6 +253,17 @@ int main(int argc, char **argv) {
     if(drain) putchar(drain_ch);
 
     if(tb->retire_valid) { retired++; last_pc = tb->retire_pc; }
+
+    // retired-PC trace (retire order: port 0 then port 1), gated to start at kentry
+    if(trace) {
+      if(tb->retire_valid) {
+        uint32_t pc = (uint32_t)tb->retire_pc;
+        if(!trace_started && pc == kentry) trace_started = true;
+        if(trace_started) fprintf(trace, "%08x\n", pc);
+      }
+      if(tb->retire_two_valid && trace_started)
+        fprintf(trace, "%08x\n", (uint32_t)tb->retire_two_pc);
+    }
 
     // ---- memory bus servicing (mem_rsp sampled on the NEXT posedge) ----
     tb->mem_rsp_valid = 0;
@@ -279,13 +302,15 @@ int main(int argc, char **argv) {
     tb->clk = 0;
     tb->eval();                              // negedge
 
-    if(tb->epc != prev_epc && exc_prints < 40) {
-      fprintf(stderr, "[exc %d] cyc %llu  cause=%u  epc=0x%llx  badv=0x%llx  sr=0x%08x  irq=%u\n",
+    if((tb->badvaddr != prev_badv || tb->epc != prev_epc) && exc_prints < 120) {
+      unsigned pre_exl = (prev_sr >> 1) & 1;
+      fprintf(stderr, "[exc %d] cyc %llu  cause=%u  epc=0x%llx  badv=0x%llx  pre_EXL=%u  lastpc=0x%llx\n",
               exc_prints, (unsigned long long)cyc, (unsigned)tb->cause,
               (unsigned long long)tb->epc, (unsigned long long)tb->badvaddr,
-              (unsigned)tb->status_reg, (unsigned)tb->took_irq);
-      prev_epc = tb->epc; exc_prints++;
+              pre_exl, (unsigned long long)last_pc);
+      prev_epc = tb->epc; prev_badv = tb->badvaddr; exc_prints++;
     }
+    prev_sr = tb->status_reg;
     if(cyc && (cyc % 5000000) == 0)
       fprintf(stderr, "[tb] cyc %llu  retired %llu  last_pc 0x%llx  head_pc 0x%llx  "
               "cause=%u epc=0x%llx badv=0x%llx sr=0x%08x irq=%u\n",
@@ -304,6 +329,7 @@ int main(int argc, char **argv) {
           (unsigned)tb->status_reg, (unsigned)tb->took_irq);
   printf("\n[tb] %s\n", halted ? "halted (magic-halt store)" : "reached max cycles");
   for(uint64_t pa : dump_pas) dump_pa(pa);
+  if(trace) { fclose(trace); fprintf(stderr, "[tb] wrote retired-PC trace to %s\n", trace_file.c_str()); }
   delete tb;
   return 0;
 }

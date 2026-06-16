@@ -62,6 +62,8 @@ module henry_soc
    output logic                  got_bad_addr,
    output logic                  retire_valid,
    output logic [`M_WIDTH-1:0]   retire_pc,
+   output logic                  retire_two_valid,
+   output logic [`M_WIDTH-1:0]   retire_two_pc,
    output logic [`M_WIDTH-1:0]   dbg_head_pc,
    output logic [`M_WIDTH-1:0]   epc,
    output logic [31:0]           status_reg,
@@ -127,7 +129,8 @@ module henry_soc
 
       .retire_reg_ptr(), .retire_reg_data(), .retire_reg_valid(),
       .retire_reg_two_ptr(), .retire_reg_two_data(), .retire_reg_two_valid(),
-      .retire_valid(retire_valid), .retire_two_valid(), .retire_pc(retire_pc), .retire_two_pc(),
+      .retire_valid(retire_valid), .retire_two_valid(retire_two_valid),
+      .retire_pc(retire_pc), .retire_two_pc(retire_two_pc),
       .retire_op(), .retire_two_op(),
       .branch_pc(), .branch_pc_valid(), .branch_fault(),
       .l1i_cache_accesses(), .l1i_cache_hits(),
@@ -201,7 +204,11 @@ module henry_soc
          case(offs)
            19'h30000: x = r_hpc_intstat;
            19'h30004: x = r_hpc_misc;
-           19'h58000: x = IOC2_SYSID;            // IOC2 SYSID (kernel getsysid)
+           19'h59858: x = IOC2_SYSID;            // IOC2 SYSID @0x1fbd9858 (getsysid):
+                                                 // 0x1fbd9858 & 0x7ffff = 0x59858 (was 0x58000,
+                                                 // wrong offset -> getsysid mis-detected the board,
+                                                 // MAME_QUESTIONS Q6). Value 0x26000000 -> kernel
+                                                 // lw sees bswap = 0x00000026 (SYSID in bits[7:0]).
            default:   x = 32'd0;
          endcase
          hpc_read = x;
