@@ -17,6 +17,7 @@
 #include <cstring>
 #include <cstdint>
 #include <string>
+#include <vector>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -98,14 +99,89 @@ static void load_blob(const char *path, uint64_t pa) {
   close(fd);
 }
 
+// dump 8 big-endian words from a physical address (post-run page-table inspection)
+static void dump_pa(uint64_t pa) {
+  pa &= MEM_MASK;
+  fprintf(stderr, "[dump] PA 0x%08llx:", (unsigned long long)pa);
+  for(int i = 0; i < 8; i++) {
+    uint64_t a = (pa + 4*i) & MEM_MASK;
+    uint32_t w = ((uint32_t)g_mem[a]<<24)|((uint32_t)g_mem[a+1]<<16)|
+                 ((uint32_t)g_mem[a+2]<<8)|(uint32_t)g_mem[a+3];   // big-endian
+    fprintf(stderr, " %08x", w);
+  }
+  fprintf(stderr, "\n");
+}
+
+static void put_be32(uint64_t pa, uint32_t w) {
+  pa &= MEM_MASK;
+  g_mem[pa]   = (w>>24)&0xff; g_mem[pa+1] = (w>>16)&0xff;
+  g_mem[pa+2] = (w>>8)&0xff;  g_mem[pa+3] = w&0xff;
+}
+
+// Synthesize the ARCS/sash -> /unix handoff (MAME_QUESTIONS.md Q5): lay out
+// argv/envp in high RAM and a tiny bootstrap stub that sets a0=argc, a1=argv,
+// a2=envp and jumps to the kernel entry.  Returns the stub's kseg0 entry PC.
+// (An RTL core can't have its GPRs injected directly, so a code stub does it.)
+static uint32_t install_arcs_handoff(uint32_t kentry) {
+  static const char *argv_strs[] = {
+    "scsi(0)disk(1)rdisk(0)partition(0)/unix", "OSLoadOptions=auto",
+    "ConsoleIn=serial(0)", "ConsoleOut=serial(0)",
+    "SystemPartition=scsi(0)disk(1)rdisk(0)partition(8)", "OSLoader=sash",
+    "OSLoadPartition=scsi(0)disk(1)rdisk(0)partition(0)", "OSLoadFilename=/unix",
+  };
+  static const char *envp_strs[] = {
+    "AutoLoad=Yes","TimeZone=PST8PDT","console=d","diskless=0","dbaud=9600",
+    "volume=80","sgilogo=y","autopower=y","eaddr=08:01:02:03:04:05",
+    "ConsoleOut=serial(0)","ConsoleIn=serial(0)","cpufreq=100",
+    "SystemPartition=scsi(0)disk(1)rdisk(0)partition(8)",
+    "OSLoadPartition=scsi(0)disk(1)rdisk(0)partition(0)",
+    "OSLoadFilename=/unix","OSLoader=sash",
+    "kernname=scsi(0)disk(1)rdisk(0)partition(0)/unix", nullptr,
+  };
+  const uint32_t K = 0x80000000u;          // kseg0 bit (PA -> kseg0 VA)
+  const uint32_t STUB_PA = 0x08ff0000u;    // top of 16 MB RAM (MAME uses 0x08fffxxx)
+  uint32_t argv_arr = 0x08ff0100u, envp_arr = 0x08ff0400u, str_pa = 0x08ff1000u;
+  uint32_t nargc = sizeof(argv_strs)/sizeof(argv_strs[0]);
+
+  for(uint32_t i = 0; i < nargc; i++) {
+    memcpy(g_mem + str_pa, argv_strs[i], strlen(argv_strs[i]) + 1);
+    put_be32(argv_arr + 4*i, K | str_pa);
+    str_pa = (str_pa + strlen(argv_strs[i]) + 1 + 3) & ~3u;
+  }
+  put_be32(argv_arr + 4*nargc, 0);
+  uint32_t e = 0;
+  for(; envp_strs[e]; e++) {
+    memcpy(g_mem + str_pa, envp_strs[e], strlen(envp_strs[e]) + 1);
+    put_be32(envp_arr + 4*e, K | str_pa);
+    str_pa = (str_pa + strlen(envp_strs[e]) + 1 + 3) & ~3u;
+  }
+  put_be32(envp_arr + 4*e, 0);
+
+  uint32_t av = K | argv_arr, ev = K | envp_arr, p = STUB_PA;
+  put_be32(p, 0x34040000u | nargc);            p+=4; // ori a0,zero,argc
+  put_be32(p, 0x3c050000u | (av>>16));         p+=4; // lui a1,hi(argv)
+  put_be32(p, 0x34a50000u | (av&0xffff));      p+=4; // ori a1,a1,lo(argv)
+  put_be32(p, 0x3c060000u | (ev>>16));         p+=4; // lui a2,hi(envp)
+  put_be32(p, 0x34c60000u | (ev&0xffff));      p+=4; // ori a2,a2,lo(envp)
+  put_be32(p, 0x3c010000u | (kentry>>16));     p+=4; // lui at,hi(kentry)
+  put_be32(p, 0x34210000u | (kentry&0xffff));  p+=4; // ori at,at,lo(kentry)
+  put_be32(p, 0x00200008u);                    p+=4; // jr at
+  put_be32(p, 0x00000000u);                          // nop (delay slot)
+  printf("ARCS handoff: argc=%u argv=0x%08x envp=0x%08x stub=0x%08x\n",
+         nargc, av, ev, K | STUB_PA);
+  return K | STUB_PA;
+}
+
 int main(int argc, char **argv) {
   std::string kernel, arcs;
   uint64_t max_cyc = 120000000ull;
+  std::vector<uint64_t> dump_pas;
   for(int i = 1; i < argc; i++) {
     std::string a = argv[i];
     if(a == "--kernel" && i+1 < argc)      kernel = argv[++i];
     else if(a == "--arcs" && i+1 < argc)   arcs   = argv[++i];
     else if(a == "--maxcyc" && i+1 < argc) max_cyc = strtoull(argv[++i], nullptr, 0);
+    else if(a == "--dump" && i+1 < argc)   dump_pas.push_back(strtoull(argv[++i], nullptr, 0));
   }
   if(kernel.empty()) { fprintf(stderr, "usage: %s --kernel <elf> [--arcs <blob>] [--maxcyc N]\n", argv[0]); return 1; }
 
@@ -114,7 +190,10 @@ int main(int argc, char **argv) {
   if(g_mem == MAP_FAILED) { perror("mmap ram"); return 1; }
 
   uint32_t entry = load_elf_be32(kernel.c_str());
-  if(!arcs.empty()) load_blob(arcs.c_str(), 0x1000);
+  if(!arcs.empty()) {
+    load_blob(arcs.c_str(), 0x1000);
+    entry = install_arcs_handoff(entry);   // sash-style argv/envp handoff -> stub -> kernel
+  }
 
   setvbuf(stdout, nullptr, _IONBF, 0);   // unbuffered: banner appears promptly
 
@@ -224,6 +303,7 @@ int main(int argc, char **argv) {
           (unsigned long long)tb->epc, (unsigned long long)tb->badvaddr,
           (unsigned)tb->status_reg, (unsigned)tb->took_irq);
   printf("\n[tb] %s\n", halted ? "halted (magic-halt store)" : "reached max cycles");
+  for(uint64_t pa : dump_pas) dump_pa(pa);
   delete tb;
   return 0;
 }
