@@ -1,0 +1,114 @@
+# r9999 microarchitecture
+
+*The CPU at the center of Henry. `r9999` is an **out-of-order, superscalar MIPS** core — its name is a wink at the **R10000** (`9999 = 10000 − 1`), and its shape is deliberately R10000-flavored: register renaming, a reorder buffer, out-of-order issue, separate integer/FP register files. But it targets the **R4600 ISA** (so IRIX/Indy runs the right path), it's **2-wide** instead of 4, and it's tuned to **fit and close timing on an FPGA**.*
+
+This page is the r9999 answer to the famous [R10000 block diagram (Fig. 1-5)](https://www.maizure.org/projects/evolution_x86_context_switch_linux/). Every number below is from the RTL in the [`r9999`](https://github.com/dsheffie/r9999) submodule (canonical, non-`FORMAL` config); `machine.vh` is the parameter header.
+
+## Block diagram
+
+```mermaid
+flowchart TD
+    SYS["<b>System interface</b><br/>→ Henry SoC / MC · AXI on FPGA<br/>physical address = 36-bit"]
+    L2["<b>L2 cache</b><br/>16 KB · direct-mapped · 16 B line<br/>on-die · L1I + L1D arbitrate"]
+    SYS --- L2
+
+    subgraph FE["Front end — 2-wide fetch"]
+        BP["<b>Branch predictor</b> — gshare<br/>PHT 64K × 2-bit · GHist 64-bit<br/>BTB 128 · return stack 4"]
+        L1I["<b>L1 I-cache</b><br/>4 KB · direct-mapped · 16 B line"]
+        FQ["Fetch queue · 8 entries"]
+        BP --> L1I --> FQ
+    end
+
+    subgraph REN["Decode / rename — 2-wide"]
+        DEC["<b>decode_mips</b><br/>2 uops / cycle"]
+        DQ["Decode queue · 4"]
+        MAP["<b>Rename maps</b><br/>INT-RAT · FP-RAT · HILO-RAT<br/>+ free lists"]
+        DEC --> DQ --> MAP
+    end
+
+    subgraph OOO["Out-of-order issue"]
+        ROB["<b>Reorder buffer</b> · 32 entries<br/>even/odd banked · retire 2 / cycle"]
+        ISCH["<b>Integer scheduler</b> · 8 entries<br/>age-matrix oldest-ready · 1 ALU / cycle"]
+        MQS["<b>Memory queues</b><br/>UQ 8 · Mem-UQ 4 · store-data 4 · MQ 4"]
+    end
+
+    subgraph PRF["Physical register files"]
+        IPRF["<b>INT PRF</b> · 128 × 64-bit<br/>rf4r2w: 4R / 2W · ALU + MEM banks"]
+        FPRF["<b>FP PRF</b> · 128 × 64-bit<br/>moves + load/store only"]
+        HILO["<b>HILO PRF</b> · 4 × 128-bit"]
+    end
+
+    subgraph EXU["Execution units"]
+        ALU["<b>Integer ALU</b><br/>1-cycle"]
+        MUL["<b>Multiplier</b><br/>3-cycle → HILO"]
+        DIV["<b>Divider</b><br/>~65-cycle → HILO"]
+        LSU["<b>Load / Store</b><br/>AGU integrated"]
+    end
+
+    TLB["<b>JTLB</b> · 48-entry fully-associative<br/>4 KB pages · dual-page · 8-bit ASID<br/>shared I + D"]
+    L1D["<b>L1 D-cache</b><br/>4 KB · direct-mapped · 16 B line"]
+
+    FQ --> DEC
+    MAP --> ROB
+    MAP --> ISCH
+    MAP --> MQS
+    ISCH --> ALU
+    ISCH --> MUL
+    ISCH --> DIV
+    MQS --> LSU
+    IPRF -.->|read| ALU
+    IPRF -.->|read| LSU
+    FPRF -.->|read| LSU
+    HILO -.-> MUL
+    HILO -.-> DIV
+    ALU --> ROB
+    LSU --> L1D
+    LSU --> TLB
+    L1I --> TLB
+    L1I --> L2
+    L1D --> L2
+    TLB --> L2
+```
+
+## Walking the pipeline
+
+**Front end (2-wide).** Each cycle the **gshare** predictor indexes a **64K × 2-bit** pattern-history table by folding a **64-bit global history** against the PC, with a **128-entry BTB** and a **4-entry return stack**; speculative *and* architectural copies of the history/RAS are kept so a misprediction restarts cleanly. The **L1 I-cache** (4 KB, direct-mapped, 16 B lines) delivers up to **two instructions/cycle** into an **8-entry fetch queue**. *(`l1i.sv`, `compute_pht_idx`, `machine.vh`)*
+
+**Decode / rename (2-wide).** `decode_mips` cracks up to two instructions into uops; a **4-entry decode queue** buffers them for the allocator, which renames through three maps — **integer**, **FP**, and **HILO** RATs with free lists — onto the physical register files. *(`decode_mips.sv`, `core.sv`)*
+
+**Out-of-order issue.** Renamed uops allocate into a **32-entry reorder buffer** (split even/odd so two consecutive entries write different banks → 2 allocate and 2 retire per cycle). Integer ALU ops wait in an **8-entry scheduler** that picks the **oldest ready** entry via an age matrix; memory ops flow through dedicated queues (**UQ 8**, **Mem-UQ 4**, **store-data 4**, **MQ 4**). Issue is **1 ALU op + 1 memory op per cycle**. *(`core.sv`, `exec.sv`, `fair_sched.sv`)*
+
+**Register files.** The **integer PRF** is **128 × 64-bit**, built from `rf4r2w` (**4 read / 2 write**) and *banked* by result source — an **ALU bank** and a **MEM (load) bank** — so the two write ports never collide. A separate **128 × 64-bit FP PRF** holds FP register state, and a small **4 × 128-bit HILO PRF** holds multiply/divide results. *(`rf4r2w.sv`, `exec.sv`)*
+
+**Execution units.** One **integer ALU** (1-cycle), a **3-cycle pipelined multiplier** and an **iterative ~65-cycle divider** (both writing the HILO PRF), and a **load/store unit** with address generation folded in (no separate AGU stage) feeding the L1 D-cache. **There is no FP arithmetic yet** — the FP path implements `mfc1/mtc1`-style moves and FP loads/stores only; the core still reports an R4000-family FPU id (`FIR`) so software probes succeed. *(`exec.sv`, `mul.sv`, `divider.sv`)*
+
+**Memory & translation.** L1 D-cache is 4 KB direct-mapped (16 B lines); L1I and L1D arbitrate for a shared **on-die 16 KB direct-mapped L2**, which fronts the **system interface** out to the Henry SoC / memory controller (AXI on the FPGA), with **36-bit physical addresses**. Translation is a **48-entry fully-associative JTLB** — dual-page (even/odd), 4 KB pages, 8-bit ASID, global-bit support — **shared by both I and D** with no micro-TLB. *(`l1d.sv`, `l2.sv`, `tlb.sv`, `core_l1d_l1i.sv`)*
+
+## r9999 vs. the R10000 it's named after
+
+| | **R10000** (1996) | **r9999** |
+|---|---|---|
+| ISA | MIPS IV (R10000) | MIPS III/IV, **presents as R4600** (`PRId 0x2020`) |
+| Fetch / decode / issue / retire | 4-wide | **2-wide** |
+| Branch prediction | 512-entry 2-bit BHT | **gshare**: 64K×2b PHT, 64-bit GHist, 128 BTB, 4 RAS |
+| Physical registers | 64 int + 64 FP | **128 int + 128 FP + 4 HILO** |
+| In-flight window | 32 (active list) | **32 (ROB)** |
+| Issue queues | 3 × 16 (address / integer / FP) | 8-entry integer scheduler + memory queues; **no FP queue** |
+| Functional units | 2 ALU + addr-calc + FP add + FP mul | **1 ALU + mul + div + load/store**; no FP arithmetic |
+| L1 I / D | 32 KB 2-way each | **4 KB direct-mapped each** |
+| L2 | off-chip, 512 KB–16 MB, dedicated controller | **on-die 16 KB direct-mapped** |
+| TLB | 64-entry | **48-entry fully-associative JTLB** (R4x00-style) |
+| Register width / FPU | 64-bit · full pipelined FPU | 64-bit · **no FPU yet** (moves + ld/st only) |
+
+## Why it diverges from the R10000
+
+- **It's an R4x00 *ISA* target, not an R10000.** IRIX's `/unix` branches on `PRId.IMP` in `start`; r9999 presents **R4600** so the kernel takes the Indy per-CPU path (see [MAME_QUESTIONS Q5](https://github.com/dsheffie/r9999)). The **48-entry JTLB** mirrors the R4x00 (not the R10000's 64), which is also what IRIX's `wirepda`/refill code expects.
+- **It's built for an FPGA.** 2-wide instead of 4, **direct-mapped** caches, and a modest on-die L2 keep LUT/BRAM/timing in budget on the Ultra96-v2 (Zynq UltraScale+). Conversely the **gshare PHT is much larger** than the R10000's BHT — block RAM is cheap on FPGA, so prediction accuracy is bought with BRAM rather than logic.
+- **No hardware FPU yet.** The FP register file and move/load-store path are in place; FP arithmetic is future work — hence the larger-than-R10000 *integer* rename depth (128 physical registers) to keep the integer engine busy.
+
+!!! note "Known FPGA bottleneck"
+    The **fully-associative 48-entry JTLB** (every L1I/L1D access does a 48-way parallel CAM match) is the current critical path on the Ultra96-v2 build (negative WNS at 100 MHz). The architectural fix is a hardware **micro-TLB** in front of the JTLB — the JTLB size is fixed by the architecture, but a small fast L1 translation cache removes the CAM from the common-case path.
+
+---
+
+*All structural facts above are from the r9999 RTL (`*.sv`) and `machine.vh`, canonical (non-`FORMAL`) configuration. The [IRIX boot flow](irix-boot-flow.md) page covers what this core *runs*; this page covers what it *is*.*

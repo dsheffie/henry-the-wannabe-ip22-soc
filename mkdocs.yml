@@ -49,6 +49,7 @@ nav:
   - Architecture: architecture.md
   - Minimum MMIO to boot banner: minimum-mmio-to-banner.md
   - CPU integration (r9999): cpu-integration.md
+  - r9999 microarchitecture: r9999-microarchitecture.md
   - Firmware (ARCS shim): firmware-arcs.md
   - Boot & console: boot-and-console.md
   - Cache, coherence & TLB: coherence-cache-tlb.md
