@@ -25,22 +25,35 @@ ELF) → jumps into `/unix` `start`.
 synthesizing the small amount of state sash normally leaves behind. The running kernel barely touches
 firmware — over a 100 s emulated boot to multiuser the kernel calls the ARCS romvec **exactly once**
 (`GetEnvironmentVariable`). So the shim's job is to leave correct *in-memory* state, not to implement
-a live firmware. The collapsed handoff is: **shim → /unix `start` with `a0=8, a1=0, a2=0`.**
+a live firmware. The collapsed handoff is: **shim → /unix `start` with `a0=argc, a1=argv, a2=envp`**
+(argc=8; argv/envp are kseg0 pointers to arrays the shim plants in RAM — see [Kernel entry](#kernel-entry)).
 
 ## Kernel entry
 
 - **ELF entry = `0x88005960`, symbol `start`.** kseg0-cached vaddr → **PA `0x08005960`**; the image
   loads at VA base `0x88000000` / **PA `0x08000000`** (DRAM `0x08000000`–`0x0fffffff`).
-- **Entry registers (measured, NOT argc/argv/envp):** `a0 = 8`, `a1 = 0`, `a2 = 0`, `a3 = 0`.
-  `a1`/`a2` are zero — there is no argv/envp array to walk. Only `a0 = 8` carries a value (a small
-  boot-type/flag code; exact meaning TBD, boot succeeds regardless). Registers also carry sash
-  leftovers (`t0=0x11 t1=7 t2=0x10 t3=0x11 t4=0x12 s6=4 s7=0x01000000 t8=8`) but the shim can enter
-  with a clean GPR file. **`SR = 0x30004801`** (reset Status `0x70400004`: KX=0, ERL=1, 32-bit
-  kernel).
+- **Entry registers — `a0 = argc, a1 = argv, a2 = envp`** (the ARCS §4.4 "Loaded Program Conventions"
+  handoff sash gives `/unix`). ⚠️ **Correction:** an earlier note here read these as "`a1=0, a2=0`,
+  NOT argc/argv/envp." That was wrong — it held only because a 1:1 va2pa shortcut masked the null
+  pointers. With a **real translating TLB**, the kernel *does* consume argv/envp (via
+  `getargs`/`_envirn`, see prologue), and `a1=a2=0` makes `getargs` **derail** long before the banner
+  (interp_mips / `r9999/MAME_QUESTIONS.md` Q5 follow-up).
+    - `a0 = argc = 8`.
+    - `a1 = argv` — kseg0 pointer (MAME: `0x88fff300`) to a NULL-terminated `char*[]` of 8 strings,
+      e.g. `"scsi(0)disk(1)rdisk(0)partition(0)/unix"`, `"OSLoadOptions=auto"`, `"ConsoleIn=serial(0)"`,
+      `"ConsoleOut=serial(0)"`, `"OSLoader=sash"`, … .
+    - `a2 = envp` — kseg0 pointer (MAME: `0x88fff908`) to a NULL-terminated `char*[]` of `"KEY=value"`
+      env strings (`eaddr=…`, `console=d`, `cpufreq=100`, `OSLoadPartition=…`, `TimeZone=…`, …).
+    - Arrays + strings live just under the top of RAM (kseg0 pointers). The shim plants them; the full
+      string list is in `r9999/MAME_QUESTIONS.md` (Q5 follow-up) / interp_mips `pseudo_bios.cc`.
+  - Registers also carry sash leftovers (`t0=0x11 t1=7 …`) but the shim can enter with a clean GPR
+    file. **`SR = 0x30004801`** (reset Status `0x70400004`: KX=0, ERL=1, 32-bit kernel).
 - **`start` prologue (verified disassembly):** sets `gp = 0x88332bf0`, loads `sp = *(0x8832bfa0)`,
-  immediately `sw`s `a0/a1/a2` to gp-relative globals (saves all three boot args), then `jal`s its
-  first C routine `0x880255e8(a0,a1,a2,a3=0x880059b0)`. Early calls `_check_dbg`(`0x880255e8`) and
-  `debug`(`0x880152c8`) are debug hooks that return.
+  immediately `sw`s the three boot args to gp-relative globals — `a0→_argc`, `a1→_argv`,
+  **`a2→_envirn`** (`0x8832d7c0`) — then `jal`s its first C routine
+  `0x880255e8(a0,a1,a2,a3=0x880059b0)`. `mlsetup`/`getargs` later consume `_envirn`/`_argv`; a zero
+  `_envirn` is exactly where the old `a2=0` handoff diverged. Early calls `_check_dbg`(`0x880255e8`)
+  and `debug`(`0x880152c8`) are debug hooks that return.
 - The kernel pulls its config from the **ARCS SPB at phys `0x1000`** (signature "ARCS", kseg1
   `0xA0001000`) + a 35-entry FirmwareVector — NOT from the entry registers. RAM size/layout it reads
   **directly from the SGI MC** (`MEMCFG0/1` at phys `0x1fa000c4/0xcc`, via `szmem`@`0x8800790c`),
@@ -114,10 +127,12 @@ output.) Full capture: `~/code/mame/irix_serial_console.txt`.
 1. Load the `/unix` ELF (VA `0x88xxxxxx` → PA `0x08xxxxxx`, base PA `0x08000000`).
 2. Plant the **ARCS shim**: SPB at phys `0x1000` (sig "ARCS" + field layout) → 35-entry romvec with
    a working **GetEnvironmentVariable** (the one call the kernel makes); return sane **MEMCFG0/1**
-   from the MC model (e.g. `MEMCFG0=0x23200000` → bank @ `0x08000000`).
+   from the MC model (e.g. `MEMCFG0=0x23200000` → bank @ `0x08000000`). Also plant the **argv/envp
+   arrays + strings** in RAM (kseg0 pointers) — these are the `a1`/`a2` handoff (step 5).
 3. Provide an **`eaddr`** in the ARCS env / NVRAM (see the eaddr gotcha above) — or early init panics.
-4. Set **`console=d`** in the ARCS env.
-5. Enter `start` (`0x88005960`) with **`a0=8, a1=0, a2=0`**, clean GPRs, `SR=0x30004801`.
+4. Set **`console=d`** in the ARCS env (and in the planted `envp`).
+5. Enter `start` (`0x88005960`) with **`a0=argc=8, a1=argv, a2=envp`** (kseg0 pointers to the step-2
+   arrays — **not** `a1=a2=0`, which derails `getargs`), clean GPRs, `SR=0x30004801`.
 6. Emulate the **minimal Z8530 SCC** at IOC2 (write `0x1FBD9834` = TX byte → stdout; read
    `0x1FBD9830` → `0x04`; swallow writes to `0x1FBD9830`).
 

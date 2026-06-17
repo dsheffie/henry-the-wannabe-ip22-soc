@@ -175,6 +175,7 @@ static uint32_t install_arcs_handoff(uint32_t kentry) {
 int main(int argc, char **argv) {
   std::string kernel, arcs;
   uint64_t max_cyc = 120000000ull;
+  uint32_t start_pc = 0;   // fake-BIOS: start in the arcs boot stub (skip C++ handoff)
   std::vector<uint64_t> dump_pas;
   std::string trace_file;
   for(int i = 1; i < argc; i++) {
@@ -182,6 +183,7 @@ int main(int argc, char **argv) {
     if(a == "--kernel" && i+1 < argc)      kernel = argv[++i];
     else if(a == "--arcs" && i+1 < argc)   arcs   = argv[++i];
     else if(a == "--maxcyc" && i+1 < argc) max_cyc = strtoull(argv[++i], nullptr, 0);
+    else if(a == "--start-pc" && i+1 < argc) start_pc = (uint32_t)strtoull(argv[++i], nullptr, 0);
     else if(a == "--dump" && i+1 < argc)   dump_pas.push_back(strtoull(argv[++i], nullptr, 0));
     else if(a == "--trace" && i+1 < argc)  trace_file = argv[++i];
   }
@@ -195,7 +197,8 @@ int main(int argc, char **argv) {
   uint32_t kentry = entry;                  // real kernel entry (trace starts here)
   if(!arcs.empty()) {
     load_blob(arcs.c_str(), 0x1000);
-    entry = install_arcs_handoff(entry);   // sash-style argv/envp handoff -> stub -> kernel
+    if(start_pc) { entry = start_pc; printf("fake-bios: start pc = %08x\n", start_pc); }
+    else         entry = install_arcs_handoff(entry); // sash-style argv/envp handoff -> stub -> kernel
   }
 
   // retired-PC trace (for the MAME co-sim diff): one 32-bit vPC per line, in
@@ -253,6 +256,17 @@ int main(int argc, char **argv) {
     if(drain) putchar(drain_ch);
 
     if(tb->retire_valid) { retired++; last_pc = tb->retire_pc; }
+    // 64-bit-address-bug probe: log every a0 (reg 4) writeback near the fault
+    if(cyc > 35850000ull && cyc < 35870000ull) {
+      if(tb->retire_valid && tb->retire_reg_ptr == 4)  // reg 4 = a0
+        fprintf(stderr, "[a0wr] cyc=%llu pc=0x%llx a0=0x%016llx\n",
+                (unsigned long long)cyc, (unsigned long long)tb->retire_pc,
+                (unsigned long long)tb->retire_reg_data);
+      if(tb->retire_two_valid && tb->retire_reg_two_ptr == 4)
+        fprintf(stderr, "[a0wr2] cyc=%llu pc=0x%llx a0=0x%016llx\n",
+                (unsigned long long)cyc, (unsigned long long)tb->retire_two_pc,
+                (unsigned long long)tb->retire_reg_two_data);
+    }
 
     // retired-PC trace (retire order: port 0 then port 1), gated to start at kentry
     if(trace) {
@@ -268,6 +282,11 @@ int main(int argc, char **argv) {
     // ---- memory bus servicing (mem_rsp sampled on the NEXT posedge) ----
     tb->mem_rsp_valid = 0;
     if(tb->mem_req_valid && reply_cyc == -1) {
+      uint64_t raw_addr = (uint64_t)tb->mem_req_addr;
+      if(raw_addr >= MEM_SIZE)
+        fprintf(stderr, "[oor] cyc=%lu raw_addr=0x%llx op=%u mask=0x%x\n",
+                (unsigned long)cyc, (unsigned long long)raw_addr,
+                (unsigned)tb->mem_req_opcode, (unsigned)tb->mem_req_mask);
       req_addr = (uint64_t)tb->mem_req_addr & MEM_MASK;
       req_op   = tb->mem_req_opcode;
       req_mask = tb->mem_req_mask;

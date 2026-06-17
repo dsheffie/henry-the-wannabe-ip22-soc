@@ -19,10 +19,10 @@ ARCS      ?= $(R9999)/arcs/arcs_irix.bin
 VFLAGS = -cc --exe -O3 \
          -Wno-fatal -Wno-WIDTH -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE \
          -Wno-UNUSED -Wno-BLKANDNBLK -Wno-PINMISSING \
-         -y $(R9999) +incdir+$(R9999) --top-module $(TOP) -Mdir obj_dir \
+         -y $(RTL) -y $(R9999) +incdir+$(R9999) --top-module $(TOP) -Mdir obj_dir \
          -o henry_tb
 
-obj_dir/henry_tb: $(RTL)/henry_soc.sv henry_tb.cpp
+obj_dir/henry_tb: $(RTL)/henry_soc.sv $(RTL)/mc.sv $(RTL)/hpc3.sv $(RTL)/ioc.sv henry_tb.cpp
 	$(VERILATOR) $(VFLAGS) $(RTL)/henry_soc.sv henry_tb.cpp
 	$(MAKE) OPT_FAST="-O2" OPT_GLOBAL="-O2" -C obj_dir -f V$(TOP).mk
 
