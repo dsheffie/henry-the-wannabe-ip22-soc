@@ -1901,7 +1901,7 @@
     P9 --&gt; P10["⑩ zones · creds · kernel threads&lt;br/&gt;kmem_zone_init · cred_init · kthread_init"]
     P10 --&gt; P11["⑪ caches · timers · console · graphics&lt;br/&gt;cn_init · gfx_earlyinit · newportProbe · newportInit"]
     P11 --&gt; P12["⑫ hardware-settle delay&lt;br/&gt;initNg1Cursor → us_delay → delayloop"]
-    P12 -.10.9M instrs.-&gt; P12</code></pre>
+    P12 -.-&gt;|"10.9M instrs"| P12</code></pre>
 <p>The five fattest functions tell the story of where time goes during bring-up:</p>
 <table>
 <thead>
