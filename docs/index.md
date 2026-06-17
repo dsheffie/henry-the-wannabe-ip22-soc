@@ -59,6 +59,7 @@ flowchart TD
 | build the firmware Henry presents | [Firmware / ARCS shim](firmware-arcs.md) |
 | get cache/DMA/TLB right | [Cache, coherence & TLB](coherence-cache-tlb.md) |
 | implement a chip | the [peripheral specs](peripherals/mc.md) |
+| follow the IRIX boot, function by function | [IRIX boot flow](irix-boot-flow.md) |
 | reproduce/extend the findings | [Methodology](methodology.md) |
 
 ## Status
