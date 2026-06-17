@@ -2,7 +2,7 @@
 
 *The CPU at the center of Henry. `r9999` is an **out-of-order, superscalar MIPS** core — its name is a wink at the **R10000** (`9999 = 10000 − 1`), and its shape is deliberately R10000-flavored: register renaming, a reorder buffer, out-of-order issue, separate integer/FP register files. But it targets the **R4600 ISA** (so IRIX/Indy runs the right path), it's **2-wide** instead of 4, and it's tuned to **fit and close timing on an FPGA**.*
 
-This page is the r9999 answer to the famous [R10000 block diagram (Fig. 1-5)](https://www.maizure.org/projects/evolution_x86_context_switch_linux/). Every number below is from the RTL in the [`r9999`](https://github.com/dsheffie/r9999) submodule (canonical, non-`FORMAL` config); `machine.vh` is the parameter header.
+This page is the r9999 answer to the **R10000 block diagram (Fig. 1-5)** from the MIPS R10000 User's Manual — written in the spirit of [maizure.org's reverse-engineering writeups](https://www.maizure.org/projects/evolution_x86_context_switch_linux/). Every number below is from the RTL in the [`r9999`](https://github.com/dsheffie/r9999) submodule (canonical, non-`FORMAL` config); `machine.vh` is the parameter header.
 
 ## Block diagram
 
@@ -33,8 +33,8 @@ flowchart TD
     end
 
     subgraph PRF["Physical register files"]
-        IPRF["<b>INT PRF</b> · 128 × 64-bit<br/>rf4r2w: 4R / 2W · ALU + MEM banks"]
-        FPRF["<b>FP PRF</b> · 128 × 64-bit<br/>moves + load/store only"]
+        IPRF["<b>INT PRF</b> (clustered) · 2 banks × 64<br/>rf4r2w 4R/2W · 1 write port per bank<br/>non-mem bank + mem (load) bank"]
+        FPRF["<b>FP PRF</b> (clustered) · 2 banks × 64<br/>non-mem (move) + mem (load) banks"]
         HILO["<b>HILO PRF</b> · 4 × 128-bit"]
     end
 
@@ -78,7 +78,7 @@ flowchart TD
 
 **Out-of-order issue.** Renamed uops allocate into a **32-entry reorder buffer** (split even/odd so two consecutive entries write different banks → 2 allocate and 2 retire per cycle). Integer ALU ops wait in an **8-entry scheduler** that picks the **oldest ready** entry via an age matrix; memory ops flow through dedicated queues (**UQ 8**, **Mem-UQ 4**, **store-data 4**, **MQ 4**). Issue is **1 ALU op + 1 memory op per cycle**. *(`core.sv`, `exec.sv`, `fair_sched.sv`)*
 
-**Register files.** The **integer PRF** is **128 × 64-bit**, built from `rf4r2w` (**4 read / 2 write**) and *banked* by result source — an **ALU bank** and a **MEM (load) bank** — so the two write ports never collide. A separate **128 × 64-bit FP PRF** holds FP register state, and a small **4 × 128-bit HILO PRF** holds multiply/divide results. *(`rf4r2w.sv`, `exec.sv`)*
+**Register files (clustered).** The integer PRF is a **clustered (banked) register file** (`rf4r2w`, 4 read / 2 write): it's split into **two single-write-port banks** selected by the high bit of the physical-register number — a **non-memory bank** written by ALU/move results (write port 0) and a **memory bank** written by load results (write port 1). That's the whole reason the physical-register count is large: **2 banks × 64 = 128**, not a deep rename window. It's the FPGA-friendly way to get two write ports per cycle out of plain single-write-port block RAMs (a Henry-Wong-style clustered RF) instead of paying for a true multi-write-port file. The **FP PRF** is banked the same way (non-memory = `mtc1`/moves, memory = FP loads), and a small **4 × 128-bit HILO PRF** holds multiply/divide results. The effective rename window is still bounded by the **32-entry ROB**. *(`rf4r2w.sv` — "Clustered (banked) register file"; `exec.sv`)*
 
 **Execution units.** One **integer ALU** (1-cycle), a **3-cycle pipelined multiplier** and an **iterative ~65-cycle divider** (both writing the HILO PRF), and a **load/store unit** with address generation folded in (no separate AGU stage) feeding the L1 D-cache. **There is no FP arithmetic yet** — the FP path implements `mfc1/mtc1`-style moves and FP loads/stores only; the core still reports an R4000-family FPU id (`FIR`) so software probes succeed. *(`exec.sv`, `mul.sv`, `divider.sv`)*
 
@@ -91,7 +91,7 @@ flowchart TD
 | ISA | MIPS IV (R10000) | MIPS III/IV, **presents as R4600** (`PRId 0x2020`) |
 | Fetch / decode / issue / retire | 4-wide | **2-wide** |
 | Branch prediction | 512-entry 2-bit BHT | **gshare**: 64K×2b PHT, 64-bit GHist, 128 BTB, 4 RAS |
-| Physical registers | 64 int + 64 FP | **128 int + 128 FP + 4 HILO** |
+| Physical registers | 64 int + 64 FP (true multiport RF) | **128 int + 128 FP** (clustered: 2 banks × 64) + 4 HILO |
 | In-flight window | 32 (active list) | **32 (ROB)** |
 | Issue queues | 3 × 16 (address / integer / FP) | 8-entry integer scheduler + memory queues; **no FP queue** |
 | Functional units | 2 ALU + addr-calc + FP add + FP mul | **1 ALU + mul + div + load/store**; no FP arithmetic |
@@ -104,7 +104,8 @@ flowchart TD
 
 - **It's an R4x00 *ISA* target, not an R10000.** IRIX's `/unix` branches on `PRId.IMP` in `start`; r9999 presents **R4600** so the kernel takes the Indy per-CPU path (see [MAME_QUESTIONS Q5](https://github.com/dsheffie/r9999)). The **48-entry JTLB** mirrors the R4x00 (not the R10000's 64), which is also what IRIX's `wirepda`/refill code expects.
 - **It's built for an FPGA.** 2-wide instead of 4, **direct-mapped** caches, and a modest on-die L2 keep LUT/BRAM/timing in budget on the Ultra96-v2 (Zynq UltraScale+). Conversely the **gshare PHT is much larger** than the R10000's BHT — block RAM is cheap on FPGA, so prediction accuracy is bought with BRAM rather than logic.
-- **No hardware FPU yet.** The FP register file and move/load-store path are in place; FP arithmetic is future work — hence the larger-than-R10000 *integer* rename depth (128 physical registers) to keep the integer engine busy.
+- **The big physical-register counts are a clustered RF, not a deep window.** 128 INT / 128 FP physical registers = **2 banks × 64**. Each register file is split into two single-write-port banks (non-memory results vs memory/load results), selected by the preg-number MSB, so the core gets two write ports per cycle from cheap single-write-port FPGA RAMs instead of a true multi-write-port file. The architectural rename window is still gated by the **32-entry ROB** — the count is an implementation artifact of the banking, not extra in-flight capacity.
+- **No hardware FPU yet.** The FP register file and the move / load-store path are in place; FP arithmetic is future work, and the core reports an R4000-family FPU id so software probes succeed.
 
 !!! note "Known FPGA bottleneck"
     The **fully-associative 48-entry JTLB** (every L1I/L1D access does a 48-way parallel CAM match) is the current critical path on the Ultra96-v2 build (negative WNS at 100 MHz). The architectural fix is a hardware **micro-TLB** in front of the JTLB — the JTLB size is fixed by the architecture, but a small fast L1 translation cache removes the CAM from the common-case path.
