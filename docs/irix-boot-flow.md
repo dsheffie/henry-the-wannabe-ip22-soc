@@ -32,7 +32,7 @@ flowchart TD
     P9 --> P10["⑩ zones · creds · kernel threads<br/>kmem_zone_init · cred_init · kthread_init"]
     P10 --> P11["⑪ caches · timers · console · graphics<br/>cn_init · gfx_earlyinit · newportProbe · newportInit"]
     P11 --> P12["⑫ hardware-settle delay<br/>initNg1Cursor → us_delay → delayloop"]
-    P12 -.10.9M instrs.-> P12
+    P12 -.->|"10.9M instrs"| P12
 ```
 
 The five fattest functions tell the story of where time goes during bring-up:
