@@ -71,7 +71,17 @@ module henry_soc
    output logic [4:0]            retire_reg_ptr,
    output logic [`M_WIDTH-1:0]   retire_reg_data,
    output logic [4:0]            retire_reg_two_ptr,
-   output logic [`M_WIDTH-1:0]   retire_reg_two_data
+   output logic [`M_WIDTH-1:0]   retire_reg_two_data,
+   // FSM-state + trace-buffer taps (were tied off in the AXI wrapper)
+   output logic [4:0]            core_state,
+   output logic [2:0]            l1i_state,
+   output logic [3:0]            l1d_state,
+   output logic [3:0]            l2_state,
+   output logic [3:0]            l2_rsp_state,
+   output logic [`LG_ROB_ENTRIES:0] inflight,
+   input  logic [11:0]           dbg_trace_index,
+   output logic [31:0]           dbg_trace_data,
+   output logic [8:0]            dbg_trace_wptr
    );
 
    localparam int unsigned DEV_LAT = 2;   // device response latency (cycles)
@@ -140,13 +150,13 @@ module henry_soc
       .l1d_cache_accesses(), .l1d_cache_hits(),
       .l2_cache_accesses(), .l2_cache_hits(),
       .got_break(got_break), .got_ud(got_ud), .got_bad_addr(got_bad_addr),
-      .core_state(), .l1i_state(), .l1d_state(), .l2_state(), .l2_rsp_state(),
-      .inflight(), .epc(epc), .status_reg(status_reg), .badvaddr(badvaddr), .cause(cause),
+      .core_state(core_state), .l1i_state(l1i_state), .l1d_state(l1d_state), .l2_state(l2_state), .l2_rsp_state(l2_rsp_state),
+      .inflight(inflight), .epc(epc), .status_reg(status_reg), .badvaddr(badvaddr), .cause(cause),
       .l1i_flush_done(), .l1d_flush_done(), .l2_flush_done(),
       .took_irq(took_irq), .cp0_count(),
       .dbg_head_pc(dbg_head_pc), .dbg_head_fetch_cycle(), .dbg_head_alloc_cycle(),
       .dbg_serialize_cycle(), .dbg_cycle(), .dbg_oldest_first_pending(),
-      .dbg_trace_index('0), .dbg_trace_data(), .dbg_trace_wptr()
+      .dbg_trace_index(dbg_trace_index), .dbg_trace_data(dbg_trace_data), .dbg_trace_wptr(dbg_trace_wptr)
       );
 
    // =====================================================================

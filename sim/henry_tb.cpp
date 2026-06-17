@@ -283,7 +283,7 @@ int main(int argc, char **argv) {
     tb->mem_rsp_valid = 0;
     if(tb->mem_req_valid && reply_cyc == -1) {
       uint64_t raw_addr = (uint64_t)tb->mem_req_addr;
-      if(raw_addr >= MEM_SIZE)
+      if(raw_addr >= 0x1F000000ull)   /* FPGA DRAM = 496 MB; TB MEM_SIZE=512 MB hides [496,512) */
         fprintf(stderr, "[oor] cyc=%lu raw_addr=0x%llx op=%u mask=0x%x\n",
                 (unsigned long)cyc, (unsigned long long)raw_addr,
                 (unsigned)tb->mem_req_opcode, (unsigned)tb->mem_req_mask);
