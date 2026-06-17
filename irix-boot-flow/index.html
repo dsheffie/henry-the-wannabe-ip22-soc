@@ -1,0 +1,3473 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A from-scratch SoC that impersonates the SGI Indy (IP22) well enough to boot IRIX, built around the r9999 MIPS core.">
+      
+      
+      
+      
+        <link rel="prev" href="../graphics/express-xz/">
+      
+      
+        <link rel="next" href="../methodology/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>IRIX boot flow (annotated) - Henry — the wannabe IP22 SoC</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="amber">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#anatomy-of-an-irix-kernel-boot" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Henry — the wannabe IP22 SoC" class="md-header__button md-logo" aria-label="Henry — the wannabe IP22 SoC" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 4h12v1h3v2h-3v2h3v2h-3v2h3v2h-3v2h3v2h-3v1H6v-1H3v-2h3v-2H3v-2h3v-2H3V9h3V7H3V5h3zm5 11v3h1v-3zm2 0v3h1v-3zm2 0v3h1v-3z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Henry — the wannabe IP22 SoC
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              IRIX boot flow (annotated)
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="amber"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="teal" data-md-color-accent="amber"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Henry — the wannabe IP22 SoC" class="md-nav__button md-logo" aria-label="Henry — the wannabe IP22 SoC" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 4h12v1h3v2h-3v2h3v2h-3v2h3v2h-3v2h3v2h-3v1H6v-1H3v-2h3v-2H3v-2h3v-2H3V9h3V7H3V5h3zm5 11v3h1v-3zm2 0v3h1v-3zm2 0v3h1v-3z"/></svg>
+
+    </a>
+    Henry — the wannabe IP22 SoC
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../minimum-mmio-to-banner/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Minimum MMIO to boot banner
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (functional-sim validated, MAME-corroborated)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cpu-integration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CPU integration (r9999)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (MAME-validated)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../firmware-arcs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Firmware (ARCS shim)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (MAME-validated)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../boot-and-console/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Boot & console
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (MAME-validated)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../coherence-cache-tlb/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cache, coherence & TLB
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (MAME-validated)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../fpu-cop1/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FPU (COP1)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (MAME-validated)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Peripherals
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Peripherals
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../peripherals/mc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MC (memory controller)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (MAME-validated)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../peripherals/ioc2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IOC2 (serial console)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (MAME-validated)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../peripherals/hpc3/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    HPC3 (SCSI/enet/DMA, RTC)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (MAME-validated)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../peripherals/gio64/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GIO64 (bus)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (MAME-validated)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../peripherals/vdma/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VDMA (virtual DMA)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft / future-work (MAME-reference)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../peripherals/dmux1/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DMUX (data mux)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../graphics/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Graphics
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft / future-work"></span>
+  
+
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_10" id="__nav_10_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Graphics
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../graphics/rex3/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    REX3 (raster engine)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft / future-work"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../graphics/vc2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VC2 (video timing/cursor)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft / future-work"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../graphics/xmap9/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    XMAP9 (colormap)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft / future-work"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../graphics/rb2-ro1/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RB2 & RO1 (framebuffer/output)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft / future-work"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../graphics/express-xz/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Express / XZ (hardware geometry)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft / future-work"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IRIX boot flow (annotated)
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IRIX boot flow (annotated)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-30000-foot-view" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The 30,000-foot view
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-0-kernel-entry-the-arcs-handoff" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 0 — Kernel entry &amp; the ARCS handoff
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-1-mlsetup-cache-config-boot-args" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 1 — mlsetup: cache config &amp; boot args
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-2-page-coloring-pda-wiring-cache-flush" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 2 — Page coloring, PDA wiring, cache flush
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-3-mlreset-platform-reset-system-identity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 3 — mlreset: platform reset &amp; system identity
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-4-nvram-ecc-vdma" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 4 — NVRAM, ECC, VDMA
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-5-cpu-frequency-timing-calibration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 5 — CPU frequency &amp; timing calibration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-6-pdas-locks-exception-vectors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 6 — PDAs, locks &amp; exception vectors
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-7-leds-sleepsema-config-sanity-szmem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 7 — LEDs, sleep/sema, config sanity &amp; szmem
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-8-physical-memory-init-the-page-frame-database" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 8 — Physical memory init (the page-frame database)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-9-vm-pools-kernel-heap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 9 — VM pools &amp; kernel heap
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-10-zones-credentials-kernel-threads" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 10 — Zones, credentials &amp; kernel threads
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-11-caches-timers-console-the-graphics-probe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 11 — Caches, timers, console &amp; the graphics probe
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-12-hardware-settle-delay" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 12 — Hardware-settle delay
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-call-graph" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The call graph
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#methodology-caveats" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Methodology &amp; caveats
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#appendix-a-every-executed-function-by-phase" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Appendix A — Every executed function, by phase
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Appendix A — Every executed function, by phase">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#phase-0-entry-arcs-handoff" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 0 · Entry &amp; ARCS handoff
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-1-mlsetup-cache-cfg-boot-args" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 1 · mlsetup: cache cfg &amp; boot args
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-2-page-coloring-pda-wiring-cache-flush_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 2 · Page coloring, PDA wiring, cache flush
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-3-mlreset-platform-reset-system-id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 3 · mlreset: platform reset &amp; system ID
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-4-nvram-ecc-vdma_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 4 · NVRAM, ECC, VDMA
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-5-cpu-frequency-timing-calibration_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 5 · CPU frequency &amp; timing calibration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-6-pdas-locks-exception-vectors_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 6 · PDAs, locks &amp; exception vectors
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-7-leds-sleepsema-config-sanity-szmem_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 7 · LEDs, sleep/sema, config sanity, szmem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-8-physical-memory-init-pfdat" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 8 · Physical memory init (pfdat)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-9-vm-pools-kernel-heap_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 9 · VM pools &amp; kernel heap
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-10-zones-creds-kernel-threads" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 10 · Zones, creds &amp; kernel threads
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-11-caches-timers-console-graphics-probe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 11 · Caches, timers, console &amp; graphics probe
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-12-hardware-settle-delay_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 12 · Hardware settle delay
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../methodology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Methodology (MAME oracle)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--stable"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-30000-foot-view" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The 30,000-foot view
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-0-kernel-entry-the-arcs-handoff" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 0 — Kernel entry &amp; the ARCS handoff
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-1-mlsetup-cache-config-boot-args" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 1 — mlsetup: cache config &amp; boot args
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-2-page-coloring-pda-wiring-cache-flush" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 2 — Page coloring, PDA wiring, cache flush
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-3-mlreset-platform-reset-system-identity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 3 — mlreset: platform reset &amp; system identity
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-4-nvram-ecc-vdma" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 4 — NVRAM, ECC, VDMA
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-5-cpu-frequency-timing-calibration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 5 — CPU frequency &amp; timing calibration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-6-pdas-locks-exception-vectors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 6 — PDAs, locks &amp; exception vectors
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-7-leds-sleepsema-config-sanity-szmem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 7 — LEDs, sleep/sema, config sanity &amp; szmem
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-8-physical-memory-init-the-page-frame-database" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 8 — Physical memory init (the page-frame database)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-9-vm-pools-kernel-heap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 9 — VM pools &amp; kernel heap
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-10-zones-credentials-kernel-threads" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 10 — Zones, credentials &amp; kernel threads
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-11-caches-timers-console-the-graphics-probe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 11 — Caches, timers, console &amp; the graphics probe
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-12-hardware-settle-delay" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 12 — Hardware-settle delay
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-call-graph" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The call graph
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#methodology-caveats" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Methodology &amp; caveats
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#appendix-a-every-executed-function-by-phase" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Appendix A — Every executed function, by phase
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Appendix A — Every executed function, by phase">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#phase-0-entry-arcs-handoff" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 0 · Entry &amp; ARCS handoff
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-1-mlsetup-cache-cfg-boot-args" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 1 · mlsetup: cache cfg &amp; boot args
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-2-page-coloring-pda-wiring-cache-flush_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 2 · Page coloring, PDA wiring, cache flush
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-3-mlreset-platform-reset-system-id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 3 · mlreset: platform reset &amp; system ID
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-4-nvram-ecc-vdma_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 4 · NVRAM, ECC, VDMA
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-5-cpu-frequency-timing-calibration_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 5 · CPU frequency &amp; timing calibration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-6-pdas-locks-exception-vectors_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 6 · PDAs, locks &amp; exception vectors
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-7-leds-sleepsema-config-sanity-szmem_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 7 · LEDs, sleep/sema, config sanity, szmem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-8-physical-memory-init-pfdat" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 8 · Physical memory init (pfdat)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-9-vm-pools-kernel-heap_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 9 · VM pools &amp; kernel heap
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-10-zones-creds-kernel-threads" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 10 · Zones, creds &amp; kernel threads
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-11-caches-timers-console-graphics-probe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 11 · Caches, timers, console &amp; graphics probe
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-12-hardware-settle-delay_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 12 · Hardware settle delay
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="anatomy-of-an-irix-kernel-boot">Anatomy of an IRIX kernel boot<a class="headerlink" href="#anatomy-of-an-irix-kernel-boot" title="Permanent link">&para;</a></h1>
+<p><em>A function-by-function walk through the first 14 million instructions of a real IRIX 6.5 <code>/unix</code> booting on an SGI Indy — reconstructed from a retired-PC trace of MAME's <code>indy_4610</code> (R4600) and the symbolized kernel.</em></p>
+<p>This page is in the spirit of <a href="https://www.maizure.org/projects/evolution_x86_context_switch_linux/">maizure.org's "Evolution of the x86 context switch in Linux"</a>: follow the real control flow, name every function, and explain what each one is <em>for</em>. It doubles as the golden reference the <a href="../methodology/">MAME-oracle methodology</a> checks Henry against — several functions below are exactly where we found (and fixed) SoC/core bugs.</p>
+<div class="admonition info">
+<p class="admonition-title">How this was made</p>
+<ul>
+<li><strong>Oracle:</strong> MAME <code>indy_4610</code> booting genuine IRIX 6.5.22 (<code>mips3</code> interpreter, <code>-nodrc</code>), instrumented to dump one retired virtual PC per line from kernel entry (<code>start</code>, <code>0x88005960</code>).</li>
+<li><strong>Trace:</strong> 14,000,000 instructions — <code>start</code> through the first device probes, ending inside a hardware-settle delay loop.</li>
+<li><strong>Symbols:</strong> <code>mips-linux-gnu-nm</code> on the extracted <code>/unix</code> (N32, not stripped, 7,511 text symbols). Each PC is mapped to its enclosing function by address.</li>
+<li><strong>What ran:</strong> <strong>190 distinct functions</strong>, <strong>9,685 call events</strong>, <strong>274 caller→callee edges</strong>.</li>
+<li>Counts below are <em>instructions retired in that function</em> across the whole trace (<code>instret</code>), and <em>first @insn</em> is the instruction index where the function first appears (the boot timeline).</li>
+</ul>
+</div>
+<hr />
+<h2 id="the-30000-foot-view">The 30,000-foot view<a class="headerlink" href="#the-30000-foot-view" title="Permanent link">&para;</a></h2>
+<p>IRIX hands off from the ARCS PROM / <code>sash</code> loader to <strong>one</strong> function that orchestrates almost everything you see here: <strong><code>mlsetup</code></strong> (machine-language setup). <code>mlsetup</code> is the spine — it calls the cache, TLB, platform, memory and device init routines roughly in the order below, then control eventually reaches the scheduler. Our 14M-instruction window covers <code>start</code> through the <strong>Newport graphics probe</strong>, where a long hardware-settle delay runs out the capture.</p>
+<pre class="mermaid"><code>flowchart TD
+    A["start (0x88005960)&lt;br/&gt;ARCS handoff: a0=argc, a1=argv, a2=envp"] --&gt; B["mlsetup&lt;br/&gt;&lt;i&gt;the boot spine&lt;/i&gt;"]
+    B --&gt; P1["① cache config &amp; boot args&lt;br/&gt;config_cache · getargs · is_enabled"]
+    P1 --&gt; P2["② page coloring + PDA wiring&lt;br/&gt;pagecoloralign · wirepda · flush_cache"]
+    P2 --&gt; P3["③ mlreset: platform reset &amp; system ID&lt;br/&gt;mlreset · getsysid · init_sysid · call_prom_cached"]
+    P3 --&gt; P4["④ NVRAM · ECC · VDMA&lt;br/&gt;load_nvram_tab · allocate_ecc_info · VdmaInit"]
+    P4 --&gt; P5["⑤ CPU freq &amp; timing calibration&lt;br/&gt;findcpufreq_raw · _cpuclkper100ticks"]
+    P5 --&gt; P6["⑥ PDAs · locks · exception vectors&lt;br/&gt;initmasterpda · _hook_exceptions"]
+    P6 --&gt; P7["⑦ LEDs · sleep/sema · sanity · szmem&lt;br/&gt;szmem · devavail · *_sanity"]
+    P7 --&gt; P8["⑧ physical memory init (pfdat)&lt;br/&gt;node_meminit · bset"]
+    P8 --&gt; P9["⑨ VM pools &amp; kernel heap&lt;br/&gt;meminit · init_kheap · kvpalloc"]
+    P9 --&gt; P10["⑩ zones · creds · kernel threads&lt;br/&gt;kmem_zone_init · cred_init · kthread_init"]
+    P10 --&gt; P11["⑪ caches · timers · console · graphics&lt;br/&gt;cn_init · gfx_earlyinit · newportProbe · newportInit"]
+    P11 --&gt; P12["⑫ hardware-settle delay&lt;br/&gt;initNg1Cursor → us_delay → delayloop"]
+    P12 -.10.9M instrs.-&gt; P12</code></pre>
+<p>The five fattest functions tell the story of where time goes during bring-up:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">instret</th>
+<th>function</th>
+<th>what it's doing</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">10,946,024</td>
+<td><code>delayloop</code></td>
+<td>Newport cursor hardware-settle busy-wait (eats the tail of the capture)</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,530,697</td>
+<td><code>bzero</code></td>
+<td>clearing the PDA arena, page-frame DB and kernel BSS</td>
+</tr>
+<tr>
+<td style="text-align: right;">149,751</td>
+<td><code>node_meminit</code></td>
+<td>building one page-frame descriptor per physical page</td>
+</tr>
+<tr>
+<td style="text-align: right;">99,601</td>
+<td><code>newportInitInfo</code></td>
+<td>walking the Newport graphics registers</td>
+</tr>
+<tr>
+<td style="text-align: right;">56,448</td>
+<td><code>bset</code></td>
+<td>the bit-fill primitive inside <code>node_meminit</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="phase-0-kernel-entry-the-arcs-handoff">Phase 0 — Kernel entry &amp; the ARCS handoff<a class="headerlink" href="#phase-0-kernel-entry-the-arcs-handoff" title="Permanent link">&para;</a></h2>
+<p><code>sash</code> (the standalone shell / OSLoader) loads <code>/unix</code>, then enters the kernel at <strong><code>start</code> (<code>0x88005960</code>)</strong> following the ARC "Loaded Program Conventions": <code>Invoke(ExecAddr, StackAddr, Argc, Argv, Envp)</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>a0 = argc = 8
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>a1 = argv = 0x88fff300     ; &quot;/unix&quot; + boot args
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>a2 = envp = 0x88fff908     ; ARCS environment (console=, eaddr=, …)
+</code></pre></div>
+<p><code>start</code> stashes these into the globals <code>_argc</code> / <code>_argv</code> / <code>_envirn</code>, establishes <code>gp</code> and the boot stack, runs <code>_check_dbg</code> (is a kernel debugger attached?), and jumps to <code>mlsetup</code>. Everything after this is C.</p>
+<div class="admonition warning">
+<p class="admonition-title">Henry/RTL gotcha</p>
+<p>Getting <code>a0/a1/a2</code> <em>exactly</em> right is load-bearing — an earlier Henry firmware doc had <code>a1=a2=0</code>, which wedged <code>getargs</code>. See <a href="../firmware-arcs/"><code>firmware-arcs.md</code></a> and MAME_QUESTIONS Q5.</p>
+</div>
+<h2 id="phase-1-mlsetup-cache-config-boot-args">Phase 1 — <code>mlsetup</code>: cache config &amp; boot args<a class="headerlink" href="#phase-1-mlsetup-cache-config-boot-args" title="Permanent link">&para;</a></h2>
+<p><code>mlsetup</code> is where the machine becomes a usable C environment. First it reads CP0 <code>Config</code> via <strong><code>config_cache</code></strong> (R4600 reports <code>0x0002e4b3</code> → 16 KB I + 16 KB D, line/assoc encoded) and records the geometry. Then the enormous <strong><code>bzero</code></strong> passes begin (2.5M instructions total) clearing kernel scratch. <strong><code>getargs</code> / <code>is_enabled</code> / <code>is_true</code></strong> parse the boot line and <code>_envirn</code> — the string routines (<code>strlen</code>, <code>strncmp</code>, <code>strncpy</code>, <code>strcmp</code>, <code>atoi</code>) all light up here for the first time servicing the option parser.</p>
+<h2 id="phase-2-page-coloring-pda-wiring-cache-flush">Phase 2 — Page coloring, PDA wiring, cache flush<a class="headerlink" href="#phase-2-page-coloring-pda-wiring-cache-flush" title="Permanent link">&para;</a></h2>
+<p>The R4600 primary caches are <strong>virtually indexed</strong>, so IRIX must avoid color aliasing. <strong><code>pagecoloralign</code></strong> derives <code>cachecolormask</code> from the cache geometry. <strong><code>wirepda</code></strong> then installs a <em>wired</em> TLB entry mapping the per-CPU <strong>PDA</strong> (Processor Data Area, VA <code>0xffffa000</code>) — wired entries are never replaced, so per-CPU data is always addressable even mid-TLB-miss. <strong><code>tlbwired</code></strong> / <strong><code>pte_cachebits</code></strong> build the entry; <strong><code>flush_cache</code> → <code>__cache_wb_inval</code> → <code>_r4600sc_index_inval</code></strong> writeback-invalidate the caches so the new mappings are coherent (the Indy's L1 is incoherent — see <a href="../coherence-cache-tlb/"><code>coherence-cache-tlb.md</code></a>).</p>
+<h2 id="phase-3-mlreset-platform-reset-system-identity">Phase 3 — <code>mlreset</code>: platform reset &amp; system identity<a class="headerlink" href="#phase-3-mlreset-platform-reset-system-identity" title="Permanent link">&para;</a></h2>
+<p><strong><code>mlreset</code></strong> is the platform's hands-on init: it reads the MC <code>mconfig</code> registers, programs interrupt routing (<code>lclvec_init</code>, <code>setgiosharedvector</code>, <code>setlclvector</code>, the <code>spl*</code> IPL helpers), and pins down <em>what machine this is</em>.</p>
+<p><strong><code>getsysid</code></strong> reads the IOC2 System-ID register and runs the canonical Indy test:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kc">880076</span>fc<span class="w">  </span><span class="k">lw</span><span class="w">   </span>a2<span class="nb">,</span><span class="kc">0</span>(<span class="kc">0</span>xbfbd9858)<span class="w">   </span><span class="nb">;</span><span class="w"> </span>IOC2<span class="w"> </span>SYSID<span class="w">  </span>(phys<span class="w"> </span><span class="kc">0</span>x1fbd9858)
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="kc">8800770</span>c<span class="w">  </span><span class="k">andi</span><span class="w"> </span>at<span class="nb">,</span>a2<span class="nb">,</span><span class="kc">0</span>xe0
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="kc">88007720</span><span class="w">  </span><span class="k">beq</span><span class="w">  </span>at<span class="nb">,</span><span class="kc">0</span>x20<span class="w">            </span><span class="nb">;</span><span class="w"> </span>(sysid<span class="w"> </span>&amp;<span class="w"> </span><span class="kc">0</span>xe0)<span class="nb">==</span><span class="kc">0</span>x20<span class="w">  </span>-&gt;<span class="w"> </span>Indy/guinness
+</code></pre></div>
+<p><strong><code>init_sysid</code></strong> then asks the PROM for the Ethernet address (<code>arcs_getenv("eaddr")</code>) and folds it into the hostid. The PROM call goes through <strong><code>call_prom_cached</code></strong>, a small trampoline that rewrites <code>ra</code>/<code>sp</code> to <em>cached</em> kseg0 addresses before <code>jr</code>-ing into firmware:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kc">88006574</span><span class="w">  </span><span class="k">lui</span><span class="w">  </span>t1<span class="nb">,</span><span class="kc">0</span>x8000<span class="w">          </span><span class="nb">;</span><span class="w"> </span>t1<span class="w"> </span><span class="nb">=</span><span class="w"> </span><span class="kc">0</span>x80000000<span class="w"> </span>(kseg0<span class="w"> </span>bit)
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="kc">8800657</span>c<span class="w">  </span><span class="k">addiu</span><span class="w"> </span>ra<span class="nb">,</span>ra<span class="nb">,</span>...<span class="w">          </span><span class="nb">;</span><span class="w"> </span>ra<span class="w"> </span><span class="nb">=</span><span class="w"> </span><span class="kc">0</span>x880065a4<span class="w"> </span>(return<span class="w"> </span>point)
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="kc">88006580</span><span class="w">  </span>dsll32<span class="w"> </span>ra<span class="nb">,</span>ra<span class="nb">,</span><span class="kc">0</span>x3<span class="w">         </span><span class="nb">;</span><span class="w"> </span><span class="kc">64</span>-<span class="nf">bit:</span><span class="w"> </span>clear<span class="w"> </span>the<span class="w"> </span>upper<span class="w"> </span>bits<span class="w"> </span>…
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="kc">88006584</span><span class="w">  </span>dsrl32<span class="w"> </span>ra<span class="nb">,</span>ra<span class="nb">,</span><span class="kc">0</span>x3
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="kc">88006588</span><span class="w">  </span><span class="k">or</span><span class="w">   </span>ra<span class="nb">,</span>ra<span class="nb">,</span>t1<span class="w">            </span><span class="nb">;</span><span class="w"> </span>…<span class="w"> </span>then<span class="w"> </span>force<span class="w"> </span>kseg0<span class="w">  </span>-&gt;<span class="w"> </span>cached<span class="w"> </span>return
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="kc">8800659</span>c<span class="w">  </span><span class="k">jr</span><span class="w">   </span>a4<span class="w">                  </span><span class="nb">;</span><span class="w"> </span>call<span class="w"> </span>the<span class="w"> </span>PROM<span class="w"> </span>romvec<span class="w"> </span>entry
+</code></pre></div>
+<p>(The <code>sprintf</code>/<code>vsprintf</code>/<code>aptoargs</code> cluster here formats the id strings. The <code>panic</code> symbol that appears in this phase is an nm artifact — see <em>Caveats</em>; no panic actually occurs.)</p>
+<div class="admonition warning">
+<p class="admonition-title">Henry/RTL gotchas (two real bugs lived here)</p>
+<ul>
+<li><strong><code>getsysid</code></strong> — Henry's IOC2 must return SYSID <code>0x26</code> in the <strong>low byte</strong> of the 32-bit word (byte-lane bug, MAME_QUESTIONS Q6).</li>
+<li><strong>the kseg0 idiom above</strong> (<code>dsll32/dsrl32/or 0x8000…</code>) is exactly the 64-bit pointer construction that the r9999 core later truncated in <code>kmem_avail</code>, faulting the boot (MAME_QUESTIONS Q6 round-2).</li>
+</ul>
+</div>
+<h2 id="phase-4-nvram-ecc-vdma">Phase 4 — NVRAM, ECC, VDMA<a class="headerlink" href="#phase-4-nvram-ecc-vdma" title="Permanent link">&para;</a></h2>
+<p><strong><code>load_nvram_tab</code></strong> pulls the platform NVRAM variables; <strong><code>allocate_ecc_info</code> / <code>perr_mem_init</code></strong> stand up memory parity/ECC error handling; <strong><code>VdmaInit</code></strong> initializes the GIO64 virtual-DMA translation tables (<a href="../peripherals/vdma/"><code>vdma.md</code></a>).</p>
+<h2 id="phase-5-cpu-frequency-timing-calibration">Phase 5 — CPU frequency &amp; timing calibration<a class="headerlink" href="#phase-5-cpu-frequency-timing-calibration" title="Permanent link">&para;</a></h2>
+<p>IRIX measures the CPU clock rather than trusting a constant. <strong><code>findcpufreq_raw</code></strong> times a fixed loop, and <strong><code>_cpuclkper100ticks</code></strong> calibrates CPU cycles against the IOC <strong>8254 PIT</strong> (counter 2 @ <code>0x1fbd98b0</code>), busy-polling the timer down to zero while sampling CP0 <code>Count</code>. <strong><code>is_ioc1</code></strong> / <strong><code>is_fullhouse</code></strong> here read the MC/IOC registers to confirm the board class.</p>
+<div class="admonition note">
+<p class="admonition-title">Headless-platform note</p>
+<p>Neither the r9999 RTL sim nor <code>interp_mips</code> model the PIT, so this loop runs once and yields a garbage clock — <em>harmless</em>; the boot proceeds. MAME (which has a PIT) loops it 641×.</p>
+</div>
+<h2 id="phase-6-pdas-locks-exception-vectors">Phase 6 — PDAs, locks &amp; exception vectors<a class="headerlink" href="#phase-6-pdas-locks-exception-vectors" title="Permanent link">&para;</a></h2>
+<p><strong><code>initmasterpda</code> / <code>alloc_cpupda</code></strong> finish the boot CPU's PDA; the lock primitives (<code>init_mutex</code>, <code>mrlock_init</code>, <code>spinlock_init</code>, <code>init_sema</code>) come online; and <strong><code>_hook_exceptions</code></strong> installs the real exception/interrupt vectors — general (<code>0x180</code>), TLB-refill (<code>0x000</code>), XTLB (<code>0x080</code>), cache-error. From here the CPU can take and service faults properly. <code>delay_calibrate</code> / <code>_ticksper1024inst</code> finalize the busy-wait constant from the measured frequency.</p>
+<h2 id="phase-7-leds-sleepsema-config-sanity-szmem">Phase 7 — LEDs, sleep/sema, config sanity &amp; <code>szmem</code><a class="headerlink" href="#phase-7-leds-sleepsema-config-sanity-szmem" title="Permanent link">&para;</a></h2>
+<p>Boot-progress <strong>LEDs</strong> (<code>set_leds</code>), the <strong>sleep/wakeup</strong> machinery (<code>slpinit</code>, <code>init_sv</code>), and a wall of tunable <strong><code>*_sanity</code></strong> checks run via <code>sinit</code>. The pivotal one is <strong><code>szmem</code></strong> — it <strong>sizes physical memory</strong> by walking banks 0–2 through <code>is_ioc1</code>/MC <code>mconfig0</code>/<code>mconfig1</code>, accumulating the physical memory map (16 MB, bank 0 only on this Indy). <strong><code>devavail</code></strong> builds the available-device table by calling each driver's presence check.</p>
+<div class="admonition warning">
+<p class="admonition-title">Henry/RTL gotcha</p>
+<p><code>szmem</code>'s per-bank result is the <em>entire</em> VM system's foundation. <code>interp_mips</code> had a nonzero <code>mconfig1</code> and hallucinated a phantom bank 2; the RTL (correctly, matching MAME) reads it empty — MAME_QUESTIONS Q6 round-2.</p>
+</div>
+<h2 id="phase-8-physical-memory-init-the-page-frame-database">Phase 8 — Physical memory init (the page-frame database)<a class="headerlink" href="#phase-8-physical-memory-init-the-page-frame-database" title="Permanent link">&para;</a></h2>
+<p><strong><code>node_meminit</code></strong> builds the <strong>pfdat</strong> — one page-frame descriptor for every physical page on the node — using the <code>bset</code> bit-fill primitive (this is the 149K-instruction heavy hitter). <code>low_mem_alloc</code> / <code>pmem_getfirstclick</code> bootstrap allocations below it; <code>setupbadmem</code> quarantines POST-flagged bad pages.</p>
+<h2 id="phase-9-vm-pools-kernel-heap">Phase 9 — VM pools &amp; kernel heap<a class="headerlink" href="#phase-9-vm-pools-kernel-heap" title="Permanent link">&para;</a></h2>
+<p>On top of the pfdat, <strong><code>meminit</code></strong> stands up the VM system: free-page pools, large-page pools (<code>lpage_init</code>), and reserves. <strong><code>init_kheap</code></strong> brings up the kernel heap; <strong><code>kvpalloc</code></strong> — the workhorse virtual-page allocator (page coloring via <code>color_validation</code>/<code>pfd_set_vcolor</code>, reserve, dequeue) — and <strong><code>kmem_avail</code></strong> start servicing allocations. <code>tlbinfo_init</code> sets up TLB management (wired count, random bound, ASIDs).</p>
+<div class="admonition danger">
+<p class="admonition-title">Henry/RTL gotcha — the boot blocker</p>
+<p>The allocator helper under <strong><code>kmem_avail</code></strong> computes a kseg0/xkphys pointer with the 64-bit idiom from Phase 3. The r9999 RTL <strong>truncated the upper 32 bits</strong>, handing <code>bzero</code> a kuseg address (<code>0x0838e000</code>) instead of <code>0x8838e000</code> → TLB fault → panic. This is the current IRIX-on-RTL blocker (MAME_QUESTIONS Q6 round-2).</p>
+</div>
+<h2 id="phase-10-zones-credentials-kernel-threads">Phase 10 — Zones, credentials &amp; kernel threads<a class="headerlink" href="#phase-10-zones-credentials-kernel-threads" title="Permanent link">&para;</a></h2>
+<p>The slab/zone allocator (<strong><code>kmem_zone_init</code></strong>, <code>kmem_zone_alloc</code>, <code>kmem_zalloc</code>) comes up, contiguous-memory allocation (<code>contmemall</code>, <code>lpage_alloc_contig_physmem</code>) is enabled, the credential subsystem (<code>cred_init</code>) initializes, and the <strong>kernel-thread framework</strong> (<code>sthread_init</code>, <code>sthread0_init</code>, <strong><code>kthread_init</code></strong>) — the basis for every kernel execution context — is established.</p>
+<h2 id="phase-11-caches-timers-console-the-graphics-probe">Phase 11 — Caches, timers, console &amp; the graphics probe<a class="headerlink" href="#phase-11-caches-timers-console-the-graphics-probe" title="Permanent link">&para;</a></h2>
+<p>Cache maintenance (<code>cache_operation</code>, <code>clean_dcache</code>/<code>clean_icache</code> and their refill helpers) and the kernel <strong>timer</strong> subsystem (<code>ktimer_init</code>) initialize. Then the <strong>console</strong> is chosen: <strong><code>cn_init</code> → <code>gfx_earlyinit</code> → <code>tp_dogui</code></strong> decides graphical vs serial, and the framebuffer family is probed — <code>gr2_earlyinit</code> (absent), then <strong><code>ng1_earlyinit</code> → <code>newportProbe</code></strong>. <code>badaddr</code> is the safe "does hardware respond?" probe (read with the bus-error handler armed). On success <strong><code>newportInit</code> → <code>newportInitInfo</code> → <code>initNg1Cursor</code></strong> bring the Newport up (<a href="../graphics/"><code>graphics/index.md</code></a>).</p>
+<div class="admonition warning">
+<p class="admonition-title">Henry/RTL gotcha</p>
+<p>Henry's <strong><code>newportProbe</code> returns 0</strong> (no board) where MAME's returns nonzero — IRIX doesn't detect the Newport. First <em>permanent</em> RTL-vs-MAME divergence; real but separate from the Phase-9 blocker (MAME_QUESTIONS Q6 round-2).</p>
+</div>
+<h2 id="phase-12-hardware-settle-delay">Phase 12 — Hardware-settle delay<a class="headerlink" href="#phase-12-hardware-settle-delay" title="Permanent link">&para;</a></h2>
+<p><strong><code>initNg1Cursor</code></strong> issues a <strong><code>us_delay</code></strong> for the Newport cursor hardware to settle, which spins in <strong><code>delayloop</code></strong> — and that single busy-wait consumes the remaining <strong>10.9 million instructions</strong> of this capture. Beyond here (not in this trace) lies the rest of <code>main()</code>: process 0, the scheduler, <code>init</code>, and root-filesystem mount.</p>
+<hr />
+<h2 id="the-call-graph">The call graph<a class="headerlink" href="#the-call-graph" title="Permanent link">&para;</a></h2>
+<p>Every caller→callee edge observed in the boot (heaviest first; full set is 274 edges). The shape is a wide fan-out from <code>mlsetup</code>, with <code>node_meminit→bset</code> and the <code>kvpalloc</code>/<code>kmem_*</code> cluster dominating by volume.</p>
+<pre class="mermaid"><code>flowchart LR
+    mlsetup --&gt; node_meminit &amp; szmem &amp; meminit &amp; init_kheap &amp; mlreset &amp; pagecoloralign &amp; wirepda &amp; initmasterpda &amp; cn_init &amp; _hook_exceptions
+    node_meminit --&gt; bset &amp; setupbadmem
+    mlreset --&gt; getsysid &amp; flushbus &amp; get_cpu_irr
+    init_sysid --&gt; arcs_getenv --&gt; call_prom_cached
+    meminit --&gt; init_sv &amp; lpage_init &amp; init_global_pool
+    init_kheap --&gt; kmem_gzone_init &amp; init_gzone
+    kvpalloc --&gt; color_validation --&gt; pfd_set_vcolor
+    kvpalloc --&gt; splvme &amp; splxecc &amp; reservemem &amp; pagealloc_size
+    kmem_zone_alloc --&gt; kmem_avail
+    cn_init --&gt; gfx_earlyinit --&gt; ng1_earlyinit
+    ng1_earlyinit --&gt; newportProbe &amp; newportInit
+    newportInit --&gt; newportInitInfo &amp; initNg1Cursor
+    initNg1Cursor --&gt; us_delay --&gt; delayloop
+    is_enabled --&gt; strlen &amp; strncmp &amp; strncpy</code></pre>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">count</th>
+<th>edge</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">6,272</td>
+<td><code>node_meminit → bset</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">1,060</td>
+<td><code>is_enabled → strlen</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">1,060</td>
+<td><code>is_enabled → strncmp</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">512</td>
+<td><code>slpinit → init_sv</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">65</td>
+<td><code>meminit → init_sv</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">36</td>
+<td><code>mlsetup → init_bitlock</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">28</td>
+<td><code>pagecoloralign → low_mem_alloc</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">24</td>
+<td><code>contmemall → bfclr</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">22</td>
+<td><code>sprintf → vsprintf</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">21</td>
+<td><code>zoneuser_name_lookup → sprintf</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">17</td>
+<td><code>kvpalloc → {splvme, splxecc, color_validation}</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">13</td>
+<td><code>low_mem_alloc → bzero</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="methodology-caveats">Methodology &amp; caveats<a class="headerlink" href="#methodology-caveats" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Symbol attribution.</strong> PCs are mapped to the nearest preceding <code>nm</code> text symbol, so a few instructions attributed to a function are really unnamed static helpers placed after it in the binary. The clearest example: a printf/<code>cmn_err</code>-family helper sits just after <code>panic()</code> and gets counted as <strong><code>panic</code></strong> (9,380 instrs) — but the literal <code>panic</code> entry (<code>0x8815bf2c</code>) executes <strong>0 times</strong>. No panic occurs in this boot.</li>
+<li><strong>Trace extent.</strong> 14M instructions reaches the Newport probe, then a 10.9M-instruction <code>us_delay</code>/<code>delayloop</code> runs out the capture. The scheduler, <code>init</code>, and rootfs mount are past the window.</li>
+<li><strong>It's an oracle, not a model.</strong> This is MAME's R4600 path. Where Henry or the r9999 RTL diverge from it, that divergence <em>is</em> the bug — the warnings above flag the ones we've already chased through <a href="https://github.com/dsheffie/r9999">MAME_QUESTIONS.md</a>.</li>
+<li><strong>Delay loops &amp; timers.</strong> MAME models the IOC 8254 PIT; the headless r9999 sim does not, so timing-calibration loops (<code>_cpuclkper100ticks</code>, <code>findcpufreq_raw</code>, <code>delayloop</code> counts) differ harmlessly between them.</li>
+</ul>
+<hr />
+<h2 id="appendix-a-every-executed-function-by-phase">Appendix A — Every executed function, by phase<a class="headerlink" href="#appendix-a-every-executed-function-by-phase" title="Permanent link">&para;</a></h2>
+<p>All <strong>190</strong> functions in first-appearance order within each phase. <em>first @insn</em> = boot-timeline position; <em>instret</em> = instructions retired in that function across the trace.</p>
+<h3 id="phase-0-entry-arcs-handoff">Phase 0 · Entry &amp; ARCS handoff<a class="headerlink" href="#phase-0-entry-arcs-handoff" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">first @insn</th>
+<th style="text-align: right;">instret</th>
+<th>function</th>
+<th>role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">59</td>
+<td><code>start</code></td>
+<td>Kernel entry (<code>0x88005960</code>). Receives <code>a0=argc, a1=argv, a2=envp</code> from the ARCS/sash loader; saves them to <code>_argc/_argv/_envirn</code>, sets up the initial <code>gp</code>/<code>sp</code>, and jumps to <code>mlsetup</code>.</td>
+</tr>
+<tr>
+<td style="text-align: right;">21</td>
+<td style="text-align: right;">2</td>
+<td><code>_check_dbg</code></td>
+<td>Checks for a kernel-debugger / <code>symmon</code> handoff flag before normal setup.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="phase-1-mlsetup-cache-cfg-boot-args">Phase 1 · mlsetup: cache cfg &amp; boot args<a class="headerlink" href="#phase-1-mlsetup-cache-cfg-boot-args" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">first @insn</th>
+<th style="text-align: right;">instret</th>
+<th>function</th>
+<th>role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">62</td>
+<td style="text-align: right;">31,649</td>
+<td><code>mlsetup</code></td>
+<td><strong>The boot spine.</strong> Machine-language setup: drives the entire early bring-up sequence below — cache config, arg parsing, page coloring, PDA wiring, <code>mlreset</code>, memory sizing, heap init, and the first device probes.</td>
+</tr>
+<tr>
+<td style="text-align: right;">72</td>
+<td style="text-align: right;">2,530,697</td>
+<td><code>bzero</code></td>
+<td>Zero a region of memory (<code>sdl/sdr</code> block clear). The boot's single biggest consumer (~2.5M instrs) — clears the PDA arena, page-frame DB and kernel BSS.</td>
+</tr>
+<tr>
+<td style="text-align: right;">73,036</td>
+<td style="text-align: right;">43</td>
+<td><code>config_cache</code></td>
+<td>Reads CP0 <code>Config</code> (R4600: <code>0x0002e4b3</code>) to learn I/D cache size/associativity/line and records the geometry for later cache ops.</td>
+</tr>
+<tr>
+<td style="text-align: right;">73,072</td>
+<td style="text-align: right;">13,360</td>
+<td><code>get_current_flid</code></td>
+<td>Returns the current fault/thread-locality id (node/CPU index); used pervasively to index per-CPU data.</td>
+</tr>
+<tr>
+<td style="text-align: right;">84,622</td>
+<td style="text-align: right;">25</td>
+<td><code>getargs</code></td>
+<td>Parses the kernel boot command line / <code>_envirn</code> ARCS environment into the kernel's arg table.</td>
+</tr>
+<tr>
+<td style="text-align: right;">84,631</td>
+<td style="text-align: right;">13,249</td>
+<td><code>is_enabled</code></td>
+<td>Tests whether a named boot/option flag is enabled (string-compares against the parsed args).</td>
+</tr>
+<tr>
+<td style="text-align: right;">84,654</td>
+<td style="text-align: right;">43,268</td>
+<td><code>strlen</code></td>
+<td>C string length.</td>
+</tr>
+<tr>
+<td style="text-align: right;">84,687</td>
+<td style="text-align: right;">16,559</td>
+<td><code>strncmp</code></td>
+<td>Bounded string compare (used heavily by the option/env parsers).</td>
+</tr>
+<tr>
+<td style="text-align: right;">87,620</td>
+<td style="text-align: right;">6,048</td>
+<td><code>strncpy</code></td>
+<td>Bounded string copy.</td>
+</tr>
+<tr>
+<td style="text-align: right;">163,530</td>
+<td style="text-align: right;">9</td>
+<td><code>is_true</code></td>
+<td>Parses a boolean env value (<code>1/true/yes</code>).</td>
+</tr>
+<tr>
+<td style="text-align: right;">163,535</td>
+<td style="text-align: right;">227</td>
+<td><code>strcmp</code></td>
+<td>String compare.</td>
+</tr>
+<tr>
+<td style="text-align: right;">163,566</td>
+<td style="text-align: right;">26</td>
+<td><code>atoi</code></td>
+<td>ASCII-to-integer for numeric env values.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="phase-2-page-coloring-pda-wiring-cache-flush_1">Phase 2 · Page coloring, PDA wiring, cache flush<a class="headerlink" href="#phase-2-page-coloring-pda-wiring-cache-flush_1" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">first @insn</th>
+<th style="text-align: right;">instret</th>
+<th>function</th>
+<th>role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">163,605</td>
+<td style="text-align: right;">2</td>
+<td><code>initsplocks</code></td>
+<td>Initialize the static spinlocks used before the lock subsystem is fully up.</td>
+</tr>
+<tr>
+<td style="text-align: right;">163,611</td>
+<td style="text-align: right;">4,943</td>
+<td><code>pagecoloralign</code></td>
+<td>Computes the page-coloring alignment mask from the cache geometry (<code>cachecolormask</code>) so virtually-indexed cache aliasing is avoided.</td>
+</tr>
+<tr>
+<td style="text-align: right;">164,448</td>
+<td style="text-align: right;">128</td>
+<td><code>wirepda</code></td>
+<td>Installs the wired TLB entry that maps the per-CPU PDA (VA <code>0xffffa000</code> → the PDA physical page); slot 0, Wired bumped.</td>
+</tr>
+<tr>
+<td style="text-align: right;">164,454</td>
+<td style="text-align: right;">4</td>
+<td><code>pte_cachebits</code></td>
+<td>Returns the hardware cache-coherency attribute bits for a PTE (cached/uncached/<code>C=3</code>).</td>
+</tr>
+<tr>
+<td style="text-align: right;">164,509</td>
+<td style="text-align: right;">80</td>
+<td><code>tlbwired</code></td>
+<td>Writes a wired TLB entry (low-numbered, never replaced) — used for the PDA and other always-mapped pages.</td>
+</tr>
+<tr>
+<td style="text-align: right;">164,562</td>
+<td style="text-align: right;">95</td>
+<td><code>flush_cache</code></td>
+<td>Top-level cache flush (writeback+invalidate) wrapper for the bring-up path.</td>
+</tr>
+<tr>
+<td style="text-align: right;">164,577</td>
+<td style="text-align: right;">19,410</td>
+<td><code>__cache_wb_inval</code></td>
+<td>Writeback-invalidate a cache range; on R4600 dispatches to the secondary/primary index-invalidate primitives.</td>
+</tr>
+<tr>
+<td style="text-align: right;">168,459</td>
+<td style="text-align: right;">35</td>
+<td><code>_r4600sc_index_inval</code></td>
+<td>R4600-specific secondary-cache index invalidate primitive.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="phase-3-mlreset-platform-reset-system-id">Phase 3 · mlreset: platform reset &amp; system ID<a class="headerlink" href="#phase-3-mlreset-platform-reset-system-id" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">first @insn</th>
+<th style="text-align: right;">instret</th>
+<th>function</th>
+<th>role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">168,470</td>
+<td style="text-align: right;">200</td>
+<td><code>mlreset</code></td>
+<td>Machine-level reset/early platform init: reads the MC <code>mconfig</code> registers, programs interrupt routing, and establishes the system/platform identity.</td>
+</tr>
+<tr>
+<td style="text-align: right;">168,474</td>
+<td style="text-align: right;">63</td>
+<td><code>get_cpu_irr</code></td>
+<td>Reads the CPU interrupt request register (board revision is encoded in the high bits — used by the board-type probe).</td>
+</tr>
+<tr>
+<td style="text-align: right;">168,497</td>
+<td style="text-align: right;">88</td>
+<td><code>flushbus</code></td>
+<td>Flushes the write buffer / GIO bus so prior MMIO stores are visible before proceeding.</td>
+</tr>
+<tr>
+<td style="text-align: right;">168,585</td>
+<td style="text-align: right;">35</td>
+<td><code>getsysid</code></td>
+<td>Reads the IOC2 <strong>System ID</strong> register (<code>0x1fbd9858</code>); <code>(sysid &amp; 0xe0)==0x20</code> selects the Indy/guinness path. (See MAME_QUESTIONS Q6 — the byte-lane bug.)</td>
+</tr>
+<tr>
+<td style="text-align: right;">168,681</td>
+<td style="text-align: right;">240</td>
+<td><code>lclvec_init</code></td>
+<td>Initializes the local interrupt vector table.</td>
+</tr>
+<tr>
+<td style="text-align: right;">168,700</td>
+<td style="text-align: right;">275</td>
+<td><code>setgiosharedvector</code></td>
+<td>Wires the shared GIO interrupt vector.</td>
+</tr>
+<tr>
+<td style="text-align: right;">169,201</td>
+<td style="text-align: right;">190</td>
+<td><code>setlclvector</code></td>
+<td>Installs a handler into the local interrupt vector.</td>
+</tr>
+<tr>
+<td style="text-align: right;">169,245</td>
+<td style="text-align: right;">336</td>
+<td><code>splvme</code></td>
+<td>Raise IPL to block VME/GIO interrupts (spl = set priority level); returns the old IPL.</td>
+</tr>
+<tr>
+<td style="text-align: right;">169,278</td>
+<td style="text-align: right;">392</td>
+<td><code>splxecc</code></td>
+<td>Raise IPL for the ECC/memory-error interrupt class.</td>
+</tr>
+<tr>
+<td style="text-align: right;">169,478</td>
+<td style="text-align: right;">56</td>
+<td><code>init_sysid</code></td>
+<td>Builds the kernel system-id/hostid: fetches the <code>eaddr</code> (MAC) env var via ARCS, converts it (<code>etoh</code>), and derives the board identity.</td>
+</tr>
+<tr>
+<td style="text-align: right;">169,483</td>
+<td style="text-align: right;">17</td>
+<td><code>arcs_getenv</code></td>
+<td>Calls the PROM <code>GetEnvironmentVariable</code> firmware vector (FW[30], romvec offset <code>0x78</code>) via <code>call_prom_cached</code>.</td>
+</tr>
+<tr>
+<td style="text-align: right;">169,497</td>
+<td style="text-align: right;">120</td>
+<td><code>call_prom_cached</code></td>
+<td>Generic PROM romvec trampoline — rewrites <code>ra</code>/<code>sp</code> to cached (kseg0) addresses, then <code>jr</code> to the firmware entry so the call returns into cached space.</td>
+</tr>
+<tr>
+<td style="text-align: right;">170,263</td>
+<td style="text-align: right;">304</td>
+<td><code>etoh</code></td>
+<td>ASCII-hex (e.g. a MAC string) to binary conversion.</td>
+</tr>
+<tr>
+<td style="text-align: right;">170,571</td>
+<td style="text-align: right;">817</td>
+<td><code>ovbcopy</code></td>
+<td>Overlapping-safe byte copy (memmove).</td>
+</tr>
+<tr>
+<td style="text-align: right;">170,663</td>
+<td style="text-align: right;">308</td>
+<td><code>sprintf</code></td>
+<td>Formatted print into a buffer.</td>
+</tr>
+<tr>
+<td style="text-align: right;">170,674</td>
+<td style="text-align: right;">264</td>
+<td><code>vsprintf</code></td>
+<td>varargs core of the printf family used for boot/console message formatting.</td>
+</tr>
+<tr>
+<td style="text-align: right;">170,683</td>
+<td style="text-align: right;">9,380</td>
+<td><code>panic</code></td>
+<td><em>(nm artifact — the literal <code>panic</code> entry is never executed in a clean boot.)</em> The instrs attributed here are a printf/<code>cmn_err</code>-family helper located just after <code>panic()</code> in the binary.</td>
+</tr>
+<tr>
+<td style="text-align: right;">170,742</td>
+<td style="text-align: right;">2,039</td>
+<td><code>aptoargs</code></td>
+<td>Converts the ARCS argument-pointer block into the kernel's internal argv form.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="phase-4-nvram-ecc-vdma_1">Phase 4 · NVRAM, ECC, VDMA<a class="headerlink" href="#phase-4-nvram-ecc-vdma_1" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">first @insn</th>
+<th style="text-align: right;">instret</th>
+<th>function</th>
+<th>role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">172,288</td>
+<td style="text-align: right;">9</td>
+<td><code>load_nvram_tab</code></td>
+<td>Loads the platform NVRAM variable table (console/netaddr/boot vars) from the Dallas/IOC NVRAM.</td>
+</tr>
+<tr>
+<td style="text-align: right;">172,294</td>
+<td style="text-align: right;">16</td>
+<td><code>arcs_nvram_tab</code></td>
+<td>Per-entry accessor used while walking the ARCS NVRAM table.</td>
+</tr>
+<tr>
+<td style="text-align: right;">173,559</td>
+<td style="text-align: right;">19</td>
+<td><code>VdmaInit</code></td>
+<td>Initializes the GIO64 virtual-DMA (VDMA) translation machinery.</td>
+</tr>
+<tr>
+<td style="text-align: right;">173,603</td>
+<td style="text-align: right;">53</td>
+<td><code>allocate_ecc_info</code></td>
+<td>Allocates the per-bank ECC/memory-error bookkeeping structures.</td>
+</tr>
+<tr>
+<td style="text-align: right;">173,670</td>
+<td style="text-align: right;">28</td>
+<td><code>perr_mem_init</code></td>
+<td>Initializes memory parity/ECC error handling.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="phase-5-cpu-frequency-timing-calibration_1">Phase 5 · CPU frequency &amp; timing calibration<a class="headerlink" href="#phase-5-cpu-frequency-timing-calibration_1" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">first @insn</th>
+<th style="text-align: right;">instret</th>
+<th>function</th>
+<th>role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">175,097</td>
+<td style="text-align: right;">3</td>
+<td><code>get_r4k_config</code></td>
+<td>Reads R4x00 CP0 <code>Config</code>/<code>PRId</code> to classify the CPU (R4600 here).</td>
+</tr>
+<tr>
+<td style="text-align: right;">175,111</td>
+<td style="text-align: right;">22</td>
+<td><code>timestamp_init</code></td>
+<td>Initializes the CP0 <code>Count</code>-based timestamp source.</td>
+</tr>
+<tr>
+<td style="text-align: right;">175,115</td>
+<td style="text-align: right;">897</td>
+<td><code>findcpufreq_raw</code></td>
+<td>Measures CPU clock by timing a fixed instruction loop against a hardware timer (raw, pre-rounding result).</td>
+</tr>
+<tr>
+<td style="text-align: right;">175,128</td>
+<td style="text-align: right;">22</td>
+<td><code>is_fullhouse</code></td>
+<td>Board-type predicate — true on Indigo2 (<code>full_house</code> IOC2 id <code>0x11</code>), false on Indy (guinness <code>0x26</code>).</td>
+</tr>
+<tr>
+<td style="text-align: right;">175,134</td>
+<td style="text-align: right;">120</td>
+<td><code>is_ioc1</code></td>
+<td>Reads MC <code>mconfig0/mconfig1</code> (<code>0x1fa000c4/cc</code>) per memory bank — the bank-size probe <code>szmem</code> builds the physical map from. (See MAME_QUESTIONS Q6 round-2.)</td>
+</tr>
+<tr>
+<td style="text-align: right;">175,148</td>
+<td style="text-align: right;">9,678</td>
+<td><code>_cpuclkper100ticks</code></td>
+<td>Calibrates CPU cycles per 100 PIT ticks by busy-polling the IOC 8254 timer (counter 2 @ <code>0x1fbd98b0</code>) against CP0 <code>Count</code>.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="phase-6-pdas-locks-exception-vectors_1">Phase 6 · PDAs, locks &amp; exception vectors<a class="headerlink" href="#phase-6-pdas-locks-exception-vectors_1" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">first @insn</th>
+<th style="text-align: right;">instret</th>
+<th>function</th>
+<th>role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">185,127</td>
+<td style="text-align: right;">162</td>
+<td><code>initmasterpda</code></td>
+<td>Initializes the master (boot CPU) PDA — the per-CPU data area the wired TLB entry maps.</td>
+</tr>
+<tr>
+<td style="text-align: right;">185,173</td>
+<td style="text-align: right;">11</td>
+<td><code>sw_cachesynch_patch</code></td>
+<td>Patches in the software cache-synchronization sequences appropriate to the detected cache config.</td>
+</tr>
+<tr>
+<td style="text-align: right;">185,197</td>
+<td style="text-align: right;">107</td>
+<td><code>alloc_cpupda</code></td>
+<td>Allocates a per-CPU PDA structure.</td>
+</tr>
+<tr>
+<td style="text-align: right;">185,235</td>
+<td style="text-align: right;">2</td>
+<td><code>frs_alloc</code></td>
+<td>Low-level fixed/region storage allocator used before the heap is up.</td>
+</tr>
+<tr>
+<td style="text-align: right;">185,252</td>
+<td style="text-align: right;">15</td>
+<td><code>init_mutex</code></td>
+<td>Initializes a kernel mutex.</td>
+</tr>
+<tr>
+<td style="text-align: right;">185,307</td>
+<td style="text-align: right;">87</td>
+<td><code>mrlock_init</code></td>
+<td>Initializes a multi-reader (rw) lock.</td>
+</tr>
+<tr>
+<td style="text-align: right;">185,510</td>
+<td style="text-align: right;">3</td>
+<td><code>get_except_norm</code></td>
+<td>Returns the address of the normal (general) exception vector template.</td>
+</tr>
+<tr>
+<td style="text-align: right;">185,588</td>
+<td style="text-align: right;">600</td>
+<td><code>_hook_exceptions</code></td>
+<td>Installs the exception/interrupt vector handlers (general <code>0x180</code>, TLB refill <code>0x000</code>, XTLB <code>0x080</code>, cache-error) into the vector locations.</td>
+</tr>
+<tr>
+<td style="text-align: right;">190,110</td>
+<td style="text-align: right;">38</td>
+<td><code>str_init_master</code></td>
+<td>Initializes the master streams/IPL dispatch tables.</td>
+</tr>
+<tr>
+<td style="text-align: right;">190,115</td>
+<td style="text-align: right;">464</td>
+<td><code>str_init_masterlfvec</code></td>
+<td>Initializes the master low-level fast interrupt vector table.</td>
+</tr>
+<tr>
+<td style="text-align: right;">190,121</td>
+<td style="text-align: right;">42</td>
+<td><code>spinlock_init</code></td>
+<td>Initializes a spinlock object.</td>
+</tr>
+<tr>
+<td style="text-align: right;">190,665</td>
+<td style="text-align: right;">20</td>
+<td><code>init_sema</code></td>
+<td>Initializes a counting semaphore.</td>
+</tr>
+<tr>
+<td style="text-align: right;">190,678</td>
+<td style="text-align: right;">27</td>
+<td><code>delay_calibrate</code></td>
+<td>Calibrates the busy-wait <code>DELAY()</code> constant from the measured CPU frequency.</td>
+</tr>
+<tr>
+<td style="text-align: right;">190,695</td>
+<td style="text-align: right;">4,366</td>
+<td><code>_ticksper1024inst</code></td>
+<td>Measures timer ticks elapsed per 1024 instructions (a complementary calibration point).</td>
+</tr>
+<tr>
+<td style="text-align: right;">192,894</td>
+<td style="text-align: right;">16</td>
+<td><code>cache_preempt_limit</code></td>
+<td>Sets the cache-operation length above which preemption is allowed.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="phase-7-leds-sleepsema-config-sanity-szmem_1">Phase 7 · LEDs, sleep/sema, config sanity, szmem<a class="headerlink" href="#phase-7-leds-sleepsema-config-sanity-szmem_1" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">first @insn</th>
+<th style="text-align: right;">instret</th>
+<th>function</th>
+<th>role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">195,099</td>
+<td style="text-align: right;">15</td>
+<td><code>findcpufreq</code></td>
+<td>Rounds/normalizes <code>findcpufreq_raw</code>'s measurement to a reported CPU MHz.</td>
+</tr>
+<tr>
+<td style="text-align: right;">195,758</td>
+<td style="text-align: right;">11</td>
+<td><code>idbg_setup</code></td>
+<td>Initializes the in-kernel debugger (<code>idbg</code>) command tables.</td>
+</tr>
+<tr>
+<td style="text-align: right;">195,764</td>
+<td style="text-align: right;">4</td>
+<td><code>ev1_reset</code></td>
+<td>Resets the EV1/VINO or Express graphics/video subsystem state (board-specific early reset).</td>
+</tr>
+<tr>
+<td style="text-align: right;">195,773</td>
+<td style="text-align: right;">7</td>
+<td><code>reset_leds</code></td>
+<td>Resets the front-panel diagnostic LEDs.</td>
+</tr>
+<tr>
+<td style="text-align: right;">195,777</td>
+<td style="text-align: right;">18</td>
+<td><code>set_leds</code></td>
+<td>Writes a value to the diagnostic LEDs (boot progress code).</td>
+</tr>
+<tr>
+<td style="text-align: right;">195,800</td>
+<td style="text-align: right;">59</td>
+<td><code>sinit</code></td>
+<td>Streams/subsystem init dispatcher — calls a table of <code>*_sanity</code>/init routines.</td>
+</tr>
+<tr>
+<td style="text-align: right;">195,845</td>
+<td style="text-align: right;">1,767</td>
+<td><code>init_sv</code></td>
+<td>Initializes a synchronization variable (sleep/wakeup condition).</td>
+</tr>
+<tr>
+<td style="text-align: right;">195,888</td>
+<td style="text-align: right;">5,137</td>
+<td><code>slpinit</code></td>
+<td>Initializes the sleep/wakeup hash queues used by the scheduler.</td>
+</tr>
+<tr>
+<td style="text-align: right;">202,566</td>
+<td style="text-align: right;">12</td>
+<td><code>stopclocks</code></td>
+<td>Stops the periodic clock interrupts during early init.</td>
+</tr>
+<tr>
+<td style="text-align: right;">202,572</td>
+<td style="text-align: right;">32</td>
+<td><code>enable_ithreads</code></td>
+<td>Enables interrupt-thread mode.</td>
+</tr>
+<tr>
+<td style="text-align: right;">202,609</td>
+<td style="text-align: right;">14</td>
+<td><code>stopclocks_r4000</code></td>
+<td>R4000-family backend for <code>stopclocks</code> (masks the CP0 timer compare interrupt).</td>
+</tr>
+<tr>
+<td style="text-align: right;">202,617</td>
+<td style="text-align: right;">10</td>
+<td><code>ackrtclock</code></td>
+<td>Acknowledge the real-time (profiling) clock interrupt.</td>
+</tr>
+<tr>
+<td style="text-align: right;">202,624</td>
+<td style="text-align: right;">17</td>
+<td><code>ackrtclock_r4000</code></td>
+<td>R4000-family backend for <code>ackrtclock</code>.</td>
+</tr>
+<tr>
+<td style="text-align: right;">202,648</td>
+<td style="text-align: right;">10</td>
+<td><code>ackkgclock</code></td>
+<td>Acknowledge the kernel/gettimeofday clock interrupt.</td>
+</tr>
+<tr>
+<td style="text-align: right;">202,655</td>
+<td style="text-align: right;">17</td>
+<td><code>ackkgclock_r4000</code></td>
+<td>R4000-family backend for <code>ackkgclock</code>.</td>
+</tr>
+<tr>
+<td style="text-align: right;">202,692</td>
+<td style="text-align: right;">204</td>
+<td><code>flush_tlb</code></td>
+<td>Invalidates all non-wired TLB entries.</td>
+</tr>
+<tr>
+<td style="text-align: right;">202,899</td>
+<td style="text-align: right;">16</td>
+<td><code>is_specified</code></td>
+<td>Predicate: was a given tunable/option explicitly set on the boot line?</td>
+</tr>
+<tr>
+<td style="text-align: right;">202,922</td>
+<td style="text-align: right;">77</td>
+<td><code>szmem</code></td>
+<td><strong>Sizes physical memory</strong> by walking banks 0-2 via <code>is_ioc1</code> (MC <code>mconfig</code>); accumulates the physical memory map the VM system is built on (16 MB, bank 0 only on this Indy).</td>
+</tr>
+<tr>
+<td style="text-align: right;">203,102</td>
+<td style="text-align: right;">638</td>
+<td><code>devavail</code></td>
+<td>Builds the available-devices table — calls each driver's early presence check.</td>
+</tr>
+<tr>
+<td style="text-align: right;">203,301</td>
+<td style="text-align: right;">6</td>
+<td><code>_disp_sanity</code></td>
+<td>Sanity-check the dispatcher/scheduler tunables.</td>
+</tr>
+<tr>
+<td style="text-align: right;">203,456</td>
+<td style="text-align: right;">68</td>
+<td><code>_io_sanity</code></td>
+<td>Sanity-check the I/O subsystem tunables.</td>
+</tr>
+<tr>
+<td style="text-align: right;">203,533</td>
+<td style="text-align: right;">12</td>
+<td><code>_shm_sanity</code></td>
+<td>Sanity-check the System V shared-memory tunables.</td>
+</tr>
+<tr>
+<td style="text-align: right;">203,561</td>
+<td style="text-align: right;">8</td>
+<td><code>_lpage_watermarks_sanity</code></td>
+<td>Sanity-check the large-page watermark tunables.</td>
+</tr>
+<tr>
+<td style="text-align: right;">203,606</td>
+<td style="text-align: right;">42</td>
+<td><code>_bufcache_sanity</code></td>
+<td>Sanity-check the buffer-cache tunables.</td>
+</tr>
+<tr>
+<td style="text-align: right;">203,657</td>
+<td style="text-align: right;">15</td>
+<td><code>_paging_sanity</code></td>
+<td>Sanity-check the paging/swap tunables.</td>
+</tr>
+<tr>
+<td style="text-align: right;">203,681</td>
+<td style="text-align: right;">51</td>
+<td><code>_memsize_sanity</code></td>
+<td>Sanity-check derived memory-size tunables against actual RAM.</td>
+</tr>
+<tr>
+<td style="text-align: right;">203,706</td>
+<td style="text-align: right;">103</td>
+<td><code>_numproc_sanity</code></td>
+<td>Sanity-check the max-process tunable.</td>
+</tr>
+<tr>
+<td style="text-align: right;">203,818</td>
+<td style="text-align: right;">23</td>
+<td><code>_timer_sanity</code></td>
+<td>Sanity-check the timer/clock tunables.</td>
+</tr>
+<tr>
+<td style="text-align: right;">203,913</td>
+<td style="text-align: right;">25</td>
+<td><code>_resource_sanity</code></td>
+<td>Sanity-check the resource-limit tunables.</td>
+</tr>
+<tr>
+<td style="text-align: right;">203,947</td>
+<td style="text-align: right;">11</td>
+<td><code>_limits_sanity</code></td>
+<td>Sanity-check assorted kernel limits.</td>
+</tr>
+<tr>
+<td style="text-align: right;">203,967</td>
+<td style="text-align: right;">15</td>
+<td><code>_debug_sanity</code></td>
+<td>Sanity-check debug-related tunables.</td>
+</tr>
+<tr>
+<td style="text-align: right;">203,973</td>
+<td style="text-align: right;">15</td>
+<td><code>_utrace_sanity</code></td>
+<td>Sanity-check the user-trace tunables.</td>
+</tr>
+<tr>
+<td style="text-align: right;">204,061</td>
+<td style="text-align: right;">24</td>
+<td><code>node_getmaxclick</code></td>
+<td>Returns the highest physical page (<code>click</code>) on a memory node — the top of usable RAM.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="phase-8-physical-memory-init-pfdat">Phase 8 · Physical memory init (pfdat)<a class="headerlink" href="#phase-8-physical-memory-init-pfdat" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">first @insn</th>
+<th style="text-align: right;">instret</th>
+<th>function</th>
+<th>role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">2,682,660</td>
+<td style="text-align: right;">185</td>
+<td><code>init_bitlock</code></td>
+<td>Initializes a bit-granular lock used by the page-frame database.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,682,774</td>
+<td style="text-align: right;">845</td>
+<td><code>low_mem_alloc</code></td>
+<td>Bootstrap allocator that hands out low physical memory before the page allocator exists.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,690,692</td>
+<td style="text-align: right;">15</td>
+<td><code>readadapters</code></td>
+<td>Probes/enumerates GIO/bus adapters present on the node.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,690,794</td>
+<td style="text-align: right;">2</td>
+<td><code>pmem_getfirstclick</code></td>
+<td>Returns the first usable physical page (<code>click</code>) after the kernel image.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,691,597</td>
+<td style="text-align: right;">149,751</td>
+<td><code>node_meminit</code></td>
+<td><strong>Builds the page-frame database (<code>pfdat</code>)</strong> for the node — one descriptor per physical page; the heavy <code>bset</code> loop initializes them across all of RAM.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,692,171</td>
+<td style="text-align: right;">6</td>
+<td><code>setupbadmem</code></td>
+<td>Marks pages flagged bad (by ECC/POST) as unusable in the pfdat.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,692,425</td>
+<td style="text-align: right;">56,448</td>
+<td><code>bset</code></td>
+<td>Set a run of bits / fill (the inner primitive <code>node_meminit</code> uses to initialize the pfdat bitmaps).</td>
+</tr>
+</tbody>
+</table>
+<h3 id="phase-9-vm-pools-kernel-heap_1">Phase 9 · VM pools &amp; kernel heap<a class="headerlink" href="#phase-9-vm-pools-kernel-heap_1" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">first @insn</th>
+<th style="text-align: right;">instret</th>
+<th>function</th>
+<th>role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">2,897,835</td>
+<td style="text-align: right;">718</td>
+<td><code>meminit</code></td>
+<td>Brings up the VM memory system on top of the pfdat: free-page pools, large-page pools and reserves.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,897,840</td>
+<td style="text-align: right;">87</td>
+<td><code>tune_sanity</code></td>
+<td>Final cross-check of memory tunables vs the now-known RAM size.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,897,929</td>
+<td style="text-align: right;">15</td>
+<td><code>global_freemem_init</code></td>
+<td>Initializes the global free-memory accounting counters.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,897,956</td>
+<td style="text-align: right;">35</td>
+<td><code>init_global_pool</code></td>
+<td>Initializes the global physical free-page pool.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,897,993</td>
+<td style="text-align: right;">30</td>
+<td><code>unreservemem</code></td>
+<td>Releases bootstrap memory reservations back to the free pool.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,898,023</td>
+<td style="text-align: right;">11</td>
+<td><code>vm_pool_wakeup</code></td>
+<td>Wakes any waiters on a VM page pool.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,898,076</td>
+<td style="text-align: right;">9</td>
+<td><code>init_spinlock</code></td>
+<td>Initializes a spinlock (VM-subsystem variant).</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,898,937</td>
+<td style="text-align: right;">161</td>
+<td><code>lpage_init</code></td>
+<td>Initializes the large-page (superpage) subsystem.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,898,967</td>
+<td style="text-align: right;">11</td>
+<td><code>lpage_init_watermarks</code></td>
+<td>Sets large-page pool low/high watermarks.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,899,133</td>
+<td style="text-align: right;">15</td>
+<td><code>lpage_free_contig_physmem</code></td>
+<td>Returns contiguous physical memory to the large-page pool.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,899,180</td>
+<td style="text-align: right;">22</td>
+<td><code>init_kheap</code></td>
+<td>Initializes the kernel heap (<code>kmem_alloc</code> backing store).</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,899,186</td>
+<td style="text-align: right;">22</td>
+<td><code>init_gzone</code></td>
+<td>Initializes a kernel heap general zone.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,899,193</td>
+<td style="text-align: right;">38</td>
+<td><code>kmem_gzone_init</code></td>
+<td>Initializes the kmem general-purpose zone allocator.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,899,244</td>
+<td style="text-align: right;">7,070</td>
+<td><code>zoneuser_name_lookup</code></td>
+<td>Resolves a heap-zone's owner/name string (debug/accounting); uses <code>sprintf</code>.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,904,833</td>
+<td style="text-align: right;">986</td>
+<td><code>kmem_heapzone_index_get</code></td>
+<td>Maps an allocation size to its heap-zone index.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,905,821</td>
+<td style="text-align: right;">351</td>
+<td><code>zoneuser_name_stash</code></td>
+<td>Records the zone owner name string (via <code>ovbcopy</code>).</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,917,434</td>
+<td style="text-align: right;">9</td>
+<td><code>idbg_addfunc</code></td>
+<td>Registers an <code>idbg</code> debugger command function.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,917,549</td>
+<td style="text-align: right;">2,338</td>
+<td><code>tlbinfo_init</code></td>
+<td>Initializes the TLB-management bookkeeping (wired count, random bound, ASID state).</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,917,560</td>
+<td style="text-align: right;">19</td>
+<td><code>kmem_alloc</code></td>
+<td>Kernel general-purpose memory allocate.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,917,569</td>
+<td style="text-align: right;">425</td>
+<td><code>kmem_avail</code></td>
+<td>Returns/allocates available kernel memory; the alloc helper whose result the kernel then <code>bzero</code>s. (RTL bug site — see MAME_QUESTIONS Q6 round-2.)</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,917,596</td>
+<td style="text-align: right;">77</td>
+<td><code>heap_mem_alloc</code></td>
+<td>Backing-store allocation for the heap (calls <code>kvpalloc</code>).</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,917,604</td>
+<td style="text-align: right;">1,172</td>
+<td><code>kvpalloc</code></td>
+<td>Allocate kernel virtual pages backed by physical pages — the workhorse VM allocator (page coloring, reserve, dequeue).</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,917,635</td>
+<td style="text-align: right;">322</td>
+<td><code>reservemem</code></td>
+<td>Reserves physical pages from the free pool for a pending allocation.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,917,728</td>
+<td style="text-align: right;">250</td>
+<td><code>pagealloc_size</code></td>
+<td>Allocates a run of pages of a given size.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,917,756</td>
+<td style="text-align: right;">950</td>
+<td><code>_pagealloc_size_node</code></td>
+<td>Node-local backend of <code>pagealloc_size</code> (per-node free lists, bit clear).</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,917,880</td>
+<td style="text-align: right;">1,054</td>
+<td><code>pagedequeue</code></td>
+<td>Removes a page descriptor from a free/LRU queue.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,917,950</td>
+<td style="text-align: right;">850</td>
+<td><code>bfclr</code></td>
+<td>Bit-field clear primitive (free-page bitmap maintenance).</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,918,149</td>
+<td style="text-align: right;">663</td>
+<td><code>color_validation</code></td>
+<td>Validates/assigns the page color of an allocation to match the cache-coloring constraints.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,918,179</td>
+<td style="text-align: right;">204</td>
+<td><code>pfd_set_vcolor</code></td>
+<td>Sets the virtual color attribute on a page-frame descriptor.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="phase-10-zones-creds-kernel-threads">Phase 10 · Zones, creds &amp; kernel threads<a class="headerlink" href="#phase-10-zones-creds-kernel-threads" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">first @insn</th>
+<th style="text-align: right;">instret</th>
+<th>function</th>
+<th>role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">2,920,603</td>
+<td style="text-align: right;">42</td>
+<td><code>kmem_zone_init</code></td>
+<td>Initializes the slab/zone allocator infrastructure.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,920,611</td>
+<td style="text-align: right;">149</td>
+<td><code>kmem_zoneset_zoneinit</code></td>
+<td>Initializes a zone within a zone-set (fixed-size object cache).</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,920,817</td>
+<td style="text-align: right;">76</td>
+<td><code>kmem_zalloc</code></td>
+<td>Allocate and zero kernel memory.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,920,962</td>
+<td style="text-align: right;">349</td>
+<td><code>lpage_alloc_contig_physmem</code></td>
+<td>Allocates physically-contiguous memory for a large page.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,920,977</td>
+<td style="text-align: right;">32</td>
+<td><code>lpage_size_to_index</code></td>
+<td>Maps a large-page size to its pool index.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,921,127</td>
+<td style="text-align: right;">42</td>
+<td><code>coalesce_daemon_wakeup</code></td>
+<td>Wakes the page-coalescing daemon when fragmentation warrants.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,921,181</td>
+<td style="text-align: right;">1,704</td>
+<td><code>contmemall</code></td>
+<td>Allocates contiguous physical memory (page-dequeue + bitmap clear across a run).</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,921,214</td>
+<td style="text-align: right;">34</td>
+<td><code>pfdat_probe</code></td>
+<td>Probes a page-frame descriptor's state.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,923,549</td>
+<td style="text-align: right;">324</td>
+<td><code>phead_unjoin</code></td>
+<td>Detaches a page from a page-head (free/contig list) chain.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,923,595</td>
+<td style="text-align: right;">56</td>
+<td><code>phead_join</code></td>
+<td>Attaches a page to a page-head chain.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,935,950</td>
+<td style="text-align: right;">1,015</td>
+<td><code>kmem_zone_alloc</code></td>
+<td>Allocates one object from a slab zone (calls into <code>kmem_avail</code> when the zone needs more backing).</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,935,974</td>
+<td style="text-align: right;">258</td>
+<td><code>kmem_zone_zalloc</code></td>
+<td>Zone-allocate and zero.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,938,154</td>
+<td style="text-align: right;">18</td>
+<td><code>initpdas</code></td>
+<td>Initializes the array of per-CPU PDA pointers.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,938,174</td>
+<td style="text-align: right;">21</td>
+<td><code>str_init_memsize</code></td>
+<td>Sizes the streams data structures from available memory.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,938,201</td>
+<td style="text-align: right;">27</td>
+<td><code>cred_init</code></td>
+<td>Initializes the credential (uid/gid) subsystem and the cred zone.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,938,205</td>
+<td style="text-align: right;">10</td>
+<td><code>crgetsize</code></td>
+<td>Returns the size of a credential structure.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,938,316</td>
+<td style="text-align: right;">44</td>
+<td><code>kmem_zoneset_create</code></td>
+<td>Creates a new zone-set (object cache family).</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,938,336</td>
+<td style="text-align: right;">14</td>
+<td><code>kmem_zalloc_node</code></td>
+<td>Node-local zero-allocate.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,941,392</td>
+<td style="text-align: right;">57</td>
+<td><code>sthread_init</code></td>
+<td>Initializes the system-thread (sthread) subsystem.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,941,712</td>
+<td style="text-align: right;">40</td>
+<td><code>sthread0_init</code></td>
+<td>Initializes sthread 0 (the bootstrap system thread).</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,942,212</td>
+<td style="text-align: right;">132</td>
+<td><code>kthread_init</code></td>
+<td>Initializes the kernel-thread (kthread) framework — the basis for all kernel execution contexts.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,942,360</td>
+<td style="text-align: right;">66</td>
+<td><code>kt_getcfg</code></td>
+<td>Reads kthread configuration/limits.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,942,373</td>
+<td style="text-align: right;">45</td>
+<td><code>xthread_table_thread_get_property</code></td>
+<td>Looks up a property in the cross-thread table.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="phase-11-caches-timers-console-graphics-probe">Phase 11 · Caches, timers, console &amp; graphics probe<a class="headerlink" href="#phase-11-caches-timers-console-graphics-probe" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">first @insn</th>
+<th style="text-align: right;">instret</th>
+<th>function</th>
+<th>role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">2,949,617</td>
+<td style="text-align: right;">78</td>
+<td><code>cache_operation</code></td>
+<td>Dispatches a cache maintenance operation (clean/invalidate) on a range.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,949,682</td>
+<td style="text-align: right;">58</td>
+<td><code>_bclean_caches</code></td>
+<td>Clean both I and D caches for a buffer.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,949,712</td>
+<td style="text-align: right;">39</td>
+<td><code>clean_dcache</code></td>
+<td>Writeback-clean the data cache for a range.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,949,742</td>
+<td style="text-align: right;">25</td>
+<td><code>__dcache_wb_inval</code></td>
+<td>D-cache writeback-invalidate primitive.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,949,767</td>
+<td style="text-align: right;">1,029</td>
+<td><code>cacheops_refill_2</code></td>
+<td>Cache-op refill helper (line size 2 path).</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,950,826</td>
+<td style="text-align: right;">33</td>
+<td><code>clean_icache</code></td>
+<td>Invalidate the instruction cache for a range.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,950,851</td>
+<td style="text-align: right;">25</td>
+<td><code>__icache_inval</code></td>
+<td>I-cache invalidate primitive.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,950,876</td>
+<td style="text-align: right;">2,071</td>
+<td><code>cacheops_refill_3</code></td>
+<td>Cache-op refill helper (line size 3 path).</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,953,056</td>
+<td style="text-align: right;">65</td>
+<td><code>init_mria</code></td>
+<td>Initializes the MRIA (memory-region interval) bookkeeping.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,953,166</td>
+<td style="text-align: right;">14</td>
+<td><code>ktimer_init</code></td>
+<td>Initializes the kernel timer (callout) subsystem.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,953,174</td>
+<td style="text-align: right;">2</td>
+<td><code>_get_timestamp</code></td>
+<td>Reads the current timestamp (CP0 <code>Count</code>).</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,953,176</td>
+<td style="text-align: right;">15</td>
+<td><code>get_r4k_counter</code></td>
+<td>Reads the raw R4k CP0 <code>Count</code> register.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,953,204</td>
+<td style="text-align: right;">47</td>
+<td><code>sysreg_earlyinit</code></td>
+<td>Early init of the platform system registers (the <code>0x1fbd…</code>/<code>0x1fbe…</code> control regs).</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,953,235</td>
+<td style="text-align: right;">14</td>
+<td><code>pg_setcachable</code></td>
+<td>Marks a physical page range cacheable in the page attributes.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,953,268</td>
+<td style="text-align: right;">9</td>
+<td><code>cn_init</code></td>
+<td>Console init — selects and brings up the boot console device.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,953,277</td>
+<td style="text-align: right;">12</td>
+<td><code>gfx_earlyinit</code></td>
+<td>Graphics early-init dispatcher; probes the framebuffer family (Newport/GR2/Express) for a console.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,953,281</td>
+<td style="text-align: right;">13</td>
+<td><code>tp_dogui</code></td>
+<td>Decides whether to bring up the graphical (vs serial) console.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,953,306</td>
+<td style="text-align: right;">2</td>
+<td><code>gr2_earlyinit</code></td>
+<td>GR2/Express graphics early-init probe (returns absent on this Indy).</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,953,310</td>
+<td style="text-align: right;">58</td>
+<td><code>ng1_earlyinit</code></td>
+<td>Newport (NG1) graphics early-init: loops candidate slots calling <code>newportProbe</code>/<code>newportInit</code>.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,953,361</td>
+<td style="text-align: right;">70</td>
+<td><code>newportProbe</code></td>
+<td>Probes for a Newport board by reading its REX3/board registers; returns nonzero if present. (RTL returns 0 — see MAME_QUESTIONS Q6 round-2.)</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,953,396</td>
+<td style="text-align: right;">24</td>
+<td><code>setgioconfig</code></td>
+<td>Programs a GIO slot's configuration register.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,953,422</td>
+<td style="text-align: right;">9</td>
+<td><code>is_sysad_parity_enabled</code></td>
+<td>Checks whether SysAD-bus parity checking is enabled (gates <code>badaddr</code> probing).</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,953,436</td>
+<td style="text-align: right;">77</td>
+<td><code>badaddr</code></td>
+<td>Probes an address for bus-error presence (read with the bus-error handler armed) — the safe way to test if hardware responds.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,953,556</td>
+<td style="text-align: right;">36</td>
+<td><code>newportInit</code></td>
+<td>Initializes a detected Newport board (REX3 state, XMAP9 colormap, VC2 timing).</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,953,586</td>
+<td style="text-align: right;">255</td>
+<td><code>initNg1Cursor</code></td>
+<td>Initializes the Newport hardware cursor; issues the long hardware-settle <code>us_delay</code> that dominates the tail of the trace.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,953,643</td>
+<td style="text-align: right;">99,601</td>
+<td><code>newportInitInfo</code></td>
+<td>Fills the Newport per-board info/capability structure (resolution, depth, planes) — ~100K instrs walking the gfx registers.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,953,683</td>
+<td style="text-align: right;">49</td>
+<td><code>ng1_i2cProbe</code></td>
+<td>Probes the Newport I2C bus (monitor EDID / VC2).</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,953,689</td>
+<td style="text-align: right;">11</td>
+<td><code>ng1_setvideotiming</code></td>
+<td>Programs the VC2 video timing for the detected monitor mode.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2,953,810</td>
+<td style="text-align: right;">133</td>
+<td><code>kopt_find</code></td>
+<td>Looks up a kernel boot option by name in the parsed option table.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="phase-12-hardware-settle-delay_1">Phase 12 · Hardware settle delay<a class="headerlink" href="#phase-12-hardware-settle-delay_1" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">first @insn</th>
+<th style="text-align: right;">instret</th>
+<th>function</th>
+<th>role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">3,053,730</td>
+<td style="text-align: right;">2</td>
+<td><code>ev1_softprobe</code></td>
+<td>Soft-probe of the EV1/video input presence.</td>
+</tr>
+<tr>
+<td style="text-align: right;">3,053,950</td>
+<td style="text-align: right;">27</td>
+<td><code>us_delay</code></td>
+<td>Microsecond busy-wait; spins in <code>delayloop</code>.</td>
+</tr>
+<tr>
+<td style="text-align: right;">3,053,977</td>
+<td style="text-align: right;">10,946,024</td>
+<td><code>delayloop</code></td>
+<td>The tight <code>bgtz</code>-decrement busy-wait. 10.9M instrs here = the Newport cursor hardware-settle delay that runs to the end of this 14M-instruction capture.</td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "navigation.indexes", "navigation.tracking", "toc.follow", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

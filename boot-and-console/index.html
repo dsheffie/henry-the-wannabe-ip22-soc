@@ -302,6 +302,40 @@
   
   
     <li class="md-nav__item">
+      <a href="../minimum-mmio-to-banner/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Minimum MMIO to boot banner
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (functional-sim validated, MAME-corroborated)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../cpu-integration/" class="md-nav__link">
         
   
@@ -647,10 +681,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
         
           
-          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="">
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="">
             
   
   
@@ -668,8 +702,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_8">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -932,7 +966,7 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -961,14 +995,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_9" id="__nav_9_label" tabindex="">
+              <label class="md-nav__link " for="__nav_10" id="__nav_10_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_9">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1169,6 +1203,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../irix-boot-flow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IRIX boot flow (annotated)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../methodology/" class="md-nav__link">
         
   
@@ -1353,21 +1414,36 @@ ELF) → jumps into <code>/unix</code> <code>start</code>.</p>
 synthesizing the small amount of state sash normally leaves behind. The running kernel barely touches
 firmware — over a 100 s emulated boot to multiuser the kernel calls the ARCS romvec <strong>exactly once</strong>
 (<code>GetEnvironmentVariable</code>). So the shim's job is to leave correct <em>in-memory</em> state, not to implement
-a live firmware. The collapsed handoff is: <strong>shim → /unix <code>start</code> with <code>a0=8, a1=0, a2=0</code>.</strong></p>
+a live firmware. The collapsed handoff is: <strong>shim → /unix <code>start</code> with <code>a0=argc, a1=argv, a2=envp</code></strong>
+(argc=8; argv/envp are kseg0 pointers to arrays the shim plants in RAM — see <a href="#kernel-entry">Kernel entry</a>).</p>
 <h2 id="kernel-entry">Kernel entry<a class="headerlink" href="#kernel-entry" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>ELF entry = <code>0x88005960</code>, symbol <code>start</code>.</strong> kseg0-cached vaddr → <strong>PA <code>0x08005960</code></strong>; the image
   loads at VA base <code>0x88000000</code> / <strong>PA <code>0x08000000</code></strong> (DRAM <code>0x08000000</code>–<code>0x0fffffff</code>).</li>
-<li><strong>Entry registers (measured, NOT argc/argv/envp):</strong> <code>a0 = 8</code>, <code>a1 = 0</code>, <code>a2 = 0</code>, <code>a3 = 0</code>.
-  <code>a1</code>/<code>a2</code> are zero — there is no argv/envp array to walk. Only <code>a0 = 8</code> carries a value (a small
-  boot-type/flag code; exact meaning TBD, boot succeeds regardless). Registers also carry sash
-  leftovers (<code>t0=0x11 t1=7 t2=0x10 t3=0x11 t4=0x12 s6=4 s7=0x01000000 t8=8</code>) but the shim can enter
-  with a clean GPR file. <strong><code>SR = 0x30004801</code></strong> (reset Status <code>0x70400004</code>: KX=0, ERL=1, 32-bit
-  kernel).</li>
+<li><strong>Entry registers — <code>a0 = argc, a1 = argv, a2 = envp</code></strong> (the ARCS §4.4 "Loaded Program Conventions"
+  handoff sash gives <code>/unix</code>). ⚠️ <strong>Correction:</strong> an earlier note here read these as "<code>a1=0, a2=0</code>,
+  NOT argc/argv/envp." That was wrong — it held only because a 1:1 va2pa shortcut masked the null
+  pointers. With a <strong>real translating TLB</strong>, the kernel <em>does</em> consume argv/envp (via
+  <code>getargs</code>/<code>_envirn</code>, see prologue), and <code>a1=a2=0</code> makes <code>getargs</code> <strong>derail</strong> long before the banner
+  (interp_mips / <code>r9999/MAME_QUESTIONS.md</code> Q5 follow-up).<ul>
+<li><code>a0 = argc = 8</code>.</li>
+<li><code>a1 = argv</code> — kseg0 pointer (MAME: <code>0x88fff300</code>) to a NULL-terminated <code>char*[]</code> of 8 strings,
+  e.g. <code>"scsi(0)disk(1)rdisk(0)partition(0)/unix"</code>, <code>"OSLoadOptions=auto"</code>, <code>"ConsoleIn=serial(0)"</code>,
+  <code>"ConsoleOut=serial(0)"</code>, <code>"OSLoader=sash"</code>, … .</li>
+<li><code>a2 = envp</code> — kseg0 pointer (MAME: <code>0x88fff908</code>) to a NULL-terminated <code>char*[]</code> of <code>"KEY=value"</code>
+  env strings (<code>eaddr=…</code>, <code>console=d</code>, <code>cpufreq=100</code>, <code>OSLoadPartition=…</code>, <code>TimeZone=…</code>, …).</li>
+<li>Arrays + strings live just under the top of RAM (kseg0 pointers). The shim plants them; the full
+  string list is in <code>r9999/MAME_QUESTIONS.md</code> (Q5 follow-up) / interp_mips <code>pseudo_bios.cc</code>.</li>
+</ul>
+</li>
+<li>Registers also carry sash leftovers (<code>t0=0x11 t1=7 …</code>) but the shim can enter with a clean GPR
+    file. <strong><code>SR = 0x30004801</code></strong> (reset Status <code>0x70400004</code>: KX=0, ERL=1, 32-bit kernel).</li>
 <li><strong><code>start</code> prologue (verified disassembly):</strong> sets <code>gp = 0x88332bf0</code>, loads <code>sp = *(0x8832bfa0)</code>,
-  immediately <code>sw</code>s <code>a0/a1/a2</code> to gp-relative globals (saves all three boot args), then <code>jal</code>s its
-  first C routine <code>0x880255e8(a0,a1,a2,a3=0x880059b0)</code>. Early calls <code>_check_dbg</code>(<code>0x880255e8</code>) and
-  <code>debug</code>(<code>0x880152c8</code>) are debug hooks that return.</li>
+  immediately <code>sw</code>s the three boot args to gp-relative globals — <code>a0→_argc</code>, <code>a1→_argv</code>,
+  <strong><code>a2→_envirn</code></strong> (<code>0x8832d7c0</code>) — then <code>jal</code>s its first C routine
+  <code>0x880255e8(a0,a1,a2,a3=0x880059b0)</code>. <code>mlsetup</code>/<code>getargs</code> later consume <code>_envirn</code>/<code>_argv</code>; a zero
+  <code>_envirn</code> is exactly where the old <code>a2=0</code> handoff diverged. Early calls <code>_check_dbg</code>(<code>0x880255e8</code>)
+  and <code>debug</code>(<code>0x880152c8</code>) are debug hooks that return.</li>
 <li>The kernel pulls its config from the <strong>ARCS SPB at phys <code>0x1000</code></strong> (signature "ARCS", kseg1
   <code>0xA0001000</code>) + a 35-entry FirmwareVector — NOT from the entry registers. RAM size/layout it reads
   <strong>directly from the SGI MC</strong> (<code>MEMCFG0/1</code> at phys <code>0x1fa000c4/0xcc</code>, via <code>szmem</code>@<code>0x8800790c</code>),
@@ -1431,10 +1507,12 @@ output.) Full capture: <code>~/code/mame/irix_serial_console.txt</code>.</p>
 <li>Load the <code>/unix</code> ELF (VA <code>0x88xxxxxx</code> → PA <code>0x08xxxxxx</code>, base PA <code>0x08000000</code>).</li>
 <li>Plant the <strong>ARCS shim</strong>: SPB at phys <code>0x1000</code> (sig "ARCS" + field layout) → 35-entry romvec with
    a working <strong>GetEnvironmentVariable</strong> (the one call the kernel makes); return sane <strong>MEMCFG0/1</strong>
-   from the MC model (e.g. <code>MEMCFG0=0x23200000</code> → bank @ <code>0x08000000</code>).</li>
+   from the MC model (e.g. <code>MEMCFG0=0x23200000</code> → bank @ <code>0x08000000</code>). Also plant the <strong>argv/envp
+   arrays + strings</strong> in RAM (kseg0 pointers) — these are the <code>a1</code>/<code>a2</code> handoff (step 5).</li>
 <li>Provide an <strong><code>eaddr</code></strong> in the ARCS env / NVRAM (see the eaddr gotcha above) — or early init panics.</li>
-<li>Set <strong><code>console=d</code></strong> in the ARCS env.</li>
-<li>Enter <code>start</code> (<code>0x88005960</code>) with <strong><code>a0=8, a1=0, a2=0</code></strong>, clean GPRs, <code>SR=0x30004801</code>.</li>
+<li>Set <strong><code>console=d</code></strong> in the ARCS env (and in the planted <code>envp</code>).</li>
+<li>Enter <code>start</code> (<code>0x88005960</code>) with <strong><code>a0=argc=8, a1=argv, a2=envp</code></strong> (kseg0 pointers to the step-2
+   arrays — <strong>not</strong> <code>a1=a2=0</code>, which derails <code>getargs</code>), clean GPRs, <code>SR=0x30004801</code>.</li>
 <li>Emulate the <strong>minimal Z8530 SCC</strong> at IOC2 (write <code>0x1FBD9834</code> = TX byte → stdout; read
    <code>0x1FBD9830</code> → <code>0x04</code>; swallow writes to <code>0x1FBD9830</code>).</li>
 </ol>

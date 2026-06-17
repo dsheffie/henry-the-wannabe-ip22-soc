@@ -11,10 +11,10 @@
       
       
       
-        <link rel="prev" href="../peripherals/dmux1/">
+        <link rel="prev" href="../architecture/">
       
       
-        <link rel="next" href="rex3/">
+        <link rel="next" href="../cpu-integration/">
       
       
         
@@ -25,7 +25,7 @@
     
     
       
-        <title>Newport graphics (overview) - Henry — the wannabe IP22 SoC</title>
+        <title>Minimum MMIO to the IRIX boot banner - Henry — the wannabe IP22 SoC</title>
       
     
     
@@ -76,7 +76,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#newport-graphics-board-overview" class="md-skip">
+        <a href="#minimum-mmio-device-models-to-reach-the-irix-boot-banner" class="md-skip">
           Skip to content
         </a>
       
@@ -112,7 +112,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Newport graphics (overview)
+              Minimum MMIO to the IRIX boot banner
             
           </span>
         </div>
@@ -299,10 +299,44 @@
       
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../minimum-mmio-to-banner/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Minimum MMIO to boot banner
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (functional-sim validated, MAME-corroborated)"></span>
+  
+
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -325,6 +359,125 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-the-banner-means" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What "the banner" means
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-boot-critical-mmio-map" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The boot-critical MMIO map
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#mc-memory-controller-0x1fa00000" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MC — Memory Controller (0x1fa00000)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ioc2-system-id-0x1fbd9858" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IOC2 — System ID (0x1fbd9858)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#z8530-scc-the-serial-console-0x1fbd98300x1fbd983f" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Z8530 SCC — the serial console (0x1fbd9830–0x1fbd983f)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hpc3-early-device-probe-window-0x1fb80000-base" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        HPC3 — early device-probe window (0x1fb80000 base)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#required-to-banner-but-not-mmio" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Required to banner, but NOT MMIO
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-is-not-needed-for-the-banner" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is NOT needed for the banner
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sources-cross-refs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sources &amp; cross-refs
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -786,8 +939,6 @@
       
   
   
-    
-  
   
   
     
@@ -816,15 +967,15 @@
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="./" class="md-nav__link md-nav__link--active">
+            <a href="../graphics/" class="md-nav__link ">
               
   
   
@@ -849,13 +1000,13 @@
             </a>
             
               
-              <label class="md-nav__link md-nav__link--active" for="__nav_10" id="__nav_10_label" tabindex="">
+              <label class="md-nav__link " for="__nav_10" id="__nav_10_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_10">
             <span class="md-nav__icon md-icon"></span>
             
@@ -875,7 +1026,7 @@
   
   
     <li class="md-nav__item">
-      <a href="rex3/" class="md-nav__link">
+      <a href="../graphics/rex3/" class="md-nav__link">
         
   
   
@@ -910,7 +1061,7 @@
   
   
     <li class="md-nav__item">
-      <a href="vc2/" class="md-nav__link">
+      <a href="../graphics/vc2/" class="md-nav__link">
         
   
   
@@ -945,7 +1096,7 @@
   
   
     <li class="md-nav__item">
-      <a href="xmap9/" class="md-nav__link">
+      <a href="../graphics/xmap9/" class="md-nav__link">
         
   
   
@@ -980,7 +1131,7 @@
   
   
     <li class="md-nav__item">
-      <a href="rb2-ro1/" class="md-nav__link">
+      <a href="../graphics/rb2-ro1/" class="md-nav__link">
         
   
   
@@ -1015,7 +1166,7 @@
   
   
     <li class="md-nav__item">
-      <a href="express-xz/" class="md-nav__link">
+      <a href="../graphics/express-xz/" class="md-nav__link">
         
   
   
@@ -1138,10 +1289,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#board-architecture" class="md-nav__link">
+  <a href="#what-the-banner-means" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Board architecture
+        What "the banner" means
       
     </span>
   </a>
@@ -1149,10 +1300,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#address-host-interface" class="md-nav__link">
+  <a href="#the-boot-critical-mmio-map" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Address &amp; host interface
+        The boot-critical MMIO map
       
     </span>
   </a>
@@ -1160,10 +1311,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#the-chips-at-a-glance" class="md-nav__link">
+  <a href="#mc-memory-controller-0x1fa00000" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The chips at a glance
+        MC — Memory Controller (0x1fa00000)
       
     </span>
   </a>
@@ -1171,10 +1322,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#henry-relevance" class="md-nav__link">
+  <a href="#ioc2-system-id-0x1fbd9858" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Henry relevance
+        IOC2 — System ID (0x1fbd9858)
       
     </span>
   </a>
@@ -1182,10 +1333,54 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#sources" class="md-nav__link">
+  <a href="#z8530-scc-the-serial-console-0x1fbd98300x1fbd983f" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Sources
+        Z8530 SCC — the serial console (0x1fbd9830–0x1fbd983f)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hpc3-early-device-probe-window-0x1fb80000-base" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        HPC3 — early device-probe window (0x1fb80000 base)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#required-to-banner-but-not-mmio" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Required to banner, but NOT MMIO
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-is-not-needed-for-the-banner" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is NOT needed for the banner
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sources-cross-refs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sources &amp; cross-refs
       
     </span>
   </a>
@@ -1209,131 +1404,232 @@
 
 
 
-<h1 id="newport-graphics-board-overview">Newport graphics board (overview)<a class="headerlink" href="#newport-graphics-board-overview" title="Permanent link">&para;</a></h1>
+<h1 id="minimum-mmio-device-models-to-reach-the-irix-boot-banner">Minimum MMIO device models to reach the IRIX boot banner<a class="headerlink" href="#minimum-mmio-device-models-to-reach-the-irix-boot-banner" title="Permanent link">&para;</a></h1>
 <blockquote>
-<p>Intro: the Indy "XL" graphics board on GIO64 slot 0 (phys <code>0x1f000000</code>). NOT needed for a headless
-Henry boot (bus-error the aperture → IRIX skips it, see <a href="../peripherals/gio64/">../peripherals/gio64.md</a>).
-This is the future-work path for a Henry graphics console.</p>
-<p><strong>The Indy had two graphics options.</strong> This page covers <strong>XL / Newport</strong> (host geometry, raster-only).
-The other was <strong>Express / XZ</strong> — a hardware-geometry pipeline (SIMD Geometry Engines + a hyper-pipelined
-Raster Engine); see <a href="express-xz/">Express / XZ</a>. For a Henry graphics path, Newport is the far smaller
-target — Express adds a microcoded SIMD FP array and a command-FIFO front-end on top of a REX3-class
-rasterizer.</p>
+<p>This is the <strong>empirically minimal set of MMIO devices</strong> an IP22 model must answer to get IRIX 6.5.22 to
+print its release banner and run into device configuration. It was pinned down by booting the <strong>real
+<code>/unix</code></strong> on the <strong>interp_mips functional ISS</strong> — the first Henry-family model to actually banner — and
+cross-checked against MAME (the golden oracle). Treat it as the <em>boot-critical subset</em> of the full
+per-block specs in <a href="../peripherals/mc/"><code>peripherals/</code></a>; each block's complete register interface lives in
+its own page.</p>
+<p>Legend: ✅ confirmed by a booting model · 🩹 must return a specific Indy constant the kernel branches on ·
+🗂 inert storage / write-absorb is enough.</p>
 </blockquote>
-<p>Newport is the entry-level (8-bit, upgradable to 24-bit) framebuffer graphics board for the SGI Indy.
-SGI's own tagline for it was "the least graphics you'll ever need." There is <strong>no geometry/transform
-ASIC</strong> — the host MIPS FPU is the geometry engine, and Z-buffering lives in host system memory. The
-board is purely a 2D raster engine plus a framebuffer and the video-output backend. That makes it a
-smaller (but still large) target than a full GE-class SGI pipe: the bulk of the work is REX3's drawing
-command set, not a 3D pipeline.</p>
-<h2 id="board-architecture">Board architecture<a class="headerlink" href="#board-architecture" title="Permanent link">&para;</a></h2>
-<p>Five ASIC types (plus VRAM, a colormap SRAM, and an external RAMDAC) form a one-way pixel pipeline from
-the host bus to the CRT. REX3 is the only host-facing chip; everything downstream is display/scanout.</p>
-<pre class="mermaid"><code>flowchart LR
-    HOST([host]) --&gt;|"GIO64 slot 0 · 0x1f00_0000"| REX3["&lt;b&gt;REX3&lt;/b&gt;&lt;br/&gt;raster engine"]
-    REX3 --&gt;|"draw / writes"| RB2["&lt;b&gt;RB2&lt;/b&gt;&lt;br/&gt;fmt + logic-op"]
-    RB2 &lt;--&gt; VRAM[("VRAM frame buffer&lt;br/&gt;(8-way interleave)")]
-    VRAM --&gt;|scanout| RO1["&lt;b&gt;RO1&lt;/b&gt;&lt;br/&gt;raster output&lt;br/&gt;reorg / rotate"]
-    RO1 --&gt; XMAP9["&lt;b&gt;XMAP9&lt;/b&gt;&lt;br/&gt;pixel mode / mux"]
-    XMAP9 --&gt; CMAP[("CMAP&lt;br/&gt;colormap SRAM")]
-    CMAP --&gt; RAMDAC["RAMDAC&lt;br/&gt;gamma + DAC"]
-    RAMDAC --&gt;|"R / G / B"| CRT([CRT])
-    REX3 -.-&gt;|"DCB"| VC2["&lt;b&gt;VC2&lt;/b&gt;&lt;br/&gt;video timing + cursor"]
-    VC2 -.-&gt;|"timing · cursor · DID"| RAMDAC</code></pre>
-<p>Flow: <strong>host → REX3</strong> (programs primitives over GIO64) <strong>→ framebuffer</strong> (REX3 reads/writes VRAM
-through RB2, which holds the read/write formatters + LogicOp) <strong>→ RO1</strong> (reads the VRAM serial/video
-ports, merges overlay+color, undoes REX3's scanline stagger) <strong>→ XMAP9</strong> (selects pixel mode: RGB vs
-color-index, picks the display ID) <strong>→ CMAP</strong> (colormap SRAM, in CI mode) <strong>→ RAMDAC</strong> (gamma + analog
-RGB) <strong>→ CRT</strong>. <strong>VC2</strong> sits to the side as the video-timing/cursor/DID generator, driving sync and the
-per-pixel cursor + display-ID streams; it is <em>not</em> in the pixel datapath but gates it. REX3 owns the
-<strong>Display Control Bus (DCB)</strong>, an 8-bit side channel it uses to program VC2/XMAP9/RAMDAC (and read back).</p>
-<h2 id="address-host-interface">Address &amp; host interface<a class="headerlink" href="#address-host-interface" title="Permanent link">&para;</a></h2>
-<p>Newport is the GIO64 <strong>slot-0</strong> device, based at phys <code>0x1f000000</code> (4 MB aperture). <strong>REX3 is the only
-host-programmable chip</strong>: it is a GIO64 bus slave that decodes accesses into its own register file (and
-into framebuffer PIO/DMA windows), and it forwards config to the rest of the board over the DCB. The
-GIO bus interface runs at 33 MHz behind a 64-wide × 32-deep host FIFO; the framebuffer side is an 8-way
-interleaved VRAM running at 66 MHz.</p>
-<p>IRIX detects the board via the standard GIO64 <strong>Product Identification Word</strong> probe (word read at the
-slot base; an empty slot bus-errors, a populated slot returns its product-ID). See
-<a href="../peripherals/gio64/">../peripherals/gio64.md</a> for the probe protocol and the slot/address map.
-For a headless Henry we make slot 0 answer "empty" by bus-erroring the aperture, so this REX3 ID never
-appears and IRIX skips graphics entirely.</p>
-<h2 id="the-chips-at-a-glance">The chips at a glance<a class="headerlink" href="#the-chips-at-a-glance" title="Permanent link">&para;</a></h2>
+<h2 id="what-the-banner-means">What "the banner" means<a class="headerlink" href="#what-the-banner-means" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>IRIX Release 6.5 IP22 Version 10070055 System V
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>Copyright 1987-2003 Silicon Graphics, Inc.  All Rights Reserved.
+</code></pre></div>
+<p>This prints <strong>after</strong> the full VM/CPU bring-up (TLB, pmap, heap, scheduler init) and <strong>before</strong> the root
+filesystem is mounted. So the banner is the milestone that proves <em>CPU + memory + console + the platform-ID
+constants</em> are all correct. It does <strong>not</strong> require working SCSI, DMA, or graphics — those gate the <em>next</em>
+wall (root-device mount). See <a href="../boot-and-console/">Boot sequence &amp; console</a> for the entry/console contract.</p>
+<h2 id="the-boot-critical-mmio-map">The boot-critical MMIO map<a class="headerlink" href="#the-boot-critical-mmio-map" title="Permanent link">&para;</a></h2>
+<p>All device MMIO lives in <strong>phys <code>0x1f000000</code>–<code>0x1fffffff</code></strong> (kseg1 <code>0xbf…</code>). Reads outside the blocks below
+return 0 (probed-empty); that is itself load-bearing (the kernel probes many empty GIO/PBUS slots and must
+read back 0).</p>
 <table>
 <thead>
 <tr>
-<th>Chip</th>
-<th>Role</th>
-<th>Doc</th>
-<th>Pages</th>
+<th>Block</th>
+<th>Phys base</th>
+<th>Boot role</th>
+<th>Minimum to banner</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>REX3</td>
-<td>Raster/rendering engine; host-facing GIO64 slave; DCB master</td>
-<td><a href="rex3/">rex3.md</a></td>
-<td>149</td>
+<td><strong>MC</strong> (memory controller)</td>
+<td><code>0x1fa00000</code></td>
+<td>RAM sizing, sysid, clocks, EEPROM</td>
+<td>🩹 a handful of constant regs + a working serial EEPROM + the free-running counter</td>
 </tr>
 <tr>
-<td>VC2</td>
-<td>Video timing generator, hardware cursor, display-ID (DID) encoder</td>
-<td><a href="vc2/">vc2.md</a></td>
-<td>42</td>
+<td><strong>IOC2</strong> (system ID)</td>
+<td><code>0x1fbd9800</code></td>
+<td>board-type select</td>
+<td>🩹 one register: SYSID <code>+0x58</code> = <code>0x26</code></td>
 </tr>
 <tr>
-<td>XMAP9</td>
-<td>Pixel-mode mux / colormap-index path (RGB vs CI, display IDs)</td>
-<td><a href="xmap9/">xmap9.md</a></td>
-<td>34</td>
+<td><strong>Z8530 SCC</strong> (serial console)</td>
+<td><code>0x1fbd9830</code></td>
+<td><code>console=d</code> output</td>
+<td>✅ TX-only: status reads "ready", data writes → host stdout</td>
 </tr>
 <tr>
-<td>RB2</td>
-<td>RAM Buffer: framebuffer read/write formatter + LogicOp (VRAM glue)</td>
-<td><a href="rb2-ro1/">rb2-ro1.md</a></td>
-<td>16</td>
-</tr>
-<tr>
-<td>RO1</td>
-<td>ReOrganizer: VRAM serial-port readout, overlay merge, de-stagger</td>
-<td><a href="rb2-ro1/">rb2-ro1.md</a></td>
-<td>15</td>
+<td><strong>HPC3</strong> (DMA/PBUS/SCSI window)</td>
+<td><code>0x1fb80000</code></td>
+<td>early device probe</td>
+<td>🗂 a few status regs + write-absorbing register windows</td>
 </tr>
 </tbody>
 </table>
-<p>(CMAP is a colormap SRAM and the RAMDAC is an off-the-shelf part; neither has its own page here.)</p>
-<h2 id="henry-relevance">Henry relevance<a class="headerlink" href="#henry-relevance" title="Permanent link">&para;</a></h2>
-<p><strong>Headless (current):</strong> Henry bus-errors the entire <code>0x1f000000–0x1fffffff</code> GIO region, so the graphics
-slot reads as empty and IRIX never touches REX3. Nothing on this page is on the boot path. This is the
-spec-correct "all slots empty" behavior, not a hack — see the gio64 doc.</p>
-<p><strong>Future (graphics console):</strong> to give Henry a display you would implement, at minimum, <strong>REX3's GIO64
-register face plus a framebuffer</strong>, then a path from the framebuffer to a real (or emulated) video
-output. Concretely:</p>
-<ol>
-<li>Decode the slot-0 aperture and return a valid REX3 <strong>Product-ID</strong> so IRIX <em>finds</em> the board → verify:
-   IRIX's GIO probe reports a Newport at slot 0 instead of bus-erroring.</li>
-<li>Implement REX3's host-visible register file + the framebuffer PIO/DMA windows backed by real RAM →
-   verify: the IRIX/PROM graphics init writes registers and clears the screen without faulting.</li>
-<li>Implement the <strong>rendering command set</strong> (lines/spans/blocks via the Bresenham iterators, the DDA
-   color iterators, dither/blend/LogicOp, fast-clear, screen-to-screen copy). <strong>This is the bulk of the
-   work</strong> — it is most of the 149-page REX3 spec → verify: a known IRIX 2D workload draws correctly.</li>
-<li>The scanout backend (VC2 timing, RO1/XMAP9/CMAP/RAMDAC) only matters if you drive a <em>physical</em> CRT;
-   a software console can short-circuit to reading the framebuffer RAM directly. Treat VC2/XMAP9/RO1 as
-   optional until real video output is a goal.</li>
-</ol>
-<p>The big-ticket item is step 3: REX3 is where essentially all the complexity lives, because Newport
-deliberately pushes geometry and Z onto the host and keeps everything downstream as fixed-function
-scanout.</p>
-<h2 id="sources">Sources<a class="headerlink" href="#sources" title="Permanent link">&para;</a></h2>
+<p>Everything else (Newport graphics, GIO64 cards, VDMA, the WD33C93 SCSI engine, the RTC) is <strong>not</strong> touched on
+the path to the banner, or is only probed-empty.</p>
+<hr />
+<h2 id="mc-memory-controller-0x1fa00000">MC — Memory Controller (<code>0x1fa00000</code>)<a class="headerlink" href="#mc-memory-controller-0x1fa00000" title="Permanent link">&para;</a></h2>
+<p>The single most-consulted block. <strong>Big-endian IRIX reads the <code>+4</code>/<code>+c</code> alias of each register</strong> (see
+<a href="../peripherals/mc/#address-base--the-big-endian-alias">mc.md</a>) — a functional model must decode both the
+table offset and its <code>+4</code> alias.</p>
+<table>
+<thead>
+<tr>
+<th>Reg (BE alias)</th>
+<th>Value the kernel needs</th>
+<th>Why / who reads it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>MEMCFG0</strong> <code>0x1fa000c4</code></td>
+<td>🩹 <strong><code>0x23200000</code></strong></td>
+<td><code>mlreset</code>/<code>szmem</code> → <strong>16 MB single bank @ PA <code>0x08000000</code></strong>. The wrong size (e.g. 128 MB <code>0x3f200000</code>) reshapes the whole VM bootstrap and the kernel walls/loops before the banner.</td>
+</tr>
+<tr>
+<td><strong>MEMCFG1</strong> <code>0x1fa000cc</code></td>
+<td>🩹 <code>0x00000000</code></td>
+<td>banks 2/3 empty</td>
+</tr>
+<tr>
+<td><strong>SYSID</strong> <code>0x1fa0001c</code></td>
+<td>🩹 <code>0x00000013</code></td>
+<td>MC revision, read by <code>mlreset</code></td>
+</tr>
+<tr>
+<td>MC sysid <code>0x1fa00004</code></td>
+<td><code>0x3c802472</code></td>
+<td>repeatedly read by <code>flushbus</code> to drain the write buffer (round-trips fine; value not branch-critical)</td>
+</tr>
+<tr>
+<td><strong>CPUCTRL0/1</strong> <code>0x1fa00004/0xc</code></td>
+<td>🗂 read/write storage</td>
+<td>endian/cache/watchdog control word; round-trips</td>
+</tr>
+<tr>
+<td><strong>serial EEPROM</strong> <code>0x1fa00034</code></td>
+<td>🩹 <strong>bit-banged</strong></td>
+<td>the PROM/kernel clock CS/CLK/DATA through this to read NVRAM (incl. the <code>eaddr</code>); a model must shift data out, not return a constant</td>
+</tr>
+<tr>
+<td><strong>RPSS counter</strong> <code>0x1fa01004</code></td>
+<td>🩹 free-running, increments</td>
+<td>drives <code>us_delay</code>/spin-calibration; a stuck value hangs delay loops</td>
+</tr>
+<tr>
+<td>GIOPAR / CMACC / GMACC / CSTAT / GSTAT</td>
+<td>🗂 storage / clear-on-write</td>
+<td>GIO arbiter + DRAM timing + error capture; inert is fine for boot</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="admonition-title">MEMCFG0 → memory size</p>
+<p><code>bank0 size = (MEMCFG0[28:24] + 1) × 4 MB</code>, <code>base = (MEMCFG0[23:16] &amp; 0xff) &lt;&lt; 22</code>. <code>0x23200000</code> →
+field <code>0x03</code> → <strong>16 MB</strong> @ <code>0x08000000</code>. The kernel reads this <strong>directly from the MC</strong>, not from ARCS
+<code>GetMemoryDescriptor</code>. (MAME <code>MAME_QUESTIONS.md</code> Q3/Q4.)</p>
+</div>
+<hr />
+<h2 id="ioc2-system-id-0x1fbd9858">IOC2 — System ID (<code>0x1fbd9858</code>)<a class="headerlink" href="#ioc2-system-id-0x1fbd9858" title="Permanent link">&para;</a></h2>
+<p>🩹 <strong>One register decides the whole board type.</strong> <code>getsysid</code> does <code>lw 0(0xbfbd9858); andi 0xe0</code>:</p>
 <ul>
-<li>REX3 Specification, Rev 1.0 (SGI, Aug 1993) — <code>sgi/docs/indy_docs/newport/rex3.pdf</code> (§1.4 Newport
-  architecture, §1.5 REX3 architecture, §3 programmer interface, §4 system interface).</li>
-<li>VC2 Specification, Rev 2.0 (SGI, May 1993) — <code>…/newport/vc2.pdf</code> (§2.1 system block diagram).</li>
-<li>XMAP9 Specification, Rev 2.1 (SGI, Oct 1993) — <code>…/newport/xmap9.pdf</code> (§1.2–1.4, Newport block diagram).</li>
-<li>RB2 (RAM Buffer) Specification, Rev 2.3 (SGI, 2000) — <code>…/newport/rb2.pdf</code> (§1.2 general description).</li>
-<li>RO1 (ReOrganizer) Specification (SGI) — <code>…/newport/ro1.pdf</code> (§1–2 functional description).</li>
-<li>Henry GIO64 peripheral notes — <a href="../peripherals/gio64/">../peripherals/gio64.md</a> (slot map, Product-ID
-  probe, empty-slot bus-error behavior).</li>
+<li><strong><code>0x26</code></strong> (<code>&amp; 0xe0 == 0x20</code>) → <strong>guinness / Indy</strong> — the value you want.</li>
+<li><code>0x11</code> → Indigo² (<code>full_house</code>) — wrong machine, diverges.</li>
+</ul>
+<p>Return <code>0x26</code> at phys <code>0x1fbd9858</code>. (<code>getsysid</code> uses bits <code>[7:5]</code> for the system class + bit 0.) Getting this
+wrong steers cache/TLB sizing and the page-table layout downstream — it's a silent, far-reaching divergence.</p>
+<hr />
+<h2 id="z8530-scc-the-serial-console-0x1fbd98300x1fbd983f">Z8530 SCC — the serial console (<code>0x1fbd9830</code>–<code>0x1fbd983f</code>)<a class="headerlink" href="#z8530-scc-the-serial-console-0x1fbd98300x1fbd983f" title="Permanent link">&para;</a></h2>
+<p>✅ <strong>This is how the banner physically appears.</strong> For <code>console=d</code> the IRIX kernel writes to its <strong>own</strong> Z8530
+driver (it does <em>not</em> route console through ARCS — <code>arcs_write</code> = 0 over a whole boot). A minimal <strong>TX-only</strong>
+model is sufficient:</p>
+<ul>
+<li><strong>Control/status read (RR0)</strong> → always return <code>TX_EMPTY | ALL_SENT</code> (<code>0x04 | 0x40</code>) so the "ready to
+  transmit?" poll always succeeds.</li>
+<li><strong>Data write</strong> → emit the byte to the host console (stdout).</li>
+<li><strong>Data read</strong> → 0 (no Rx char); <strong>control writes</strong> (WR pointer/config) → ignored.</li>
+</ul>
+<p>Address decode: channel/data vs control is selected by an address bit (<code>(offs&gt;&gt;2)&amp;1</code> in the interp_mips
+model). RX, interrupts, and baud programming are not needed for a one-way boot console.</p>
+<hr />
+<h2 id="hpc3-early-device-probe-window-0x1fb80000-base">HPC3 — early device-probe window (<code>0x1fb80000</code> base)<a class="headerlink" href="#hpc3-early-device-probe-window-0x1fb80000-base" title="Permanent link">&para;</a></h2>
+<p>🗂 The Indy's first HPC3 (boot PROM / SCSI / enet / EEPROM / PBUS); <code>offs = phys − 0x1fb80000</code>. To reach the
+banner the kernel only needs a few <strong>status</strong> regs and for the rest of the register windows to <strong>absorb
+writes and read back sanely</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Offset</th>
+<th>Phys</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0x30000</code></td>
+<td><code>0x1fbb0000</code></td>
+<td><code>istat0</code> — interrupt status <code>[4:0]</code></td>
+</tr>
+<tr>
+<td><code>0x30004</code></td>
+<td><code>0x1fbb0004</code></td>
+<td><code>gio_misc</code></td>
+</tr>
+<tr>
+<td><code>0x00000</code>–<code>0x0ffff</code></td>
+<td>…</td>
+<td>PBUS DMA channel registers (storage)</td>
+</tr>
+<tr>
+<td><code>0x10000</code>–<code>0x1ffff</code></td>
+<td>…</td>
+<td>HD0/HD1/ENET DMA registers (storage)</td>
+</tr>
+<tr>
+<td><code>0x58000</code>–<code>0x5bfff</code></td>
+<td>…</td>
+<td>PBUS PIO data ports (probe)</td>
+</tr>
+</tbody>
+</table>
+<p>The <strong>WD33C93 SCSI</strong> engine lives at offset <code>0x40000</code> (phys <code>0x1fc0000</code>) — a write-absorbing stub gets you to
+the banner, but <strong>real SCSI behavior is the next wall</strong> ("pbus configuration failed" / "Root device … not
+available"), which is <em>past</em> the banner. See <a href="../peripherals/hpc3/">hpc3.md</a>.</p>
+<hr />
+<h2 id="required-to-banner-but-not-mmio">Required to banner, but NOT MMIO<a class="headerlink" href="#required-to-banner-but-not-mmio" title="Permanent link">&para;</a></h2>
+<p>The banner is gated as much by CPU/firmware correctness as by devices. A model that has all the MMIO above but
+misses these will still wall before the banner:</p>
+<ul>
+<li><strong>A real 48-entry R4000 translating TLB</strong> + refill/general exception vectoring (BEV-aware). The 1:1 va2pa
+  shortcut hides this but cannot reach the banner.</li>
+<li><strong>EPC/Cause.BD frozen on nested exceptions</strong> (updated <em>only</em> when <code>Status.EXL==0</code>). IRIX's self-mapped
+  page-table refill takes a <strong>nested TLB miss inside the <code>0x80000000</code> refill handler</strong>; the <code>eret</code> must
+  return to the <em>original</em> faulting instruction. Updating EPC mid-handler → eret resumes with <code>k0</code> clobbered
+  → recursion → KPTEBASE panic. <strong>This was the last wall before the banner</strong> (interp_mips
+  <code>MAME_QUESTIONS.md</code> Q5 round-7) — the r9999 RTL must implement the same freeze.</li>
+<li><strong>PRId = <code>0x00002020</code> (R4600)</strong> and <strong>Config = <code>0x0002e4b3</code></strong> (16K I$/16K D$, 32-byte lines). <code>start</code>
+  branches on PRId's IMP field; Config drives <code>cachecolormask</code> (a wrong mask hangs <code>pagecoloralign</code>).</li>
+<li><strong>CP0 Count/Compare timer interrupt</strong> (IP[7]).</li>
+<li><strong>The sash→/unix handoff in RAM</strong>: ARCS SPB/romvec/env at phys <code>0x1000</code>, <strong>plus the <code>argc/argv/envp</code>
+  arrays</strong> (<code>a0=argc, a1=argv, a2=envp</code> as kseg0 pointers). ⚠️ This <strong>corrects</strong> the older
+  <a href="../boot-and-console/">boot-and-console</a> note ("a1=0, a2=0, NOT argc/argv/envp"): with a real TLB the kernel
+  <em>does</em> consume argv/envp via <code>getargs</code>/<code>_envirn</code>, and <code>a1=a2=0</code> makes <code>getargs</code> derail long before the
+  banner. (MAME <code>MAME_QUESTIONS.md</code> Q5 follow-up; interp_mips <code>pseudo_bios.cc</code>.)</li>
+<li>An <strong><code>eaddr</code></strong> must be supplied (NVRAM EEPROM or env) — the kernel panics in early init without it.</li>
+</ul>
+<h2 id="what-is-not-needed-for-the-banner">What is NOT needed for the banner<a class="headerlink" href="#what-is-not-needed-for-the-banner" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Newport graphics</strong> (REX3/VC2/XMAP9/RB2/RO1) — only for <code>console=g</code>; serial console skips it entirely.</li>
+<li><strong>GIO64 cards / VDMA / DMUX</strong> — probed-empty (read 0) is sufficient.</li>
+<li><strong>RTC (ds1386)</strong> — touched but not banner-critical.</li>
+<li><strong>Working SCSI/DMA</strong> — first needed at root mount, after the banner.</li>
+</ul>
+<h2 id="sources-cross-refs">Sources &amp; cross-refs<a class="headerlink" href="#sources-cross-refs" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Empirical minimum set + the EPC nested-exception fix: <strong>interp_mips</strong> functional ISS (the <code>interpret.cc</code>
+  TLB/exception model, <code>sgi_mc.cc</code> / <code>sgi_hpc.cc</code> / <code>sgi_scc.cc</code> device models, <code>pseudo_bios.cc</code> handoff).</li>
+<li>Ground-truth values + the divergence hunt: <strong><code>r9999/MAME_QUESTIONS.md</code></strong> (Q1 wired PDA, Q2/Q3 pmap +
+  memory size, Q4 MEMCFG/16 MB, Q5 the PRId/Config/SYSID/handoff/EPC chain to the banner).</li>
+<li>Per-block detail: <a href="../peripherals/mc/">MC</a> · <a href="../peripherals/ioc2/">IOC2</a> · <a href="../peripherals/hpc3/">HPC3</a> ·
+  <a href="../boot-and-console/">Boot &amp; console</a> · <a href="../coherence-cache-tlb/">Cache/coherence/TLB</a>.</li>
 </ul>
 
 
