@@ -11,24 +11,28 @@
       
       
       
+        <link rel="prev" href="../cpu-integration/">
+      
+      
+        <link rel="next" href="../firmware-arcs/">
       
       
         
       
       
-      <link rel="icon" href="/assets/images/favicon.png">
+      <link rel="icon" href="../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
-        <title>Henry — the wannabe IP22 SoC</title>
+        <title>r9999 microarchitecture - Henry — the wannabe IP22 SoC</title>
       
     
     
-      <link rel="stylesheet" href="/assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
       
         
-        <link rel="stylesheet" href="/assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
       
       
 
@@ -47,7 +51,7 @@
       
     
     
-    <script>__md_scope=new URL("/",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -71,6 +75,11 @@
     <label class="md-overlay" for="__drawer"></label>
     <div data-md-component="skip">
       
+        
+        <a href="#r9999-microarchitecture" class="md-skip">
+          Skip to content
+        </a>
+      
     </div>
     <div data-md-component="announce">
       
@@ -83,7 +92,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="/." title="Henry — the wannabe IP22 SoC" class="md-header__button md-logo" aria-label="Henry — the wannabe IP22 SoC" data-md-component="logo">
+    <a href=".." title="Henry — the wannabe IP22 SoC" class="md-header__button md-logo" aria-label="Henry — the wannabe IP22 SoC" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 4h12v1h3v2h-3v2h3v2h-3v2h3v2h-3v2h3v2h-3v1H6v-1H3v-2h3v-2H3v-2h3v-2H3V9h3V7H3V5h3zm5 11v3h1v-3zm2 0v3h1v-3zm2 0v3h1v-3z"/></svg>
@@ -103,7 +112,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              
+              r9999 microarchitecture
             
           </span>
         </div>
@@ -207,7 +216,7 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="/." title="Henry — the wannabe IP22 SoC" class="md-nav__button md-logo" aria-label="Henry — the wannabe IP22 SoC" data-md-component="logo">
+    <a href=".." title="Henry — the wannabe IP22 SoC" class="md-nav__button md-logo" aria-label="Henry — the wannabe IP22 SoC" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 4h12v1h3v2h-3v2h3v2h-3v2h3v2h-3v2h3v2h-3v1H6v-1H3v-2h3v-2H3v-2h3v-2H3V9h3V7H3V5h3zm5 11v3h1v-3zm2 0v3h1v-3zm2 0v3h1v-3z"/></svg>
@@ -225,7 +234,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/." class="md-nav__link">
+      <a href=".." class="md-nav__link">
         
   
   
@@ -259,7 +268,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/architecture/" class="md-nav__link">
+      <a href="../architecture/" class="md-nav__link">
         
   
   
@@ -293,7 +302,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/minimum-mmio-to-banner/" class="md-nav__link">
+      <a href="../minimum-mmio-to-banner/" class="md-nav__link">
         
   
   
@@ -327,7 +336,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/cpu-integration/" class="md-nav__link">
+      <a href="../cpu-integration/" class="md-nav__link">
         
   
   
@@ -358,10 +367,37 @@
       
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="/r9999-microarchitecture/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    r9999 microarchitecture
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -377,6 +413,70 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#block-diagram" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Block diagram
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#walking-the-pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Walking the pipeline
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#r9999-vs-the-r10000-its-named-after" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        r9999 vs. the R10000 it's named after
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-it-diverges-from-the-r10000" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why it diverges from the R10000
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -388,7 +488,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/firmware-arcs/" class="md-nav__link">
+      <a href="../firmware-arcs/" class="md-nav__link">
         
   
   
@@ -422,7 +522,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/boot-and-console/" class="md-nav__link">
+      <a href="../boot-and-console/" class="md-nav__link">
         
   
   
@@ -456,7 +556,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/coherence-cache-tlb/" class="md-nav__link">
+      <a href="../coherence-cache-tlb/" class="md-nav__link">
         
   
   
@@ -490,7 +590,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fpu-cop1/" class="md-nav__link">
+      <a href="../fpu-cop1/" class="md-nav__link">
         
   
   
@@ -590,7 +690,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/peripherals/mc/" class="md-nav__link">
+      <a href="../peripherals/mc/" class="md-nav__link">
         
   
   
@@ -625,7 +725,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/peripherals/ioc2/" class="md-nav__link">
+      <a href="../peripherals/ioc2/" class="md-nav__link">
         
   
   
@@ -660,7 +760,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/peripherals/hpc3/" class="md-nav__link">
+      <a href="../peripherals/hpc3/" class="md-nav__link">
         
   
   
@@ -695,7 +795,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/peripherals/gio64/" class="md-nav__link">
+      <a href="../peripherals/gio64/" class="md-nav__link">
         
   
   
@@ -730,7 +830,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/peripherals/vdma/" class="md-nav__link">
+      <a href="../peripherals/vdma/" class="md-nav__link">
         
   
   
@@ -765,7 +865,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/peripherals/dmux1/" class="md-nav__link">
+      <a href="../peripherals/dmux1/" class="md-nav__link">
         
   
   
@@ -840,7 +940,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="/graphics/" class="md-nav__link ">
+            <a href="../graphics/" class="md-nav__link ">
               
   
   
@@ -891,7 +991,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/graphics/rex3/" class="md-nav__link">
+      <a href="../graphics/rex3/" class="md-nav__link">
         
   
   
@@ -926,7 +1026,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/graphics/vc2/" class="md-nav__link">
+      <a href="../graphics/vc2/" class="md-nav__link">
         
   
   
@@ -961,7 +1061,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/graphics/xmap9/" class="md-nav__link">
+      <a href="../graphics/xmap9/" class="md-nav__link">
         
   
   
@@ -996,7 +1096,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/graphics/rb2-ro1/" class="md-nav__link">
+      <a href="../graphics/rb2-ro1/" class="md-nav__link">
         
   
   
@@ -1031,7 +1131,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/graphics/express-xz/" class="md-nav__link">
+      <a href="../graphics/express-xz/" class="md-nav__link">
         
   
   
@@ -1073,7 +1173,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/irix-boot-flow/" class="md-nav__link">
+      <a href="../irix-boot-flow/" class="md-nav__link">
         
   
   
@@ -1100,7 +1200,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/methodology/" class="md-nav__link">
+      <a href="../methodology/" class="md-nav__link">
         
   
   
@@ -1144,6 +1244,60 @@
   
   
   
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#block-diagram" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Block diagram
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#walking-the-pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Walking the pipeline
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#r9999-vs-the-r10000-its-named-after" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        r9999 vs. the R10000 it's named after
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-it-diverges-from-the-r10000" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why it diverges from the R10000
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
   
 </nav>
                   </div>
@@ -1156,8 +1310,174 @@
               
               <article class="md-content__inner md-typeset">
                 
-  <h1>404 - Not found</h1>
+                  
 
+
+
+<h1 id="r9999-microarchitecture">r9999 microarchitecture<a class="headerlink" href="#r9999-microarchitecture" title="Permanent link">&para;</a></h1>
+<p><em>The CPU at the center of Henry. <code>r9999</code> is an </em><em>out-of-order, superscalar MIPS</em><em> core — its name is a wink at the </em><em>R10000</em><em> (<code>9999 = 10000 − 1</code>), and its shape is deliberately R10000-flavored: register renaming, a reorder buffer, out-of-order issue, separate integer/FP register files. But it targets the </em><em>R4600 ISA</em><em> (so IRIX/Indy runs the right path), it's </em><em>2-wide</em><em> instead of 4, and it's tuned to </em><em>fit and close timing on an FPGA</em><em>.</em></p>
+<p>This page is the r9999 answer to the famous <a href="https://www.maizure.org/projects/evolution_x86_context_switch_linux/">R10000 block diagram (Fig. 1-5)</a>. Every number below is from the RTL in the <a href="https://github.com/dsheffie/r9999"><code>r9999</code></a> submodule (canonical, non-<code>FORMAL</code> config); <code>machine.vh</code> is the parameter header.</p>
+<h2 id="block-diagram">Block diagram<a class="headerlink" href="#block-diagram" title="Permanent link">&para;</a></h2>
+<pre class="mermaid"><code>flowchart TD
+    SYS["&lt;b&gt;System interface&lt;/b&gt;&lt;br/&gt;→ Henry SoC / MC · AXI on FPGA&lt;br/&gt;physical address = 36-bit"]
+    L2["&lt;b&gt;L2 cache&lt;/b&gt;&lt;br/&gt;16 KB · direct-mapped · 16 B line&lt;br/&gt;on-die · L1I + L1D arbitrate"]
+    SYS --- L2
+
+    subgraph FE["Front end — 2-wide fetch"]
+        BP["&lt;b&gt;Branch predictor&lt;/b&gt; — gshare&lt;br/&gt;PHT 64K × 2-bit · GHist 64-bit&lt;br/&gt;BTB 128 · return stack 4"]
+        L1I["&lt;b&gt;L1 I-cache&lt;/b&gt;&lt;br/&gt;4 KB · direct-mapped · 16 B line"]
+        FQ["Fetch queue · 8 entries"]
+        BP --&gt; L1I --&gt; FQ
+    end
+
+    subgraph REN["Decode / rename — 2-wide"]
+        DEC["&lt;b&gt;decode_mips&lt;/b&gt;&lt;br/&gt;2 uops / cycle"]
+        DQ["Decode queue · 4"]
+        MAP["&lt;b&gt;Rename maps&lt;/b&gt;&lt;br/&gt;INT-RAT · FP-RAT · HILO-RAT&lt;br/&gt;+ free lists"]
+        DEC --&gt; DQ --&gt; MAP
+    end
+
+    subgraph OOO["Out-of-order issue"]
+        ROB["&lt;b&gt;Reorder buffer&lt;/b&gt; · 32 entries&lt;br/&gt;even/odd banked · retire 2 / cycle"]
+        ISCH["&lt;b&gt;Integer scheduler&lt;/b&gt; · 8 entries&lt;br/&gt;age-matrix oldest-ready · 1 ALU / cycle"]
+        MQS["&lt;b&gt;Memory queues&lt;/b&gt;&lt;br/&gt;UQ 8 · Mem-UQ 4 · store-data 4 · MQ 4"]
+    end
+
+    subgraph PRF["Physical register files"]
+        IPRF["&lt;b&gt;INT PRF&lt;/b&gt; · 128 × 64-bit&lt;br/&gt;rf4r2w: 4R / 2W · ALU + MEM banks"]
+        FPRF["&lt;b&gt;FP PRF&lt;/b&gt; · 128 × 64-bit&lt;br/&gt;moves + load/store only"]
+        HILO["&lt;b&gt;HILO PRF&lt;/b&gt; · 4 × 128-bit"]
+    end
+
+    subgraph EXU["Execution units"]
+        ALU["&lt;b&gt;Integer ALU&lt;/b&gt;&lt;br/&gt;1-cycle"]
+        MUL["&lt;b&gt;Multiplier&lt;/b&gt;&lt;br/&gt;3-cycle → HILO"]
+        DIV["&lt;b&gt;Divider&lt;/b&gt;&lt;br/&gt;~65-cycle → HILO"]
+        LSU["&lt;b&gt;Load / Store&lt;/b&gt;&lt;br/&gt;AGU integrated"]
+    end
+
+    TLB["&lt;b&gt;JTLB&lt;/b&gt; · 48-entry fully-associative&lt;br/&gt;4 KB pages · dual-page · 8-bit ASID&lt;br/&gt;shared I + D"]
+    L1D["&lt;b&gt;L1 D-cache&lt;/b&gt;&lt;br/&gt;4 KB · direct-mapped · 16 B line"]
+
+    FQ --&gt; DEC
+    MAP --&gt; ROB
+    MAP --&gt; ISCH
+    MAP --&gt; MQS
+    ISCH --&gt; ALU
+    ISCH --&gt; MUL
+    ISCH --&gt; DIV
+    MQS --&gt; LSU
+    IPRF -.-&gt;|read| ALU
+    IPRF -.-&gt;|read| LSU
+    FPRF -.-&gt;|read| LSU
+    HILO -.-&gt; MUL
+    HILO -.-&gt; DIV
+    ALU --&gt; ROB
+    LSU --&gt; L1D
+    LSU --&gt; TLB
+    L1I --&gt; TLB
+    L1I --&gt; L2
+    L1D --&gt; L2
+    TLB --&gt; L2</code></pre>
+<h2 id="walking-the-pipeline">Walking the pipeline<a class="headerlink" href="#walking-the-pipeline" title="Permanent link">&para;</a></h2>
+<p><strong>Front end (2-wide).</strong> Each cycle the <strong>gshare</strong> predictor indexes a <strong>64K × 2-bit</strong> pattern-history table by folding a <strong>64-bit global history</strong> against the PC, with a <strong>128-entry BTB</strong> and a <strong>4-entry return stack</strong>; speculative <em>and</em> architectural copies of the history/RAS are kept so a misprediction restarts cleanly. The <strong>L1 I-cache</strong> (4 KB, direct-mapped, 16 B lines) delivers up to <strong>two instructions/cycle</strong> into an <strong>8-entry fetch queue</strong>. <em>(<code>l1i.sv</code>, <code>compute_pht_idx</code>, <code>machine.vh</code>)</em></p>
+<p><strong>Decode / rename (2-wide).</strong> <code>decode_mips</code> cracks up to two instructions into uops; a <strong>4-entry decode queue</strong> buffers them for the allocator, which renames through three maps — <strong>integer</strong>, <strong>FP</strong>, and <strong>HILO</strong> RATs with free lists — onto the physical register files. <em>(<code>decode_mips.sv</code>, <code>core.sv</code>)</em></p>
+<p><strong>Out-of-order issue.</strong> Renamed uops allocate into a <strong>32-entry reorder buffer</strong> (split even/odd so two consecutive entries write different banks → 2 allocate and 2 retire per cycle). Integer ALU ops wait in an <strong>8-entry scheduler</strong> that picks the <strong>oldest ready</strong> entry via an age matrix; memory ops flow through dedicated queues (<strong>UQ 8</strong>, <strong>Mem-UQ 4</strong>, <strong>store-data 4</strong>, <strong>MQ 4</strong>). Issue is <strong>1 ALU op + 1 memory op per cycle</strong>. <em>(<code>core.sv</code>, <code>exec.sv</code>, <code>fair_sched.sv</code>)</em></p>
+<p><strong>Register files.</strong> The <strong>integer PRF</strong> is <strong>128 × 64-bit</strong>, built from <code>rf4r2w</code> (<strong>4 read / 2 write</strong>) and <em>banked</em> by result source — an <strong>ALU bank</strong> and a <strong>MEM (load) bank</strong> — so the two write ports never collide. A separate <strong>128 × 64-bit FP PRF</strong> holds FP register state, and a small <strong>4 × 128-bit HILO PRF</strong> holds multiply/divide results. <em>(<code>rf4r2w.sv</code>, <code>exec.sv</code>)</em></p>
+<p><strong>Execution units.</strong> One <strong>integer ALU</strong> (1-cycle), a <strong>3-cycle pipelined multiplier</strong> and an <strong>iterative ~65-cycle divider</strong> (both writing the HILO PRF), and a <strong>load/store unit</strong> with address generation folded in (no separate AGU stage) feeding the L1 D-cache. <strong>There is no FP arithmetic yet</strong> — the FP path implements <code>mfc1/mtc1</code>-style moves and FP loads/stores only; the core still reports an R4000-family FPU id (<code>FIR</code>) so software probes succeed. <em>(<code>exec.sv</code>, <code>mul.sv</code>, <code>divider.sv</code>)</em></p>
+<p><strong>Memory &amp; translation.</strong> L1 D-cache is 4 KB direct-mapped (16 B lines); L1I and L1D arbitrate for a shared <strong>on-die 16 KB direct-mapped L2</strong>, which fronts the <strong>system interface</strong> out to the Henry SoC / memory controller (AXI on the FPGA), with <strong>36-bit physical addresses</strong>. Translation is a <strong>48-entry fully-associative JTLB</strong> — dual-page (even/odd), 4 KB pages, 8-bit ASID, global-bit support — <strong>shared by both I and D</strong> with no micro-TLB. <em>(<code>l1d.sv</code>, <code>l2.sv</code>, <code>tlb.sv</code>, <code>core_l1d_l1i.sv</code>)</em></p>
+<h2 id="r9999-vs-the-r10000-its-named-after">r9999 vs. the R10000 it's named after<a class="headerlink" href="#r9999-vs-the-r10000-its-named-after" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th><strong>R10000</strong> (1996)</th>
+<th><strong>r9999</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ISA</td>
+<td>MIPS IV (R10000)</td>
+<td>MIPS III/IV, <strong>presents as R4600</strong> (<code>PRId 0x2020</code>)</td>
+</tr>
+<tr>
+<td>Fetch / decode / issue / retire</td>
+<td>4-wide</td>
+<td><strong>2-wide</strong></td>
+</tr>
+<tr>
+<td>Branch prediction</td>
+<td>512-entry 2-bit BHT</td>
+<td><strong>gshare</strong>: 64K×2b PHT, 64-bit GHist, 128 BTB, 4 RAS</td>
+</tr>
+<tr>
+<td>Physical registers</td>
+<td>64 int + 64 FP</td>
+<td><strong>128 int + 128 FP + 4 HILO</strong></td>
+</tr>
+<tr>
+<td>In-flight window</td>
+<td>32 (active list)</td>
+<td><strong>32 (ROB)</strong></td>
+</tr>
+<tr>
+<td>Issue queues</td>
+<td>3 × 16 (address / integer / FP)</td>
+<td>8-entry integer scheduler + memory queues; <strong>no FP queue</strong></td>
+</tr>
+<tr>
+<td>Functional units</td>
+<td>2 ALU + addr-calc + FP add + FP mul</td>
+<td><strong>1 ALU + mul + div + load/store</strong>; no FP arithmetic</td>
+</tr>
+<tr>
+<td>L1 I / D</td>
+<td>32 KB 2-way each</td>
+<td><strong>4 KB direct-mapped each</strong></td>
+</tr>
+<tr>
+<td>L2</td>
+<td>off-chip, 512 KB–16 MB, dedicated controller</td>
+<td><strong>on-die 16 KB direct-mapped</strong></td>
+</tr>
+<tr>
+<td>TLB</td>
+<td>64-entry</td>
+<td><strong>48-entry fully-associative JTLB</strong> (R4x00-style)</td>
+</tr>
+<tr>
+<td>Register width / FPU</td>
+<td>64-bit · full pipelined FPU</td>
+<td>64-bit · <strong>no FPU yet</strong> (moves + ld/st only)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="why-it-diverges-from-the-r10000">Why it diverges from the R10000<a class="headerlink" href="#why-it-diverges-from-the-r10000" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>It's an R4x00 <em>ISA</em> target, not an R10000.</strong> IRIX's <code>/unix</code> branches on <code>PRId.IMP</code> in <code>start</code>; r9999 presents <strong>R4600</strong> so the kernel takes the Indy per-CPU path (see <a href="https://github.com/dsheffie/r9999">MAME_QUESTIONS Q5</a>). The <strong>48-entry JTLB</strong> mirrors the R4x00 (not the R10000's 64), which is also what IRIX's <code>wirepda</code>/refill code expects.</li>
+<li><strong>It's built for an FPGA.</strong> 2-wide instead of 4, <strong>direct-mapped</strong> caches, and a modest on-die L2 keep LUT/BRAM/timing in budget on the Ultra96-v2 (Zynq UltraScale+). Conversely the <strong>gshare PHT is much larger</strong> than the R10000's BHT — block RAM is cheap on FPGA, so prediction accuracy is bought with BRAM rather than logic.</li>
+<li><strong>No hardware FPU yet.</strong> The FP register file and move/load-store path are in place; FP arithmetic is future work — hence the larger-than-R10000 <em>integer</em> rename depth (128 physical registers) to keep the integer engine busy.</li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Known FPGA bottleneck</p>
+<p>The <strong>fully-associative 48-entry JTLB</strong> (every L1I/L1D access does a 48-way parallel CAM match) is the current critical path on the Ultra96-v2 build (negative WNS at 100 MHz). The architectural fix is a hardware <strong>micro-TLB</strong> in front of the JTLB — the JTLB size is fixed by the architecture, but a small fast L1 translation cache removes the CAM from the common-case path.</p>
+</div>
+<hr />
+<p><em>All structural facts above are from the r9999 RTL (<code>*.sv</code>) and <code>machine.vh</code>, canonical (non-<code>FORMAL</code>) configuration. The <a href="../irix-boot-flow/">IRIX boot flow</a> page covers what this core </em>runs<em>; this page covers what it </em>is<em>.</em></p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
               </article>
             </div>
           
@@ -1200,10 +1520,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "/", "features": ["navigation.sections", "navigation.top", "navigation.indexes", "navigation.tracking", "toc.follow", "content.code.copy"], "search": "/assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "navigation.indexes", "navigation.tracking", "toc.follow", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="/assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
       
     
   </body>
