@@ -1356,7 +1356,9 @@
         LSU["&lt;b&gt;Load / Store&lt;/b&gt;&lt;br/&gt;AGU integrated"]
     end
 
-    TLB["&lt;b&gt;JTLB&lt;/b&gt; · 48-entry fully-associative&lt;br/&gt;4 KB pages · dual-page · 8-bit ASID&lt;br/&gt;shared I + D"]
+    ITLB["&lt;b&gt;I-TLB&lt;/b&gt;&lt;br/&gt;48-entry FA CAM"]
+    DTLB["&lt;b&gt;D-TLB&lt;/b&gt;&lt;br/&gt;48-entry FA CAM"]
+    TSH["TLB shadow RAM · 48&lt;br/&gt;tlbr index reads · tlbwi/tlbwr broadcast to both CAMs"]
     L1D["&lt;b&gt;L1 D-cache&lt;/b&gt;&lt;br/&gt;4 KB · direct-mapped · 16 B line"]
 
     FQ --&gt; DEC
@@ -1374,18 +1376,25 @@
     HILO -.-&gt; DIV
     ALU --&gt; ROB
     LSU --&gt; L1D
-    LSU --&gt; TLB
-    L1I --&gt; TLB
+    LSU --&gt; DTLB
+    L1I --&gt; ITLB
     L1I --&gt; L2
     L1D --&gt; L2
-    TLB --&gt; L2</code></pre>
+    TSH -.-&gt;|sync| ITLB
+    TSH -.-&gt;|sync| DTLB</code></pre>
 <h2 id="walking-the-pipeline">Walking the pipeline<a class="headerlink" href="#walking-the-pipeline" title="Permanent link">&para;</a></h2>
 <p><strong>Front end (2-wide).</strong> Each cycle the <strong>gshare</strong> predictor indexes a <strong>64K × 2-bit</strong> pattern-history table by folding a <strong>64-bit global history</strong> against the PC, with a <strong>128-entry BTB</strong> and a <strong>4-entry return stack</strong>; speculative <em>and</em> architectural copies of the history/RAS are kept so a misprediction restarts cleanly. The <strong>L1 I-cache</strong> (4 KB, direct-mapped, 16 B lines) delivers up to <strong>two instructions/cycle</strong> into an <strong>8-entry fetch queue</strong>. <em>(<code>l1i.sv</code>, <code>compute_pht_idx</code>, <code>machine.vh</code>)</em></p>
 <p><strong>Decode / rename (2-wide).</strong> <code>decode_mips</code> cracks up to two instructions into uops; a <strong>4-entry decode queue</strong> buffers them for the allocator, which renames through three maps — <strong>integer</strong>, <strong>FP</strong>, and <strong>HILO</strong> RATs with free lists — onto the physical register files. <em>(<code>decode_mips.sv</code>, <code>core.sv</code>)</em></p>
 <p><strong>Out-of-order issue.</strong> Renamed uops allocate into a <strong>32-entry reorder buffer</strong> (split even/odd so two consecutive entries write different banks → 2 allocate and 2 retire per cycle). Integer ALU ops wait in an <strong>8-entry scheduler</strong> that picks the <strong>oldest ready</strong> entry via an age matrix; memory ops flow through dedicated queues (<strong>UQ 8</strong>, <strong>Mem-UQ 4</strong>, <strong>store-data 4</strong>, <strong>MQ 4</strong>). Issue is <strong>1 ALU op + 1 memory op per cycle</strong>. <em>(<code>core.sv</code>, <code>exec.sv</code>, <code>fair_sched.sv</code>)</em></p>
+<p><strong>Misprediction / exception recovery — no RAT checkpoints.</strong> r9999 keeps two rename maps per register class: the speculative <strong>allocation RAT</strong> and a <strong>retirement RAT</strong> that follows the committed architectural map. On a branch mispredict or exception it does <strong>not</strong> roll back to a per-branch snapshot. Instead the machine <strong>drains</strong> (state <code>DRAIN</code>): younger uops are squashed and it waits for the offending op to reach the head of the 32-entry ROB — at which point the <em>retirement</em> RAT already holds the correct map. It then copies <strong>retirement RAT → allocation RAT</strong> in a single cycle (state <code>RAT</code>: <code>r_alloc_rat &lt;= r_retire_rat</code>, and likewise for FP/HILO) and restarts fetch. No checkpoint storage, no finite-checkpoint allocation stall, and the <em>same</em> path handles both mispredictions and exceptions. <em>(<code>core.sv</code> — <code>DRAIN → RAT → ACTIVE</code> state machine, <code>t_rat_copy</code>)</em></p>
+<div class="admonition note">
+<p class="admonition-title">Why skipping RAT checkpoints is fine</p>
+<p>This was a <strong>design judgment</strong>, not a derived result. Per-branch <strong>RAT checkpointing</strong> — snapshot the logical→physical map, restore it in one cycle, and reclaim the physical registers allocated since — is fundamentally a <strong>PRF-machine technique</strong> (the R10000 is the classic example). Intel's <strong>"data-in-ROB" P6 and Nehalem</strong> can't use it: with no physical register file, speculative values live in ROB entries, so recovery instead falls out of rolling the ROB tail back and restoring the map from the retirement (committed) state. r9999 <em>is</em> PRF-based — so the R10000-style checkpoint scheme was on the table — but it deliberately borrows the <strong>data-in-ROB-style restore-from-retirement</strong> recovery (drain to commit, copy retirement RAT → allocation RAT), a ballpark call from P6/Nehalem experience that the modest drain latency is fine.</p>
+<p><strong>Henry Wong's thesis</strong> gives the matching quantitative corroboration — <em>A Superscalar Out-of-Order x86 Soft Processor for FPGA</em>, U. Toronto 2017, in the repo as <code>Wong_Henry_T_201711_PhD_thesis.pdf</code> (Ch. 7, Register Renaming). Two advantages over checkpoints: <strong>one mechanism covers both branch mispredictions and exceptions</strong>, and there's <strong>no cap on outstanding branches</strong> (checkpoints are finite — the R10000 stalls when it runs out). The drawback — recovery isn't instantaneous; the bad branch must commit first — he measures at only <strong>~2.3 % of cycles (≈ 4 clocks per pipeline flush)</strong>, and that's an <em>upper bound</em> (the core is usually still retiring useful older work). It stays small because branches <strong>resolve in program order</strong> (mispredicts detected near commit) and a <strong>long front end</strong> delays corrected-path instructions until after the drain.</p>
+</div>
 <p><strong>Register files (clustered).</strong> The integer PRF is a <strong>clustered (banked) register file</strong> (<code>rf4r2w</code>, 4 read / 2 write): it's split into <strong>two single-write-port banks</strong> selected by the high bit of the physical-register number — a <strong>non-memory bank</strong> written by ALU/move results (write port 0) and a <strong>memory bank</strong> written by load results (write port 1). That's the whole reason the physical-register count is large: <strong>2 banks × 64 = 128</strong>, not a deep rename window. It's the FPGA-friendly way to get two write ports per cycle out of plain single-write-port block RAMs (a Henry-Wong-style clustered RF) instead of paying for a true multi-write-port file. The <strong>FP PRF</strong> is banked the same way (non-memory = <code>mtc1</code>/moves, memory = FP loads), and a small <strong>4 × 128-bit HILO PRF</strong> holds multiply/divide results. The effective rename window is still bounded by the <strong>32-entry ROB</strong>. <em>(<code>rf4r2w.sv</code> — "Clustered (banked) register file"; <code>exec.sv</code>)</em></p>
 <p><strong>Execution units.</strong> One <strong>integer ALU</strong> (1-cycle), a <strong>3-cycle pipelined multiplier</strong> and an <strong>iterative ~65-cycle divider</strong> (both writing the HILO PRF), and a <strong>load/store unit</strong> with address generation folded in (no separate AGU stage) feeding the L1 D-cache. <strong>There is no FP arithmetic yet</strong> — the FP path implements <code>mfc1/mtc1</code>-style moves and FP loads/stores only; the core still reports an R4000-family FPU id (<code>FIR</code>) so software probes succeed. <em>(<code>exec.sv</code>, <code>mul.sv</code>, <code>divider.sv</code>)</em></p>
-<p><strong>Memory &amp; translation.</strong> L1 D-cache is 4 KB direct-mapped (16 B lines); L1I and L1D arbitrate for a shared <strong>on-die 16 KB direct-mapped L2</strong>, which fronts the <strong>system interface</strong> out to the Henry SoC / memory controller (AXI on the FPGA), with <strong>36-bit physical addresses</strong>. Translation is a <strong>48-entry fully-associative JTLB</strong> — dual-page (even/odd), 4 KB pages, 8-bit ASID, global-bit support — <strong>shared by both I and D</strong> with no micro-TLB. <em>(<code>l1d.sv</code>, <code>l2.sv</code>, <code>tlb.sv</code>, <code>core_l1d_l1i.sv</code>)</em></p>
+<p><strong>Memory &amp; translation.</strong> L1 D-cache is 4 KB direct-mapped (16 B lines); L1I and L1D arbitrate for a shared <strong>on-die 16 KB direct-mapped L2</strong>, which fronts the <strong>system interface</strong> out to the Henry SoC / memory controller (AXI on the FPGA), with <strong>36-bit physical addresses</strong>. Translation presents the R4x00 <strong>48-entry fully-associative TLB</strong> (dual-page even/odd, 4 KB pages, 8-bit ASID, global bit) — but it is <strong>not</strong> a single shared joint TLB. r9999 <strong>duplicates the CAM per L1 cache</strong> — an <strong>I-TLB</strong> in <code>l1i</code> and a <strong>D-TLB</strong> (<code>dtlb</code>) in <code>l1d</code> — so instruction fetch and load/store translate <strong>in parallel</strong> without contending for one structure, and keeps them coherent by <strong>broadcasting every <code>tlbwi</code>/<code>tlbwr</code> to both CAMs</strong> (<code>core_l1d_l1i.sv</code>). Because a content-addressed CAM can't be read by index, a separate <strong>48-entry RAM shadow</strong> (<code>r_shadow_tlb</code> in <code>exec.sv</code>) holds the entries so the index-addressed instructions — <code>tlbr</code> in particular — can read them back. No micro-TLB. <em>(<code>l1i.sv</code>, <code>l1d.sv</code>, <code>tlb.sv</code>, <code>exec.sv</code>, <code>core_l1d_l1i.sv</code>)</em></p>
 <h2 id="r9999-vs-the-r10000-its-named-after">r9999 vs. the R10000 it's named after<a class="headerlink" href="#r9999-vs-the-r10000-its-named-after" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -1422,6 +1431,11 @@
 <td><strong>32 (ROB)</strong></td>
 </tr>
 <tr>
+<td>Mispredict / exception recovery</td>
+<td>per-branch <strong>RAT checkpoints</strong> (finite → caps outstanding branches)</td>
+<td><strong>copy committed RAT after drain</strong> — no checkpoints; one path for mispredict + exception</td>
+</tr>
+<tr>
 <td>Issue queues</td>
 <td>3 × 16 (address / integer / FP)</td>
 <td>8-entry integer scheduler + memory queues; <strong>no FP queue</strong></td>
@@ -1443,8 +1457,8 @@
 </tr>
 <tr>
 <td>TLB</td>
-<td>64-entry</td>
-<td><strong>48-entry fully-associative JTLB</strong> (R4x00-style)</td>
+<td>64-entry, single shared</td>
+<td><strong>48-entry FA CAM, duplicated per L1</strong> (I-TLB + D-TLB) + RAM shadow; R4x00-style software model</td>
 </tr>
 <tr>
 <td>Register width / FPU</td>
@@ -1455,15 +1469,16 @@
 </table>
 <h2 id="why-it-diverges-from-the-r10000">Why it diverges from the R10000<a class="headerlink" href="#why-it-diverges-from-the-r10000" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>It's an R4x00 <em>ISA</em> target, not an R10000.</strong> IRIX's <code>/unix</code> branches on <code>PRId.IMP</code> in <code>start</code>; r9999 presents <strong>R4600</strong> so the kernel takes the Indy per-CPU path (see <a href="https://github.com/dsheffie/r9999">MAME_QUESTIONS Q5</a>). The <strong>48-entry JTLB</strong> mirrors the R4x00 (not the R10000's 64), which is also what IRIX's <code>wirepda</code>/refill code expects.</li>
+<li><strong>It's an R4x00 <em>ISA</em> target, not an R10000.</strong> IRIX's <code>/unix</code> branches on <code>PRId.IMP</code> in <code>start</code>; r9999 presents <strong>R4600</strong> so the kernel takes the Indy per-CPU path (see <a href="https://github.com/dsheffie/r9999">MAME_QUESTIONS Q5</a>). The <strong>48-entry TLB</strong> mirrors the R4x00 (not the R10000's 64), which is also what IRIX's <code>wirepda</code>/refill code expects.</li>
 <li><strong>It's built for an FPGA.</strong> 2-wide instead of 4, <strong>direct-mapped</strong> caches, and a modest on-die L2 keep LUT/BRAM/timing in budget on the Ultra96-v2 (Zynq UltraScale+). Conversely the <strong>gshare PHT is much larger</strong> than the R10000's BHT — block RAM is cheap on FPGA, so prediction accuracy is bought with BRAM rather than logic.</li>
 <li><strong>The big physical-register counts are a clustered RF, not a deep window.</strong> 128 INT / 128 FP physical registers = <strong>2 banks × 64</strong>. Each register file is split into two single-write-port banks (non-memory results vs memory/load results), selected by the preg-number MSB, so the core gets two write ports per cycle from cheap single-write-port FPGA RAMs instead of a true multi-write-port file. The architectural rename window is still gated by the <strong>32-entry ROB</strong> — the count is an implementation artifact of the banking, not extra in-flight capacity.</li>
+<li><strong>No RAT checkpoints — even though it's a PRF machine.</strong> RAT checkpointing is a PRF-machine technique, so the R10000-style scheme was available to r9999 — but it instead drains to the ROB head and restores the map from the retirement RAT, the data-in-ROB-style (P6/Nehalem) recovery chosen from experience and corroborated by Wong (Ch. 7). See the rename-recovery note above.</li>
 <li><strong>No hardware FPU yet.</strong> The FP register file and the move / load-store path are in place; FP arithmetic is future work, and the core reports an R4000-family FPU id so software probes succeed.</li>
 </ul>
 <div class="admonition note">
 <p class="admonition-title">Known FPGA bottleneck</p>
-<p>The <strong>fully-associative 48-entry JTLB</strong> (every L1I/L1D access does a 48-way parallel CAM match) is the current critical path on the Ultra96-v2 build (negative WNS at 100 MHz). The architectural fix is a hardware <strong>micro-TLB</strong> in front of the JTLB — the JTLB size is fixed by the architecture, but a small fast L1 translation cache removes the CAM from the common-case path.</p>
 </div>
+<p>The <strong>fully-associative 48-entry TLB CAMs</strong> — one per L1 cache, so every fetch <em>and</em> every load/store does a 48-way parallel CAM match — are the current critical path on the Ultra96-v2 build (negative WNS at 100 MHz). The 48-entry size is fixed by the architecture; the fix is a hardware <strong>micro-TLB</strong> in front of each CAM — a small fast L1 translation cache that removes the big CAM from the common-case path.</p>
 <hr />
 <p><em>All structural facts above are from the r9999 RTL (<code>*.sv</code>) and <code>machine.vh</code>, canonical (non-<code>FORMAL</code>) configuration. The <a href="../irix-boot-flow/">IRIX boot flow</a> page covers what this core </em>runs<em>; this page covers what it </em>is<em>.</em></p>
 
