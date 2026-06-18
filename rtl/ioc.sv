@@ -38,7 +38,13 @@ module ioc
    // cnt2, then polls the latched value until its high byte reads 0, measuring CP0
    // Count over the interval. We tie the down-count to a free-running cycle counter
    // so the poll converges with a sane, deterministic CP0-Count delta.
-   localparam int PIT_SHIFT = 3;               // counter decrements every 2^SHIFT cycles
+   // The real PC/AT i8254 runs at 1.193182 MHz, and the kernel's dosample
+   // calibration ASSUMES that rate (mips_hpt_frequency = CP0-Count-delta /
+   // (PIT-count / 1.193182 MHz)). So clock the down-count at ~1.193 MHz: divide
+   // the 100 MHz core clock by 84 (100e6/1.193182e6 = 83.8). A wrong rate (e.g.
+   // the old /8 = 12.5 MHz) corrupts the calibration -> Linux's timekeeping_advance
+   // loop runs away on a bogus frequency. (Matches what IRIX assumes too.)
+   localparam int PIT_DIV = 84;                // core-clock / PIT-rate (1.193 MHz @ 100 MHz)
    wire        w_pit          = (offs == 8'hb0);
    wire        w_pit_tcword_wr= sel &  is_store & w_pit & mask[15];
    wire        w_pit_tcnt2_wr = sel &  is_store & w_pit & mask[11];
@@ -46,12 +52,13 @@ module ioc
    wire [7:0]  w_pit_tcword   = wdata[8*15 +: 8];
    wire [7:0]  w_pit_tcnt2_in = wdata[8*11 +: 8];
 
-   logic [31:0] r_cycle;
+   logic [31:0] r_cycle;        // PIT-tick counter, advanced at ~1.193 MHz by r_presc
+   logic [6:0]  r_presc;        // core-clock prescaler, 0..PIT_DIV-1 (no RTL divider)
    logic [15:0] r_t2_load, r_t2_latch;
    logic [31:0] r_t2_at;                        // cycle snapshot at (re)load
    logic        r_t2_wr_phase, r_t2_rd_phase, r_t2_loading;
 
-   wire [31:0] w_t2_dec    = (r_cycle - r_t2_at) >> PIT_SHIFT;
+   wire [31:0] w_t2_dec    = (r_cycle - r_t2_at);   // r_cycle is already at the PIT rate
    wire [15:0] w_t2_val    = (w_t2_dec >= {16'd0, r_t2_load}) ? 16'd0
                                                               : (r_t2_load - w_t2_dec[15:0]);
    wire [7:0]  w_t2_rdbyte = r_t2_rd_phase ? r_t2_latch[15:8] : r_t2_latch[7:0];
@@ -94,6 +101,7 @@ module ioc
    always_ff @(posedge clk) begin
       if(reset) begin
          r_cycle       <= 32'd0;
+         r_presc       <= 7'd0;
          r_t2_load     <= 16'd0;
          r_t2_latch    <= 16'd0;
          r_t2_at       <= 32'd0;
@@ -102,7 +110,14 @@ module ioc
          r_t2_loading  <= 1'b0;
       end
       else begin
-         r_cycle <= r_cycle + 32'd1;
+         // prescaler: advance the PIT tick once per PIT_DIV core clocks (~1.193 MHz),
+         // no RTL divider -- just a 7-bit counter + compare.
+         if(r_presc == (PIT_DIV - 1)) begin
+            r_presc <= 7'd0;
+            r_cycle <= r_cycle + 32'd1;
+         end
+         else
+            r_presc <= r_presc + 7'd1;
          // tcword write: RW field (bits[5:4]) == 0 is a counter-latch command;
          // otherwise it programs (or stops) cnt2 -> expect a 2-byte counter load.
          if(w_pit_tcword_wr) begin
