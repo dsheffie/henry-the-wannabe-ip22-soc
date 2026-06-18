@@ -27,6 +27,29 @@ static const uint64_t MEM_SIZE = 0x20000000ull;   // 512 MB physical window
 static const uint64_t MEM_MASK = MEM_SIZE - 1;
 static const uint32_t HALT_PA  = 0x1fd00000u;      // magic-halt register (BFD00000)
 
+// ---- FPGA address map (bit-exact model of axi_is_the_worst_v1_0_M00_AXI.v sgi_mode) ----
+// The FPGA's AXI DRAM master does NOT use a flat "& MEM_MASK"; it folds the IP22
+// physical map into the 496 MB PS-DRAM and FAULTS (mem_rsp_bad) on anything past
+// addrmask.  Mirror it exactly so the sim reproduces FPGA-only address behavior
+// (the plain mask silently wraps out-of-range PAs in-range and hides such bugs).
+// Knob: set false to fall back to the legacy flat 512 MB "& MEM_MASK" window.
+static const bool     FPGA_ADDRESS_MAP = true;
+static const uint32_t FPGA_ADDRMASK    = 0x1effffffu;  // 496 MB - 1 (FPGA DRAM size)
+
+// cpuaddr is the 29-bit physical address the core presents to the AXI master.
+// Returns the DRAM byte offset (baseaddr=0 in sim); *bad mirrors w_bad_addr.
+static inline uint32_t fpga_map(uint32_t cpuaddr, bool *bad) {
+  uint32_t t;
+  if(cpuaddr >= 0x08000000u && cpuaddr <= 0x17ffffffu)
+    t = cpuaddr & 0x0fffffffu;                  // {4'd0, cpuaddr[27:0]}  256 MB Low Local Mem
+  else if(cpuaddr >= 0x1f000000u && cpuaddr <= 0x1fffffffu)
+    t = 0x10000000u | (cpuaddr & 0x00ffffffu);  // {8'd16,cpuaddr[23:0]}  16 MB device/PROM shadow
+  else
+    t = cpuaddr;                                // identity
+  *bad = (t > FPGA_ADDRMASK);
+  return t;
+}
+
 static uint8_t *g_mem = nullptr;
 
 // ---- core instrumentation/co-sim DPI hooks: stubbed (RTL-only run) ----
@@ -236,6 +259,7 @@ int main(int argc, char **argv) {
   int64_t reply_cyc = -1;
   uint64_t req_addr = 0; uint32_t req_op = 0; uint16_t req_mask = 0;
   uint32_t req_sd[4] = {0,0,0,0};
+  bool req_bad = false, req_is_halt = false;
   const int MEM_LAT = 4;
   uint64_t retired = 0, last_pc = 0;
   uint64_t prev_epc = 0; int exc_prints = 0; uint32_t prev_sr = 0; uint64_t prev_badv = 0;
@@ -283,20 +307,31 @@ int main(int argc, char **argv) {
 
     // ---- memory bus servicing (mem_rsp sampled on the NEXT posedge) ----
     tb->mem_rsp_valid = 0;
+    tb->mem_rsp_bad   = 0;
     if(tb->mem_req_valid && reply_cyc == -1) {
-      uint64_t raw_addr = (uint64_t)tb->mem_req_addr;
-      if(raw_addr >= 0x1F000000ull)   /* FPGA DRAM = 496 MB; TB MEM_SIZE=512 MB hides [496,512) */
-        fprintf(stderr, "[oor] cyc=%lu raw_addr=0x%llx op=%u mask=0x%x\n",
-                (unsigned long)cyc, (unsigned long long)raw_addr,
-                (unsigned)tb->mem_req_opcode, (unsigned)tb->mem_req_mask);
-      req_addr = (uint64_t)tb->mem_req_addr & MEM_MASK;
+      uint32_t phys = (uint32_t)tb->mem_req_addr & 0x1fffffffu;  // 29-bit phys to the AXI master
+      req_is_halt = (phys == HALT_PA);
+      if(FPGA_ADDRESS_MAP) {
+        req_addr = fpga_map(phys, &req_bad);
+        if(req_bad)
+          fprintf(stderr, "[bad_addr] cyc=%lu phys=0x%08x op=%u mask=0x%x  (FPGA mem_rsp_bad)\n",
+                  (unsigned long)cyc, phys,
+                  (unsigned)tb->mem_req_opcode, (unsigned)tb->mem_req_mask);
+      } else {
+        req_addr = (uint64_t)tb->mem_req_addr & MEM_MASK;
+        req_bad  = false;
+      }
       req_op   = tb->mem_req_opcode;
       req_mask = tb->mem_req_mask;
       for(int i = 0; i < 4; i++) req_sd[i] = tb->mem_req_store_data[i];
       reply_cyc = (int64_t)cyc + ((req_op == 4) ? MEM_LAT : 2*MEM_LAT);
     }
     if(reply_cyc == (int64_t)cyc) {
-      if(req_op == 4) {                       // line load
+      if(req_bad) {
+        // FPGA M00_AXI faults (mem_rsp_bad) on addr past addrmask -- no memory effect.
+        tb->mem_rsp_bad = 1;
+      }
+      else if(req_op == 4) {                  // line load
         for(int i = 0; i < 4; i++) {
           uint64_t a = (req_addr + 4*i) & MEM_MASK;
           tb->mem_rsp_load_data[i] =
@@ -309,7 +344,7 @@ int main(int argc, char **argv) {
           if((req_mask >> i) & 1) {
             uint64_t a = (req_addr + i) & MEM_MASK;
             uint8_t  by = (req_sd[i>>2] >> (8*(i&3))) & 0xff;
-            if((uint32_t)(a & 0x1fffffffu) == (HALT_PA & 0x1fffffffu) && by)
+            if(req_is_halt && by)
               halted = true;
             g_mem[a] = by;
           }
