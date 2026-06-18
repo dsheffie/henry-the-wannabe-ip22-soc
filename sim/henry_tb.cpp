@@ -268,15 +268,17 @@ int main(int argc, char **argv) {
                 (unsigned long long)tb->retire_reg_two_data);
     }
 
-    // retired-PC trace (retire order: port 0 then port 1), gated to start at kentry
+    // retired-PC trace (retire order: port 0 then port 1), gated to start at kentry.
+    // Each line is "<vPC> <retire-cycle>" so a diff of two runs shows, at the
+    // divergence, how many cycles the next instruction took to retire (stall length).
     if(trace) {
       if(tb->retire_valid) {
         uint32_t pc = (uint32_t)tb->retire_pc;
         if(!trace_started && pc == kentry) trace_started = true;
-        if(trace_started) fprintf(trace, "%08x\n", pc);
+        if(trace_started) fprintf(trace, "%08x %llu\n", pc, (unsigned long long)cyc);
       }
       if(tb->retire_two_valid && trace_started)
-        fprintf(trace, "%08x\n", (uint32_t)tb->retire_two_pc);
+        fprintf(trace, "%08x %llu\n", (uint32_t)tb->retire_two_pc, (unsigned long long)cyc);
     }
 
     // ---- memory bus servicing (mem_rsp sampled on the NEXT posedge) ----
