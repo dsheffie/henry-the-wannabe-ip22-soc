@@ -31,6 +31,31 @@ module ioc
    wire w_scc = (offs == 8'h30);               // the SCC 16-byte window @ IOC+0x30
    integer i, b;
 
+   // ---- i8254 PIT counter 2 (IP22 timer calibration; ip22-time.c dosample) ----
+   // tcword = IOC byte 0xbf (line 0xb0, byte 15); tcnt2 = IOC byte 0xbb (byte 11).
+   // NO interrupt: the kernel drives the tick from CP0 Count/Compare (the real 8254
+   // IRQ is buggy on IP22), so the 8254 is calibration-only -- dosample programs
+   // cnt2, then polls the latched value until its high byte reads 0, measuring CP0
+   // Count over the interval. We tie the down-count to a free-running cycle counter
+   // so the poll converges with a sane, deterministic CP0-Count delta.
+   localparam int PIT_SHIFT = 3;               // counter decrements every 2^SHIFT cycles
+   wire        w_pit          = (offs == 8'hb0);
+   wire        w_pit_tcword_wr= sel &  is_store & w_pit & mask[15];
+   wire        w_pit_tcnt2_wr = sel &  is_store & w_pit & mask[11];
+   wire        w_pit_tcnt2_rd = sel & ~is_store & w_pit & mask[11];
+   wire [7:0]  w_pit_tcword   = wdata[8*15 +: 8];
+   wire [7:0]  w_pit_tcnt2_in = wdata[8*11 +: 8];
+
+   logic [31:0] r_cycle;
+   logic [15:0] r_t2_load, r_t2_latch;
+   logic [31:0] r_t2_at;                        // cycle snapshot at (re)load
+   logic        r_t2_wr_phase, r_t2_rd_phase, r_t2_loading;
+
+   wire [31:0] w_t2_dec    = (r_cycle - r_t2_at) >> PIT_SHIFT;
+   wire [15:0] w_t2_val    = (w_t2_dec >= {16'd0, r_t2_load}) ? 16'd0
+                                                              : (r_t2_load - w_t2_dec[15:0]);
+   wire [7:0]  w_t2_rdbyte = r_t2_rd_phase ? r_t2_latch[15:8] : r_t2_latch[7:0];
+
    always_comb begin
       rdata = '0;
       if(w_scc) begin
@@ -38,6 +63,11 @@ module ioc
          for(b = 0; b < 16; b = b + 1)
            if(mask[b] & (((b>>2)&1) == 0))
              rdata[8*b +: 8] = w_rr0;
+      end
+      else if(w_pit) begin
+         // i8254 counter 2 read: tcnt2 (byte 11) returns the latched lo/hi byte.
+         if(mask[11])
+           rdata[8*11 +: 8] = w_t2_rdbyte;
       end
       else begin
          // word-granular IOC2 regs (only SYSID @ +0x58 modeled)
@@ -57,6 +87,52 @@ module ioc
              scc_tx_valid = 1'b1;
              scc_tx_byte  = wdata[8*b +: 8];
           end
+   end
+
+   // i8254 PIT state: free-running cycle counter + the latch/2-byte-load/lo-hi-read
+   // protocol. sel is a one-cycle accept pulse, so each access updates state once.
+   always_ff @(posedge clk) begin
+      if(reset) begin
+         r_cycle       <= 32'd0;
+         r_t2_load     <= 16'd0;
+         r_t2_latch    <= 16'd0;
+         r_t2_at       <= 32'd0;
+         r_t2_wr_phase <= 1'b0;
+         r_t2_rd_phase <= 1'b0;
+         r_t2_loading  <= 1'b0;
+      end
+      else begin
+         r_cycle <= r_cycle + 32'd1;
+         // tcword write: RW field (bits[5:4]) == 0 is a counter-latch command;
+         // otherwise it programs (or stops) cnt2 -> expect a 2-byte counter load.
+         if(w_pit_tcword_wr) begin
+            if(w_pit_tcword[5:4] == 2'b00) begin
+               r_t2_latch    <= w_t2_val;
+               r_t2_rd_phase <= 1'b0;
+            end
+            else begin
+               r_t2_loading  <= 1'b1;
+               r_t2_wr_phase <= 1'b0;
+            end
+         end
+         // tcnt2 write: low byte then high byte; on the high byte the counter
+         // (re)loads and the down-count restarts from the current cycle.
+         if(w_pit_tcnt2_wr & r_t2_loading) begin
+            if(r_t2_wr_phase == 1'b0) begin
+               r_t2_load[7:0] <= w_pit_tcnt2_in;
+               r_t2_wr_phase  <= 1'b1;
+            end
+            else begin
+               r_t2_load[15:8] <= w_pit_tcnt2_in;
+               r_t2_wr_phase   <= 1'b0;
+               r_t2_loading    <= 1'b0;
+               r_t2_at         <= r_cycle;
+            end
+         end
+         // tcnt2 read: return latched lo byte then hi byte (toggle each read).
+         if(w_pit_tcnt2_rd)
+           r_t2_rd_phase <= ~r_t2_rd_phase;
+      end
    end
 
    // (IOC2 interrupt/GIO-config registers not yet modeled: reads 0, writes absorbed.)
