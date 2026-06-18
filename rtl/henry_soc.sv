@@ -163,8 +163,14 @@ module henry_soc
    //  Pass-through: requests that miss every modeled device go to the
    //  external memory bus unchanged.
    // =====================================================================
+   // IP22 "System Memory Alias" (mc.pdf 4): physical 0x0..0x7ffff (low 512 KB)
+   // aliases into the bottom of Low Local Memory @ 0x08000000, so the CPU
+   // exception vectors (phys 0x0/0x80) and the SPB the FSBL copies to phys 0x1000
+   // are backed by real DRAM. Remap mem-bound low addresses (set bit 27); device
+   // addresses are all >= 0x1f000000 so they are unaffected.
+   wire w_sysmem_alias       = (c_req_addr[`PA_WIDTH-1:19] == '0);
    assign mem_req_valid      = c_req_valid & ~w_is_dev;
-   assign mem_req_addr       = c_req_addr;
+   assign mem_req_addr       = w_sysmem_alias ? {c_req_addr[`PA_WIDTH-1:28], 1'b1, c_req_addr[26:0]} : c_req_addr;
    assign mem_req_store_data = c_req_store_data;
    assign mem_req_opcode     = c_req_opcode;
    assign mem_req_mask       = c_req_mask;

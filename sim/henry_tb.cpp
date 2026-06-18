@@ -115,9 +115,12 @@ static void load_blob(const char *path, uint64_t pa) {
   if(fd < 0) { fprintf(stderr, "cannot open %s\n", path); exit(1); }
   struct stat st; fstat(fd, &st);
   uint8_t *f = (uint8_t*)mmap(nullptr, st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
-  memcpy(g_mem + (pa & MEM_MASK), f, st.st_size);
-  printf("loaded ARCS firmware (%lld bytes) at physical 0x%llx\n",
-         (long long)st.st_size, (unsigned long long)pa);
+  // place at the DRAM offset the core will actually read (the FSBL lives in the
+  // PROM region, which the address map shadows into DRAM @ 0x10c00000).
+  bool bad = false; uint32_t off = fpga_map((uint32_t)pa, &bad);
+  memcpy(g_mem + off, f, st.st_size);
+  printf("loaded ARCS firmware (%lld bytes) at physical 0x%llx (dram off 0x%x)\n",
+         (long long)st.st_size, (unsigned long long)pa, off);
   munmap(f, st.st_size);
   close(fd);
 }
@@ -219,7 +222,12 @@ int main(int argc, char **argv) {
   uint32_t entry = load_elf_be32(kernel.c_str());
   uint32_t kentry = entry;                  // real kernel entry (trace starts here)
   if(!arcs.empty()) {
-    load_blob(arcs.c_str(), 0x1000);
+    load_blob(arcs.c_str(), 0x1fc00000);   // FSBL lives in the Boot PROM region
+    // patch the FSBL kernel-entry slot @ phys 0x1fc00008 with the real ELF entry
+    // (mirrors the mips-axi driver), so the FSBL jumps to the right place even
+    // after a kernel rebuild shifts the entry off the baked-in default.
+    { bool b=false; uint32_t soff = fpga_map(0x1fc00008u, &b); put_be32(soff, kentry);
+      printf("patched FSBL kentry slot @0x1fc00008 (dram 0x%x) = 0x%08x\n", soff, kentry); }
     if(start_pc) { entry = start_pc; printf("fake-bios: start pc = %08x\n", start_pc); }
     else         entry = install_arcs_handoff(entry); // sash-style argv/envp handoff -> stub -> kernel
   }

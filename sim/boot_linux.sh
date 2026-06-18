@@ -29,4 +29,7 @@ make -s
 
 echo "[boot_linux] kernel=$KERNEL"
 echo "[boot_linux] arcs=$ARCS  maxcyc=$MAXCYC"
-exec ./obj_dir/henry_tb --kernel "$KERNEL" --arcs "$ARCS" --maxcyc "$MAXCYC" "$@"
+# --start-pc 0xbfc00000 = the Boot PROM reset vector: run the ARCS first-stage
+# boot loader (FSBL), which copies the SPB into RAM and jumps to the kernel
+# (matches the FPGA path). Omit it to use the legacy C++ install_arcs_handoff.
+exec ./obj_dir/henry_tb --kernel "$KERNEL" --arcs "$ARCS" --maxcyc "$MAXCYC" --start-pc 0xbfc00000 "$@"
