@@ -11,6 +11,31 @@
 # headers into one dir. hdl/ is a symlink into the IP's hdl dir.
 set -eu
 ROOT="$(cd "$(dirname "$0")" && pwd)"
+
+# --- keep the r9999 submodule current ---------------------------------------
+# This script builds mipscore.v from the r9999 SUBMODULE working tree. A stale
+# submodule pointer once silently shipped an OLD core to the FPGA (an l2.sv
+# missing the UNCACHE_WB_TURNAROUND AXI fix -> Linux boot hang) while the sim
+# used a newer tree -- a textbook sim/synth divergence that took a day to find.
+# So: fast-forward the submodule to origin/main before building. If it has local
+# modifications, warn and use as-is (never clobber WIP). Override with
+# HENRY_NO_SUBMODULE_UPDATE=1. The submodule SHA is always echoed into the build.
+SUB="$ROOT/r9999"
+if [ -e "$SUB/.git" ]; then
+  if [ "${HENRY_NO_SUBMODULE_UPDATE:-0}" = "1" ]; then
+    echo "[gen_mipscore] submodule update SKIPPED (HENRY_NO_SUBMODULE_UPDATE=1)"
+  elif ! git -C "$SUB" diff --quiet 2>/dev/null || ! git -C "$SUB" diff --cached --quiet 2>/dev/null; then
+    echo "[gen_mipscore] WARNING: r9999 submodule has LOCAL changes -- using as-is, NOT updating" >&2
+  else
+    git -C "$SUB" fetch -q origin 2>/dev/null || echo "[gen_mipscore] WARNING: submodule fetch failed (offline?) -- using current checkout" >&2
+    if [ -n "$(git -C "$SUB" rev-list -n1 HEAD..origin/main 2>/dev/null)" ]; then
+      echo "[gen_mipscore] r9999 submodule was BEHIND origin/main -- fast-forwarding"
+      git -C "$SUB" checkout -q origin/main
+    fi
+  fi
+  echo "[gen_mipscore] r9999 submodule @ $(git -C "$SUB" rev-parse --short HEAD 2>/dev/null) -- $(git -C "$SUB" log -1 --format=%s 2>/dev/null | cut -c1-60)"
+fi
+
 BUILD="${BUILD:-/tmp/henry_mipscore_build}"
 rm -rf "$BUILD"; mkdir -p "$BUILD"
 
