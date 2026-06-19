@@ -1754,8 +1754,10 @@ via Map Mask0 to MAP_INT0 → istat0 b7 (the kernel's "LIO2") → <strong>IP2</s
 <p>Of the 27 sources, only a handful have a real device model or plausible assertion in Henry:
 - <strong>Serial DUART</strong> (Map Status b5) → MAP_INT0 → <strong>IP2</strong> — console/keyboard RX. <strong>The one live source to wire next</strong>
   (we have the SCC in <code>ioc.sv</code>).
-- <strong>Timer0/Timer1</strong> (IP4/IP5) — our 8254 is <strong>calibration-only (no IRQ)</strong>; Linux/IRIX drive the system tick from
-  CP0 Count/Compare on <strong>IP7</strong>, so these stay 0.
+- <strong>Timer0</strong> (IP4) — <strong>implemented + tested</strong>: <code>ioc.sv</code> 8254 counter0 is a periodic down-counter whose terminal
+  count drives <code>timer0_irq</code> → INT3 latch → IP4 (see below). Note IP22 Linux/IRIX don't actually use it (they drive
+  the system tick from CP0 Count/Compare on <strong>IP7</strong>, the 8254 IRQ being buggy on IP22), but it's the cleanest
+  testable real INT3 source. <strong>Timer1</strong> (IP5) is a trivial mirror, not yet wired (counter1).
 - <strong>SCSI0/1</strong> (IP2) — relevant only once there's a root disk; no SCSI model yet.
 - <strong>Bus errors</strong> (IP6) — could be asserted from a bad-address fault if ever desired; not modeled.
 - Everything else (graphics, parallel, ENET, panel, vsync/retrace, AC-fail, GP, ISDN) — no device, stays 0.</p>
@@ -1765,13 +1767,17 @@ registers sit at lines <code>0x80</code>/<code>0x90</code>/<code>0xa0</code>; <c
 Its 5 outputs drive <code>core_l1d_l1i</code>'s <code>ip2..ip6</code> pins (this replaced the old 1-bit <code>extern_irq</code>). Aggregation:
 <code>ip2 = |(istat0 &amp; imask0)</code>, <code>ip3 = |(istat1 &amp; imask1)</code>, <code>ip6 = |buserr</code> (unmaskable), <code>ip4/ip5</code> = the two latched
 timer IRQs; <code>map_int0 = |(vmeistat &amp; cmeimask0)</code> feeds <code>istat0[7]</code>. The §4.5 RW registers (<code>imask0</code>, <code>imask1</code>,
-<code>cmeimask0</code>, <code>cmeimask1</code>, <code>cmepol</code>) and the timer latches (tclear-cleared) are modeled; the device <strong>sources are
-input ports tied to 0</strong> for now (skeleton) → <code>ip2..ip6 = 0</code>, inert.</p>
+<code>cmeimask0</code>, <code>cmeimask1</code>, <code>cmepol</code>) and the timer latches (tclear-cleared) are modeled. <strong><code>timer0_irq</code> is now driven
+by the <code>ioc.sv</code> 8254 counter0</strong> (the first real source); the remaining device <strong>sources are input ports tied to 0</strong>
+for now → only IP4 can fire.</p>
 <p>Source-port mapping:
 - <code>local0_src[6:0]</code> = istat0 b6..b0 (Graphics/Parallel/MC-DMA/ENET/SCSI1/SCSI0/FIFO); b7 (MAP_INT0) computed.
 - <code>local1_src[7:0]</code> = istat1 (b3 = MAP_INT1 computed, that input bit ignored).
-- <code>map_src[7:0]</code> = the 8 mappable inputs (<strong><code>[5]</code> = serial RX</strong> is the one to wire).
-- <code>buserr[2:0]</code> = {HPC, MC, EISA}; <code>timer0_irq</code>/<code>timer1_irq</code> = the 8254 latched IRQs.</p>
+- <code>map_src[7:0]</code> = the 8 mappable inputs (<strong><code>[5]</code> = serial RX</strong> is the one to wire next).
+- <code>buserr[2:0]</code> = {HPC, MC, EISA}; <code>timer0_irq</code> ← <code>ioc.sv</code> counter0 (live); <code>timer1_irq</code> tied 0 (counter1 TODO).</p>
+<p><strong>Test:</strong> <code>tests/pit/</code> (a bare-metal MIPS program run on <code>henry_tb</code>) programs counter0 periodic, enables <code>IM[4]</code>,
+takes 5 IP4 interrupts ~2000 core cycles apart (= 20 PIT ticks × PIT_DIV 100, the programmed 20 µs @ 1 MHz),
+acking each via <code>tclear</code> → checksum <code>0x10</code> (IP4). Validates the full 8254 → INT3 latch/clear → IP4 → CPU path.</p>
 <p><strong>Next:</strong> wire the SCC serial RX — host stdin → SCC Rx FIFO in <code>ioc.sv</code> (RR0 bit0 Rx-Char-Available) → drive
 <code>map_src[5]</code> → MAP_INT0 → IP2, enabling interrupt-driven console input at the IRIX/Linux prompt. (Not needed for
 the polled-TX boot console; IRIX's du driver polls RR0 for TX.)</p>
