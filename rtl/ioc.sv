@@ -18,7 +18,8 @@ module ioc
     input  logic         con_full,   // SoC console FIFO full -> SCC Tx not ready (backpressure)
     output logic [127:0] rdata,
     output logic         scc_tx_valid,
-    output logic [7:0]   scc_tx_byte);
+    output logic [7:0]   scc_tx_byte,
+    output logic         timer0_irq);  // 8254 counter0 -> INT3 Timer0 (CPU IP4)
 
    // SYSID stored 0x26000000 -> BE lw yields 0x00000026 (board id in bits[7:0]).
    localparam [31:0] IOC2_SYSID = 32'h26000000;
@@ -150,6 +151,65 @@ module ioc
            r_t2_rd_phase <= ~r_t2_rd_phase;
       end
    end
+
+   // ---- i8254 counter 0 -> Timer0 interrupt (INT3 Level2 / CPU IP4) ----
+   // Periodic down-counter at the PIT rate (shares r_presc with counter2). On
+   // IP22 the kernel does NOT use this (the system tick rides CP0 Count/Compare
+   // on IP7 -- the real 8254 IRQ is buggy), but it completes the INT3 model and
+   // is the cleanest testable real INT3 source. tcnt0 = IOC byte 0xb3 (line 0xb0
+   // byte 3); the control word's counter-select is tcword[7:6] (00 = counter0).
+   // Mode bits are ignored: we always reload at terminal count (periodic), which
+   // matches the rate-generator / square-wave modes the tick driver uses.
+   wire        w_pit_tcnt0_wr = sel & is_store & w_pit & mask[3];
+   wire [7:0]  w_pit_tcnt0_in = wdata[8*3 +: 8];
+
+   logic [15:0] r_t0_load, r_t0_count;
+   logic        r_t0_wr_phase, r_t0_loading, r_t0_running;
+   logic        r_timer0_irq;
+
+   always_ff @(posedge clk) begin
+      if(reset) begin
+         r_t0_load     <= 16'd0;
+         r_t0_count    <= 16'd0;
+         r_t0_wr_phase <= 1'b0;
+         r_t0_loading  <= 1'b0;
+         r_t0_running  <= 1'b0;
+         r_timer0_irq  <= 1'b0;
+      end
+      else begin
+         r_timer0_irq <= 1'b0;                       // 1-cycle terminal-count pulse
+         // tcword selecting counter0 (SC1:SC0 = 00) arms a 2-byte counter load.
+         if(w_pit_tcword_wr & (w_pit_tcword[7:6] == 2'b00)) begin
+            r_t0_loading  <= 1'b1;
+            r_t0_wr_phase <= 1'b0;
+            r_t0_running  <= 1'b0;
+         end
+         // tcnt0 write: low byte then high byte; on the high byte (re)load + run.
+         if(w_pit_tcnt0_wr & r_t0_loading) begin
+            if(r_t0_wr_phase == 1'b0) begin
+               r_t0_load[7:0] <= w_pit_tcnt0_in;
+               r_t0_wr_phase  <= 1'b1;
+            end
+            else begin
+               r_t0_load[15:8] <= w_pit_tcnt0_in;
+               r_t0_count      <= {w_pit_tcnt0_in, r_t0_load[7:0]};
+               r_t0_wr_phase   <= 1'b0;
+               r_t0_loading    <= 1'b0;
+               r_t0_running    <= 1'b1;
+            end
+         end
+         // down-count once per PIT tick; terminal count -> pulse + reload (periodic).
+         else if(r_t0_running & (r_presc == (PIT_DIV - 1))) begin
+            if(r_t0_count <= 16'd1) begin
+               r_timer0_irq <= 1'b1;
+               r_t0_count   <= r_t0_load;
+            end
+            else
+               r_t0_count <= r_t0_count - 16'd1;
+         end
+      end
+   end
+   assign timer0_irq = r_timer0_irq;
 
    // (IOC2 interrupt/GIO-config registers not yet modeled: reads 0, writes absorbed.)
 endmodule // ioc

@@ -95,8 +95,10 @@ via Map Mask0 to MAP_INT0 → istat0 b7 (the kernel's "LIO2") → **IP2**; this 
 Of the 27 sources, only a handful have a real device model or plausible assertion in Henry:
 - **Serial DUART** (Map Status b5) → MAP_INT0 → **IP2** — console/keyboard RX. **The one live source to wire next**
   (we have the SCC in `ioc.sv`).
-- **Timer0/Timer1** (IP4/IP5) — our 8254 is **calibration-only (no IRQ)**; Linux/IRIX drive the system tick from
-  CP0 Count/Compare on **IP7**, so these stay 0.
+- **Timer0** (IP4) — **implemented + tested**: `ioc.sv` 8254 counter0 is a periodic down-counter whose terminal
+  count drives `timer0_irq` → INT3 latch → IP4 (see below). Note IP22 Linux/IRIX don't actually use it (they drive
+  the system tick from CP0 Count/Compare on **IP7**, the 8254 IRQ being buggy on IP22), but it's the cleanest
+  testable real INT3 source. **Timer1** (IP5) is a trivial mirror, not yet wired (counter1).
 - **SCSI0/1** (IP2) — relevant only once there's a root disk; no SCSI model yet.
 - **Bus errors** (IP6) — could be asserted from a bad-address fault if ever desired; not modeled.
 - Everything else (graphics, parallel, ENET, panel, vsync/retrace, AC-fail, GP, ISDN) — no device, stays 0.
@@ -107,14 +109,19 @@ registers sit at lines `0x80`/`0x90`/`0xa0`; `ioc.sv` reads 0 there, so `w_rd_io
 Its 5 outputs drive `core_l1d_l1i`'s `ip2..ip6` pins (this replaced the old 1-bit `extern_irq`). Aggregation:
 `ip2 = |(istat0 & imask0)`, `ip3 = |(istat1 & imask1)`, `ip6 = |buserr` (unmaskable), `ip4/ip5` = the two latched
 timer IRQs; `map_int0 = |(vmeistat & cmeimask0)` feeds `istat0[7]`. The §4.5 RW registers (`imask0`, `imask1`,
-`cmeimask0`, `cmeimask1`, `cmepol`) and the timer latches (tclear-cleared) are modeled; the device **sources are
-input ports tied to 0** for now (skeleton) → `ip2..ip6 = 0`, inert.
+`cmeimask0`, `cmeimask1`, `cmepol`) and the timer latches (tclear-cleared) are modeled. **`timer0_irq` is now driven
+by the `ioc.sv` 8254 counter0** (the first real source); the remaining device **sources are input ports tied to 0**
+for now → only IP4 can fire.
 
 Source-port mapping:
 - `local0_src[6:0]` = istat0 b6..b0 (Graphics/Parallel/MC-DMA/ENET/SCSI1/SCSI0/FIFO); b7 (MAP_INT0) computed.
 - `local1_src[7:0]` = istat1 (b3 = MAP_INT1 computed, that input bit ignored).
-- `map_src[7:0]` = the 8 mappable inputs (**`[5]` = serial RX** is the one to wire).
-- `buserr[2:0]` = {HPC, MC, EISA}; `timer0_irq`/`timer1_irq` = the 8254 latched IRQs.
+- `map_src[7:0]` = the 8 mappable inputs (**`[5]` = serial RX** is the one to wire next).
+- `buserr[2:0]` = {HPC, MC, EISA}; `timer0_irq` ← `ioc.sv` counter0 (live); `timer1_irq` tied 0 (counter1 TODO).
+
+**Test:** `tests/pit/` (a bare-metal MIPS program run on `henry_tb`) programs counter0 periodic, enables `IM[4]`,
+takes 5 IP4 interrupts ~2000 core cycles apart (= 20 PIT ticks × PIT_DIV 100, the programmed 20 µs @ 1 MHz),
+acking each via `tclear` → checksum `0x10` (IP4). Validates the full 8254 → INT3 latch/clear → IP4 → CPU path.
 
 **Next:** wire the SCC serial RX — host stdin → SCC Rx FIFO in `ioc.sv` (RR0 bit0 Rx-Char-Available) → drive
 `map_src[5]` → MAP_INT0 → IP2, enabling interrupt-driven console input at the IRIX/Linux prompt. (Not needed for

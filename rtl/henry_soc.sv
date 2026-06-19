@@ -213,18 +213,21 @@ module henry_soc
       .sel(w_dev_accept & w_is_ioc), .is_store(~w_is_load),
       .offs(c_req_addr[7:0]), .mask(c_req_mask), .wdata(c_req_store_data),
       .con_full(con_full),   // SCC RR0 Tx-ready reflects console-FIFO backpressure
-      .rdata(w_rd_iocdev), .scc_tx_valid(w_scc_tx_valid), .scc_tx_byte(w_scc_tx_byte));
+      .rdata(w_rd_iocdev), .scc_tx_valid(w_scc_tx_valid), .scc_tx_byte(w_scc_tx_byte),
+      .timer0_irq(w_ioc_timer0));
 
    // INT3 interrupt multiplexor: shares the IOC2 access window (its registers sit
    // at lines 0x80/0x90/0xa0; ioc reads 0 there, so the rdatas simply OR). Device
-   // sources tied 0 for now (skeleton) -- first to wire = SCC RX -> map_src[5].
+   // sources tied 0 for now (skeleton) except the 8254 counter0 -> Timer0 -> IP4;
+   // first remaining to wire = SCC RX -> map_src[5].
+   wire w_ioc_timer0;
    int3 u_int3
      (.clk(clk), .reset(reset),
       .sel(w_dev_accept & w_is_ioc), .is_store(~w_is_load),
       .offs(c_req_addr[7:0]), .mask(c_req_mask), .wdata(c_req_store_data),
       .rdata(w_rd_int3),
       .local0_src(7'd0), .local1_src(8'd0), .map_src(8'd0), .buserr(3'd0),
-      .timer0_irq(1'b0), .timer1_irq(1'b0),
+      .timer0_irq(w_ioc_timer0), .timer1_irq(1'b0),
       .ip2(w_int3_ip2), .ip3(w_int3_ip3), .ip4(w_int3_ip4),
       .ip5(w_int3_ip5), .ip6(w_int3_ip6));
 

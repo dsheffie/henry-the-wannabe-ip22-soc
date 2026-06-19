@@ -98,11 +98,17 @@ static uint32_t load_elf_be32(const char *path) {
     uint32_t p_filesz = be32(ph + 16);
     uint32_t p_memsz  = be32(ph + 20);
     if(p_type != 1 /*PT_LOAD*/) continue;
-    uint64_t pa = (uint64_t)p_paddr & 0x1fffffffull;     // kseg -> physical
-    if(pa + p_memsz > MEM_SIZE) { fprintf(stderr, "segment out of RAM\n"); exit(1); }
-    memcpy(g_mem + pa, f + p_offset, p_filesz);          // .bss already zero
-    printf("loaded segment: pa 0x%08llx  filesz 0x%x  memsz 0x%x\n",
-           (unsigned long long)pa, p_filesz, p_memsz);
+    uint32_t pa = (uint32_t)((uint64_t)p_paddr & 0x1fffffffull);   // kseg -> physical
+    // Mirror the core->memory path henry_soc applies, so a segment lands where the
+    // core will actually fetch it: (1) IP22 System Memory Alias -- the low 512 KB
+    // alias up into Low Local Mem @ 0x08000000 (set bit27); (2) the FPGA address map.
+    // For IRIX (segments at 0x08xxxxxx) both are identity, so this is a no-op there.
+    uint32_t ca = ((pa >> 19) == 0) ? (pa | 0x08000000u) : pa;
+    bool b = false; uint32_t off = fpga_map(ca, &b);
+    if(b || off + p_memsz > MEM_SIZE) { fprintf(stderr, "segment out of RAM\n"); exit(1); }
+    memcpy(g_mem + off, f + p_offset, p_filesz);          // .bss already zero
+    printf("loaded segment: pa 0x%08x -> dram off 0x%08x  filesz 0x%x  memsz 0x%x\n",
+           pa, off, p_filesz, p_memsz);
   }
   munmap(f, st.st_size);
   close(fd);
