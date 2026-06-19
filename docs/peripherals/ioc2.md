@@ -57,6 +57,100 @@ except the two 8254 timer interrupts; it expects already-latched, level-triggere
 = active interrupt regardless of mask/polarity). Each register is a **byte at a 4-byte-aligned address** (kernel
 does `readb`/`writeb`); masks reset to 0 (all masked).
 
+### Interrupt funnel (signal flow)
+The whole block is a funnel: device/source lines → (optional mappable cascade) → per-level AND-mask + OR-reduce →
+one of five CPU IP pins → CP0. **Green** = the SCC-RX → IP2 path we're wiring next; **blue** = implemented + tested
+(Timer0 → IP4); **grey** = tied 0 / not modeled in Henry.
+
+Structured like the RISC-V PLIC spec's Figure 3 (sources → gateways → core → target):
+
+```mermaid
+flowchart LR
+    %% ---------- sources ----------
+    subgraph SRC["sources"]
+      SER["b5 Serial DUART<br/>(SCC RX, internal)"]
+      OMAP["b7:6, b4, b3:0<br/>other mappables"]
+      DV0["Local0 device lines<br/>SCSI/ENET/PP/GFX/FIFO"]
+      DV1["Local1 device lines<br/>video/panel/AC-fail"]
+      T0["8254 counter0"]
+      T1["8254 counter1"]
+      BER["bus err HPC/MC/EISA"]
+    end
+
+    %% ---------- gateways: the mappable cascade ----------
+    subgraph GW["INT3 mappable cascade (gateways)"]
+      ANDM0{{"AND cmeimask0"}}
+      ORM0{{"OR"}}
+      MI0["MAP_INT0"]
+      ANDM1{{"AND cmeimask1"}}
+      ORM1{{"OR"}}
+      MI1["MAP_INT1"]
+      ANDM0 --> ORM0 --> MI0
+      ANDM1 --> ORM1 --> MI1
+    end
+
+    %% ---------- core: the 5 priority levels ----------
+    subgraph CORE["INT3 core (5 levels)"]
+      AND0{{"AND imask0"}}
+      ORL0{{"OR"}}
+      IP2(["IP2"])
+      AND1{{"AND imask1"}}
+      ORL1{{"OR"}}
+      IP3(["IP3"])
+      LAT0["latch · clr tclear0"]
+      IP4(["IP4"])
+      LAT1["latch · clr tclear1"]
+      IP5(["IP5"])
+      IP6(["IP6 (unmaskable)"])
+      AND0 --> ORL0 --> IP2
+      AND1 --> ORL1 --> IP3
+      LAT0 --> IP4
+      LAT1 --> IP5
+    end
+
+    %% ---------- target: the CPU ----------
+    subgraph CPU["R4000 CP0 (target)"]
+      IPR["Cause.IP 6:2"]
+      ANDIM{{"AND Status.IM<br/>and IE, ~EXL, ~ERL"}}
+      TAKE["take interrupt"]
+      IPR --> ANDIM --> TAKE
+    end
+
+    %% ---------- cross-stage wiring ----------
+    SER --> ANDM0
+    SER --> ANDM1
+    OMAP -.-> ANDM0
+    OMAP -.-> ANDM1
+    MI0 -->|"istat0 b7"| AND0
+    DV0 -.-> AND0
+    MI1 -->|"istat1 b3"| AND1
+    DV1 -.-> AND1
+    T0 --> LAT0
+    T1 -.-> LAT1
+    BER -.-> IP6
+    IP2 --> IPR
+    IP3 --> IPR
+    IP4 --> IPR
+    IP5 --> IPR
+    IP6 --> IPR
+
+    classDef live fill:#d4f4d4,stroke:#28a428,stroke-width:2px;
+    classDef impl fill:#d4e4ff,stroke:#3060c0;
+    classDef stub fill:#f2f2f2,stroke:#bbb,color:#888;
+    class SER,ANDM0,ORM0,MI0,AND0,ORL0,IP2 live
+    class T0,LAT0,IP4 impl
+    class OMAP,DV0,DV1,ANDM1,ORM1,MI1,AND1,ORL1,IP3,T1,LAT1,IP5,BER,IP6 stub
+```
+
+The PLIC analogy is exact: the **mappable cascade = the PLIC gateways** (a source passes through a routing mask),
+the **per-level `AND imaskN` + OR = the PLIC core's per-source enable+gather**, and **`Status.IM` at the CPU = the
+PLIC priority threshold** (the final gate before the target sees it).
+
+Reading the green path: SCC RX asserts `map_src[5]` → (`AND cmeimask0`, OR) → **MAP_INT0** → lands in `istat0[7]` →
+(`AND imask0`, OR) → **IP2** → `Cause.IP[2]` → taken once `Status.IM[2]` is set. Note the **two** INT3 masks in
+series (`cmeimask0` then `imask0`) plus the CPU's `Status.IM[2]`. To wire it: drive `map_src[5]` from an `rx_avail`
+output added to `ioc.sv` — `int3.sv` itself is unchanged.
+
 ### 5 output levels → CPU IP pins
 Across the 5 levels there are **27 distinct physical interrupt sources**.
 
@@ -90,6 +184,37 @@ masks: `Map Mask0` (`0x9894`) ORs the selected mappables into **MAP_INT0** → L
 (`0x9898`) ORs them into **MAP_INT1** → Local1 b3 → IP3. Polarity per bit is set by `Map Pol` (default active-low),
 but a hard `1` is always active regardless of polarity. The **SCC serial interrupt is mappable bit 5** → routed
 via Map Mask0 to MAP_INT0 → istat0 b7 (the kernel's "LIO2") → **IP2**; this is the path for keyboard/console RX.
+
+### Where the mappable inputs come from (and what is NOT in the IOC2 spec)
+This is the part that confuses people: **which physical signal drives each mappable input is fixed wiring, and for
+the 6 "general" mappables it is NOT specified by the IOC2 spec at all.** The IOC2 I/O list defines them only as
+package pins:
+
+> `MAP_INT_N<7:6,3:0>` — Input — *"Mappable interrupts for general use. Polarity selectable, default is active low."*
+> `CPU_INT_N<4:0>` — Output — the 5 CPU interrupt outputs (= IP2..IP6).
+
+So the 8 mappable inputs split into two kinds:
+
+| Mappable bit | Source | In the IOC2 spec? |
+|---|---|---|
+| **b5** Serial DUART | **internal** IOC2 macrocell (the on-chip Z8530 SCC) | yes — reserved by §4.5 |
+| **b4** Keyboard/Mouse | **internal** IOC2 macrocell (the on-chip 8042) | yes — reserved by §4.5 |
+| **b7, b6, b3, b2, b1, b0** | **external** pins `MAP_INT_N<7:6,3:0>` — "general use" | **NO source assigned** |
+
+The general-use bits are just polarity-selectable input *pins*. What (if anything) a real Indy soldered to them —
+a GIO-slot interrupt, an expansion device — is a **board/system-level decision documented in the IP22 system spec
+/ schematics and the GIO bus spec, not in this IOC2 document.** There is no prose anywhere in `ioc.pdf` that says
+e.g. "GIO slot X → MAP_INT_N<0>"; the chip only promises "here are 6 general interrupt input pins."
+
+**Consequences for Henry** (the `int3.sv` `map_src[7:0]` port):
+- `map_src[5]` (serial) — *internal* on real silicon ⇒ in Henry it is driven **inside `ioc.sv`** (the SCC RX),
+  which faithfully mirrors the chip. This is the one live source to wire.
+- `map_src[4]` (kbd/mouse) — internal 8042 ⇒ not modeled, tied 0.
+- `map_src[7:6, 3:0]` — external GIO/expansion pins ⇒ Henry has **no GIO**, and the spec assigns them no source,
+  so they are correctly tied 0. There is nothing to "look up" for these — they are unassigned by design.
+
+In short: `int3.sv` only ever *consumes* `map_src`; the source wiring lives in `henry_soc.sv`, and for the general
+mappables there is no canonical source to wire because the IOC2 spec leaves them to the system designer.
 
 ### Henry relevance — what actually fires
 Of the 27 sources, only a handful have a real device model or plausible assertion in Henry:
@@ -127,21 +252,63 @@ acking each via `tclear` → checksum `0x10` (IP4). Validates the full 8254 → 
 `map_src[5]` → MAP_INT0 → IP2, enabling interrupt-driven console input at the IRIX/Linux prompt. (Not needed for
 the polled-TX boot console; IRIX's du driver polls RR0 for TX.)
 
-## 8254 timer
-Standard Intel 82C54 PIT, 3 counters, fed by a divide-by-20 state machine off CLK_20MHz → **1 MHz / 1 µs tick**.
-Counter2 output clocks Counter0 and Counter1; Counter0 terminal count → Timer0 int (INT3 IP4, the system tick),
-Counter1 TC → Timer1 int (IP5). Registers at base `0x1FBD98B0`:
+## 8254 timer (Intel 82C54 PIT)
+Standard Intel **82C54** CHMOS Programmable Interval Timer — three independent 16-bit down-counters. On IP22 it's
+clocked at **exactly 1 MHz** (1 µs/tick — `SGINT_TIMER_CLOCK`, *not* the PC's 1.193 MHz). Counter0 terminal count
+→ INT3 Timer0 → **IP4**, Counter1 → Timer1 → **IP5**, Counter2 = calibration only (`dosample` measures CP0 Count
+against a known Counter2 down-count). *(Source: Intel 82C54 datasheet, Intel order #23124406.)*
 
-| Reg | Addr |
-|-----|------|
-| Counter 0 | `0x98B0` |
-| Counter 1 | `0x98B4` |
-| Counter 2 | `0x98B8` |
-| Control Word | `0x98BC` |
+### Registers & byte addressing
+The four ports are 4-byte-aligned slots in the IOC2 window, but the 82C54 is an 8-bit part wired to the **low byte
+lane**, so each is accessed as a **byte at slot+3** (this is why `ioc.sv` matches on `mask[3/7/11/15]`):
 
-⚠️ Not on the critical console path. IRIX needs a working tick eventually (scheduler/`clock`), but the polled
-serial boot reaches its first console output before the timer matters. Implement as a real 82C54 (mode-3 square
-wave on C0) when chasing past early boot.
+| Port | Slot | Byte addr (kseg1) | henry mask bit |
+|------|------|-------------------|----------------|
+| Counter 0 | `0x98B0` | `0xBFBD98B3` | `mask[3]` |
+| Counter 1 | `0x98B4` | `0xBFBD98B7` | `mask[7]` |
+| Counter 2 | `0x98B8` | `0xBFBD98BB` | `mask[11]` |
+| Control Word | `0x98BC` | `0xBFBD98BF` | `mask[15]` |
+
+(The IOC2's *internal* registers — SYSID, INT3 — sit on byte lane 0; the 8254, an external 8-bit chip, is on lane 3.)
+
+### Control Word format (write to the Control Word port)
+| Bits | Field | Values |
+|------|-------|--------|
+| D7:D6 | **SC** — Select Counter | `00`=C0, `01`=C1, `10`=C2, `11`=Read-Back command |
+| D5:D4 | **RW** — Read/Write | `00`=Counter-Latch command, `01`=LSB only, `10`=MSB only, **`11`=LSB then MSB** |
+| D3:D1 | **M** — Mode | `000`=0, `001`=1, `x10`=**2**, `x11`=**3**, `100`=4, `101`=5 |
+| D0 | **BCD** | `0`=binary 16-bit, `1`=BCD (4 decades) |
+
+So "program Counter0, periodic, 16-bit, lo+hi" is `0x34` (Mode 2) or `0x36` (Mode 3).
+
+### Modes (Intel datasheet)
+| Mode | Name | Behavior |
+|------|------|----------|
+| 0 | Interrupt on Terminal Count | one-shot: OUT low until count expires, then high |
+| 1 | Hardware Retriggerable One-Shot | GATE-triggered one-shot |
+| **2** | **Rate Generator** | divide-by-N, **periodic**; *"typically used to generate a Real Time Clock interrupt"* — OUT pulses low for 1 CLK when the count reaches 1, reloads, repeats every N CLKs |
+| **3** | **Square Wave** | like Mode 2 but 50% duty (OUT high first half, low second); period N; "typically used for Baud rate generation" |
+| 4 | Software Triggered Strobe | one-shot strobe on terminal count |
+| 5 | Hardware Triggered Strobe | GATE-triggered strobe |
+
+**Programming protocol:** write the Control Word, then the initial count to the counter port (for `RW=11`, **LSB
+first, then MSB** — the counter loads and starts on the MSB write). To *read* a live count, first issue a **Counter
+Latch Command** (Control Word with `RW=00` + the target's SC bits), which snapshots the count so it can be read
+LSB-then-MSB without disturbing counting (this is what `dosample` does on Counter2).
+
+### What henry models
+`ioc.sv` implements:
+- **Counter0** as a periodic down-counter at the 1 MHz PIT rate: the 2-byte (LSB→MSB) load starts it; at terminal
+  count (→1) it emits a 1-cycle `timer0_irq` pulse and reloads — i.e. **Mode 2 / Mode 3 edge behavior** (we model
+  the interrupt edge, not the OUT duty cycle). Drives INT3 Timer0 → IP4. **Tested**: `tests/pit`.
+- **Counter2** as the calibration down-counter (Counter-Latch + LSB/MSB read) for `dosample`.
+
+Not modeled (not needed): Modes 0/1/4/5, BCD counting, the GATE inputs, the Read-Back **status** command, the OUT
+duty cycle, Counter1 (a trivial mirror of Counter0), and "count of 1 is illegal in Mode 2." The kernel programs
+Counter0 in a periodic mode and only needs the terminal-count interrupt edge, which is what we emit.
+
+⚠️ IP22 Linux/IRIX drive the real system tick from **CP0 Count/Compare (IP7)**, not this 8254 IRQ — so Counter0→IP4
+is chip-faithful but dormant during a real boot (see the INT3 section).
 
 ## Boot-identification & power regs
 PROM/IRIX probe these during early init; Henry must return plausible values or init stalls/branches wrong. Most
@@ -195,6 +362,8 @@ Everything past step 1 is "don't stall init"; step 1 is the actual deliverable.
 ## Sources
 - `~/code/sgi/docs/indy_docs/ip22/ioc.pdf` — VTI IOC2 spec (Vic Alessi, 1993): §2.1 85CX30 DUART, §2.5 INT3,
   §4.0 register map (p.13), §4.5 INT3 reg bits (p.14–16), §4.6 misc/ID/power regs (p.16–18).
+- Intel **82C54** CHMOS Programmable Interval Timer datasheet (Intel order #23124406) — control-word format, the
+  six counter modes (Mode 2 Rate Generator, Mode 3 Square Wave), and the LSB/MSB write + Counter-Latch read protocol.
 - `~/code/r9999/IP22_CHIP_REGISTERS.md` — IOC2 section (absolute base 0x1FBD9800 correction; SCC console recipe).
 - `~/code/r9999/IRIX_KERNEL_GAPS.md` — console section (measured: IRIX boot console = Z8530 direct, arcs_write=0).
 - `~/code/mame/src/mame/sgi/ioc2.cpp` / `ioc2.h` — golden reference (`scc_dc_w` TX hook, `get_system_id()=0x26`,

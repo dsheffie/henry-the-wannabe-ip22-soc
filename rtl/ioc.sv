@@ -153,13 +153,20 @@ module ioc
    end
 
    // ---- i8254 counter 0 -> Timer0 interrupt (INT3 Level2 / CPU IP4) ----
-   // Periodic down-counter at the PIT rate (shares r_presc with counter2). On
-   // IP22 the kernel does NOT use this (the system tick rides CP0 Count/Compare
-   // on IP7 -- the real 8254 IRQ is buggy), but it completes the INT3 model and
-   // is the cleanest testable real INT3 source. tcnt0 = IOC byte 0xb3 (line 0xb0
-   // byte 3); the control word's counter-select is tcword[7:6] (00 = counter0).
-   // Mode bits are ignored: we always reload at terminal count (periodic), which
-   // matches the rate-generator / square-wave modes the tick driver uses.
+   // Periodic down-counter at the PIT rate (shares r_presc with counter2).
+   // Models the Intel 82C54 in Mode 2 (Rate Generator) / Mode 3 (Square Wave):
+   // a divide-by-N counter that, at terminal count, emits the interrupt edge and
+   // reloads, repeating every N PIT ticks. (Intel 82C54 datasheet, order #23124406:
+   // Mode 2 is "typically used to generate a Real Time Clock interrupt.") We model
+   // only the interrupt EDGE -- a 1-cycle timer0_irq pulse -- not the OUT duty
+   // cycle, and ignore the mode bits (always periodic reload).
+   // Programming: the control word (tcword) selects the counter via bits[7:6]
+   // (00 = counter0) and the access mode via bits[5:4] (11 = LSB-then-MSB); then
+   // the 2-byte count is written LSB then MSB. tcnt0 = IOC byte 0xb3: the 82C54 is
+   // an 8-bit part on the low byte lane, so it sits at slot 0xb0 + 3 (mask[3]).
+   // NB IP22 Linux/IRIX drive the system tick from CP0 Count/Compare (IP7), not
+   // this 8254 IRQ; the 8254 is calibration-only there. Kept as the cleanest
+   // testable real INT3 source (tests/pit).
    wire        w_pit_tcnt0_wr = sel & is_store & w_pit & mask[3];
    wire [7:0]  w_pit_tcnt0_in = wdata[8*3 +: 8];
 
