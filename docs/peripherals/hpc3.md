@@ -1,7 +1,7 @@
 ---
 title: HPC3 — Peripheral/DMA controller
-status: draft (MAME-validated)
-source: SGI IP22 HPC3 spec (hpc3.pdf); MAME golden reference
+status: draft (MAME + live-IRIX-trace validated)
+source: SGI IP22 HPC3 spec (hpc3.pdf); MAME golden reference; live IRIX 6.5 MAME boot trace (2026-06-19)
 ---
 
 # HPC3 — Peripheral / DMA Controller (Henry block spec)
@@ -58,6 +58,54 @@ from low address up:
 | `TXD` | 15 | Transmit-done marker (Ethernet transmit only). |
 | `ByteCount` | 13:0 | Bytes to transfer for this buffer (max one page). On enet-rx, written back with the actual count. |
 
+Visually — one descriptor and its `BC` word:
+
+```text
+      one DMA descriptor (16 bytes: 12 used + 4 pad; quadword-aligned, never crosses a page)
+      +0x0  +-----------------------------------------------------------+
+            |  BP  = data-buffer PHYSICAL address [31:0]                 | --> buffer in DRAM (<= 1 page)
+      +0x4  +-----------------------------------------------------------+
+            |  BC  = flags || byte count        (bit map below)         |
+      +0x8  +-----------------------------------------------------------+
+            |  DP  = next-descriptor PHYSICAL address [31:0]  (link)    | --> next desc (ignored if EOX=1)
+      +0xc  +-----------------------------------------------------------+
+            |  pad  (Linux `hpc_chunk._padding`, keeps the stride = 16) |
+            +-----------------------------------------------------------+
+
+      BC word:
+       31    30    29   28      24 23        16  15   14  13                   0
+      +-----+-----+-----+----------+------------+-----+---+----------------------+
+      | EOX |EOXP | XIE |   RES    |    IPG     | TXD | R |   ByteCount [13:0]    |
+      +-----+-----+-----+----------+------------+-----+---+----------------------+
+         |     |     |        \-------- enet-only: EOXP / IPG / TXD --------/
+         |     |     \--- XIE : raise the channel IRQ after this descriptor completes
+         |     \--------- EOXP: end-of-packet (ethernet rx)
+         \--------------- EOX : end-of-chain - last descriptor; deactivate after; DP ignored
+      For SCSI only EOX, XIE and ByteCount are used.
+```
+
+And the chain is a linked list — HPC3 follows `DP` until it hits a descriptor with `EOX` set:
+
+```text
+  nbdp -.   (SW writes the chain head to nbdp, then ctrl=ACTIVE arms the channel)
+        v
+  +-----------+      +-----------+            +-----------+   zero-length EOX
+  | BP -------+--+   | BP -------+--+         | BP = 0    |   terminator - the
+  | BC = n0   |  |   | BC = n1   |  |   ...   | BC = EOX,0|   SCSI-rx last-byte
+  | DP -------+--|-->| DP -------+--|--> ...->| DP  (n/a) |   workaround (spec 5.1)
+  +-----------+  |   +-----------+  |         +-----------+
+                 v                  v
+               buf0               buf1
+  Per byte, on each WD33C93 DRQ:  DRAM[cbp] <--> WD33C93 ;  cbp++ ;  count-- .
+  At count==0:  if BC.XIE raise channel IRQ ;  if BC.EOX deactivate ;  else fetch next via DP.
+```
+
+Rendered (graphviz — sources `hpc3_dma_descriptor.dot` / `hpc3_dma_chain.dot` in this dir):
+
+![HPC3 DMA descriptor anatomy](hpc3_dma_descriptor.png)
+
+![HPC3 DMA descriptor chain](hpc3_dma_chain.png)
+
 Buffer rules: the `BP` buffer is **≤ one page and cannot cross a page boundary**; enet-rx buffers must be
 doubleword-aligned. For DMA **write** (memory→device) there are no alignment constraints — HPC3 packs bytes
 seamlessly into the fifo. For DMA **read** (device→memory) each buffer's start byte must align with the byte
@@ -71,6 +119,69 @@ HPC3 never runs DMA with the GIO64 "count direction = down" bit asserted.
 The transfer is two-stage: device↔fifo and fifo↔DRAM (a GIO64 burst). Each channel also has a **flush** bit
 (drain remaining fifo bytes to memory and deactivate) and a direction bit (receive/transmit; not present on
 the two Ethernet channels, where direction is implicit). Clearing the start bit aborts the current op.
+
+## SCSI DMA channel — verified register layout & operation ✅
+
+Validated against HPC3 spec §3.0/§3.3, the MAME golden model (`hpc3.cpp`), the Linux IP22 driver
+(`drivers/scsi/sgiwd93.c` + `asm/sgi/hpc3.h`), and a live IRIX 6.5 MAME boot trace (2026-06-19).
+
+**Channel registers** (offsets from base `0x1fb80000`; SCSI0 shown, SCSI1 = +0x2000):
+
+| Offset | Reg | R/W | Meaning |
+|--------|-----|-----|---------|
+| 0x10000 | `cbp`  | R   | current buffer pointer (= descriptor `BP`); HW loads it from the descriptor |
+| 0x10004 | `nbdp` | R/W | next-descriptor pointer (= `DP`); SW writes the chain head here to arm |
+| 0x11000 | `bc`   | R   | byte count (`count[13:0]` live + the `BC` flag bits) |
+| 0x11004 | `ctrl` | R/W | DMA control (bit table below) |
+| 0x11008 | `gio`  | R   | GIO-side fifo pointer |
+| 0x1100c | `dev`  | R   | device-side fifo pointer |
+| 0x11010 | `dmacfg` | R/W | DMA timing / width config |
+| 0x11014 | `piocfg` | R/W | PIO timing / width config |
+
+**Control register (`ctrl` @ 0x11004)** — bit values confirmed in MAME `hpc3.h` (`HPC3_DMACTRL_*`), Linux
+`hpc3.h` (`HPC3_SCTRL_*`), and the live IRIX trace:
+
+| Bit | Mask | Name | Meaning |
+|-----|------|------|---------|
+| 0 | 0x01 | IRQ | DMA-done / parity IRQ asserted; **read-only, cleared on read of ctrl** |
+| 1 | 0x02 | ENDIAN | 0 = big-endian, 1 = little |
+| 2 | 0x04 | DIR | **1 = memory→device (write), 0 = device→memory (read)** |
+| 3 | 0x08 | FLUSH | flush SCSI fifo to memory (program only when receiving) |
+| 4 | 0x10 | ACTIVE | ch_active / start DMA; HW clears it when the transfer completes |
+| 5 | 0x20 | AMASK | write-protect for ACTIVE (lets FLUSH be written without disturbing ACTIVE) |
+| 6 | 0x40 | CRESET | reset the DMA channel **and** the external WD33C93 |
+| 7 | 0x80 | PERR | parity error on the SCSI iface; read-only, cleared on read |
+
+⚠️ The Linux header comment (`asm/sgi/hpc3.h`) labels DIR backwards (`"1=dev2mem"`); the driver *code*, HPC3
+spec §3.3, and MAME all agree **DIR=1 is memory→device**. Trust the code.
+
+**Operation** (Linux `sgiwd93.c`, confirmed by the IRIX trace):
+1. SW builds the descriptor chain in DRAM (each buffer ≤ 8192 B) and **appends a zero-length `EOX`
+   descriptor** (the SCSI-rx last-byte-stuck workaround, spec §5.1).
+2. SW writes `nbdp` = chain head, then `ctrl = ACTIVE` (read) or `ACTIVE|DIR` (write) to arm.
+3. HW fetches the first descriptor (`cbp/bc/nbdp ← {BP,BC,DP}`), then on each WD33C93 **DRQ** moves one byte
+   between `DRAM[cbp]` and the controller, `cbp++`, `count--`. At `count==0`: if `BC.XIE` (bit 29) raise the
+   channel IRQ (`intstat` bit 8/9); if `BC.EOX` (bit 31) deactivate (clear ACTIVE); else fetch the next
+   descriptor via `DP`.
+4. Teardown: `ctrl |= FLUSH`, spin while `ACTIVE`, then `ctrl = 0`. Reset: `ctrl = CRESET; udelay(50); ctrl=0`.
+
+MAME's golden model moves SCSI DMA **byte-at-a-time directly between DRAM and the controller, bypassing the
+fifo entirely** — so the zero-length terminator is harmless and Henry may model it the same way.
+
+**WD33C93 controller**: 8-bit device in the HD0 window at `0x44000` (HD1 `0x4c000`), accessed as
+**SASR = base+3 (0x44003)** (register-select pointer) and **SCMD = base+7 (0x44007)** (data; auto-increments
+the pointer). The SCSI CDB lives in the controller's register file (regs 0x03–0x0e); the workhorse command is
+**Select-w/Atn-and-Transfer (0x18 ← COMMAND, 0x08)**; reading SCSI Status (reg 0x17) clears INTRQ; success
+code = `0x16` (`SELECT_TRANSFER_SUCCESS`). Init: `dma_mode = CTRL_BURST (0x20)`, `FS = 20 MHz`, host ID 7.
+
+**SCSI command set IRIX actually issues** (live full-boot-to-userland trace): READ(10) `0x28` (the workhorse,
+~3000 issued) and WRITE(10) `0x2a` for data; INQUIRY `0x12`, TEST UNIT READY `0x00`, READ CAPACITY(10) `0x25`,
+MODE SENSE(6) `0x1a`, MODE SELECT(6) `0x15`, REQUEST SENSE `0x03`, START-STOP-UNIT `0x1b` for probe/config.
+**No READ(6)** — IRIX uses READ(10): `28 00 [LBA:4 BE] 00 [len:2 BE] 00`, transferring `len`×512 B (transfers
+up to 320 blocks = 160 KB seen, i.e. multi-descriptor chains). The target uses **SCSI disconnect/reconnect**
+during seek latency (thousands of disconnect/reselect events in the trace) — a real-bus optimization the
+WD33C93 auto-sequencer handles transparently; a fused controller+disk model may complete in one shot and post
+the same `0x16` status without modeling it.
 
 ## Cache coherence — NONE in hardware (the mandatory software contract)
 
@@ -90,6 +201,17 @@ This is the actual hardware path that the r9999 cache-op findings came from, and
 Henry's correct model: HPC3 DMA reads/writes DRAM directly (no cache probe), and the r9999 core honors those
 L1d cache ops. Zero coherence HW on the HPC3 side is spec-correct — do **not** add snooping.
 
+✅ **Empirically confirmed (live IRIX 6.5 MAME trace, 2026-06-19).** During disk I/O the IRIX *kernel* issues a
+flood of D-cache ops — **102,509** in one ~13M-insn window, of which **99.5 % are `Hit_Writeback_Invalidate_D`**
+(cache op 5; plus a few `Hit_Invalidate_D` / `Hit_Writeback_D`) — and their addresses fall squarely on the DMA
+buffer regions: the KSEG0 cached alias `0x88xxxxxx` of the phys-`0x08xxxxxx` low-DRAM descriptors/buffers, and
+mapped buffer-cache pages at `0xc0xxxxxx`. The **PROM/firmware, by contrast, issues ZERO** cache ops around its
+SCSI DMA — it sidesteps coherence by treating its buffers as uncached. So IRIX uses exactly the software-
+coherence model above: **cached DMA buffers + `Hit_Writeback_Invalidate_D`** (writeback before a device-read
+DMA so the device sees current data; invalidate before the CPU reads a device-write buffer so it doesn't get
+stale cache lines). This is direct hardware-trace evidence that r9999's L1d cache ops are load-bearing for DMA
+correctness, and that the HPC3 master path must hit DRAM with **no** cache probe.
+
 ## I/O sub-map
 
 Offsets from base `0x1fb80000`. (✅ = matches MAME golden ref; ⚠️ = MAME correction.)
@@ -104,13 +226,15 @@ Offsets from base `0x1fb80000`. (✅ = matches MAME golden ref; ⚠️ = MAME co
 | 0x48000–0x4ffff | SCSI HD1 device window | decode base 0x48000; **WD33C93 regs at +0x4000 = 0x4c000** ⚠️ |
 | 0x54000 | ENET device (Seeq 8003) | |
 | 0x58000 | PBUS device PIO | + dma/pio config 0x5c000 / 0x5d000 |
-| 0x60000–0xfffff | **bbRAM / RTC (ds1386)** | 32K-word decode, byte-per-word ×4 ⚠️ (MAME stopped at 0x7ffff) |
+| 0x60000–0x7ffff | **bbRAM / RTC (ds1386)** | byte-per-word ×4; spec §3.0 `pbus.bbram` = 0x1fbe0000–0x1fbfffff = 128 KB ✅ |
 
 ⚠️ **SCSI window correction:** the WD33C93 register windows live at **0x44000 / 0x4c000** (device-base
 **+0x4000**), *not* 0x40000 / 0x48000 — those are the decode bases. MAME's earlier sub-map had this wrong.
 
-⚠️ **bbRAM window correction:** the battery-backed RAM / RTC decodes the full **0x60000–0xfffff** (broader than
-MAME's 0x60000–0x7ffff).
+⚠️ **bbRAM window (corrected 2026-06-19 from the spec):** the battery-backed RAM / RTC decodes **0x60000–0x7ffff
+only** (spec §3.0: `pbus.bbram` = 0x1fbe0000–0x1fbfffff = 128 KB). An earlier draft of this doc claimed it ran
+to 0xfffff — that was **wrong**; MAME's 0x60000–0x7ffff and the spec agree. The whole first-chip I/O window is
+exactly 512 KB (0x80000), which is also why interp_mips's `pa & 0x7ffff` decode mask is correct.
 
 PIO access rules: all HPC3 register accesses are **word (32-bit)** accesses with word-aligned addresses (the
 two LSBs of the register address are ignored); FIFO-RAM accesses are **doubleword**; PROM accesses may be
@@ -193,7 +317,10 @@ and the general PBUS DMA channels.** They can be decode-only / read-as-0 stubs i
   register immediately before the descriptor read, back-to-back.** Skipping the dummy read returns wrong data.
   Henry must reproduce this so PROM/IRIX driver sequences (which issue the dummy read) match real timing.
 - ⚠️ **`intstat` split (chip quirk):** DMA interrupt status is split across two registers — bits [4:0] at
-  0x30000 and bits [9:5] at 0x3000c. Drivers read both; model the split exactly.
+  0x30000 and bits [9:5] at 0x3000c (SCSI ch0/ch1 = bits 8/9). Drivers read both. ⚠️ The spec is
+  self-inconsistent on the exact split — §3.1 says [4:0]/[9:5], §5.2 (Misfeatures) says [5:0]/[9:6]. MAME
+  sidesteps it by returning the **full word at both** 0x30000 and 0x3000c, and that boots IRIX — Henry can do
+  the same unless a driver proves it needs the precise split.
 - ⚠️ **SCSI-rx drops the last byte:** the SCSI receive path leaves the final byte stuck in the fifo. The IRIX
   driver works around it by appending a **0-count descriptor** to flush. Henry must model the last-byte-stuck
   behavior so the workaround descriptor is actually needed (and harmless).
