@@ -1,0 +1,21 @@
+// HPC3 DMA descriptor anatomy (16 bytes: 12 used + 4 pad).
+// Render: dot -Tpng hpc3_dma_descriptor.dot -o hpc3_dma_descriptor.png
+digraph hpc3_descriptor {
+  rankdir=TB;
+  bgcolor="white";
+  graph [fontname="Helvetica", ranksep=0.6, label="HPC3 DMA descriptor (word order {BP, BC, DP}, quadword-aligned)", labelloc="t", fontsize=13];
+  node  [fontname="Helvetica", fontsize=11];
+  edge  [fontname="Helvetica", fontsize=10];
+
+  desc [shape=record, style=filled, fillcolor="#f7f7f7", label=
+    "{ +0x0  BP : memory-buffer PHYSICAL address [31:0] | <bc> +0x4  BC : flags + byte count | +0x8  DP : next-descriptor PHYSICAL address [31:0] | +0xc  pad  (Linux hpc_chunk._padding; keeps stride = 16 B) }"];
+
+  bc [shape=record, style=filled, fillcolor="#eef3fb", label=
+    "EOX [31]|EOXP [30]|XIE [29]|RES [28:24]|IPG [23:16]|TXD [15]|R [14]|ByteCount [13:0]"];
+
+  note [shape=plaintext, label=
+    "EOX  = end-of-chain (last desc; deactivate after; DP ignored)\lXIE  = raise channel IRQ when this desc completes\lEOXP / IPG / TXD = ethernet-only\lFor SCSI only EOX, XIE, ByteCount are used.\l"];
+
+  desc:bc -> bc [label="BC word", style=dashed];
+  bc -> note [style=invis];
+}

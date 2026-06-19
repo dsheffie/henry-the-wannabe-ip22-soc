@@ -1,0 +1,35 @@
+// HPC3 DMA descriptor chain (linked list, walked via DP until EOX).
+// Render: dot -Tpng hpc3_dma_chain.dot -o hpc3_dma_chain.png
+digraph hpc3_dma_chain {
+  rankdir=LR;
+  bgcolor="white";
+  graph [fontname="Helvetica", nodesep=0.45, ranksep=0.85,
+         label="HPC3 SCSI DMA descriptor chain (pure-physical scatter-gather)", labelloc="t", fontsize=13];
+  node  [fontname="Helvetica", fontsize=11];
+  edge  [fontname="Helvetica", fontsize=10];
+
+  arm [shape=box, style="rounded,filled", fillcolor="#dfe7f5",
+       label="nbdp\n(SW writes chain head;\nctrl = ACTIVE arms channel)"];
+
+  d0 [shape=record, style=filled, fillcolor="#f7f7f7",
+      label="<bp> BP | <bc> BC : flags + count = n0 | <dp> DP"];
+  d1 [shape=record, style=filled, fillcolor="#f7f7f7",
+      label="<bp> BP | <bc> BC : flags + count = n1 | <dp> DP"];
+  dE [shape=record, style=filled, fillcolor="#f3e2e2",
+      label="<bp> BP = 0 | <bc> BC : EOX, count = 0 | <dp> DP (unused)"];
+
+  buf0 [shape=box, style=filled, fillcolor="#e6f2e6", label="data buffer 0\n(DRAM, <= 1 page)"];
+  buf1 [shape=box, style=filled, fillcolor="#e6f2e6", label="data buffer 1\n(DRAM, <= 1 page)"];
+
+  arm   -> d0:bc  [label="head"];
+  d0:dp -> d1:bc  [label="DP link"];
+  d1:dp -> dE:bc  [label="DP link"];
+  d0:bp -> buf0   [label="BP", style=dashed];
+  d1:bp -> buf1   [label="BP", style=dashed];
+
+  { rank=same; buf0; buf1; }
+
+  cap [shape=plaintext, label=
+    "Per byte, on each WD33C93 DRQ:  DRAM[cbp] <-> WD33C93 ;  cbp++ ;  count--\lAt count==0:  if BC.XIE raise channel IRQ ;  if BC.EOX deactivate ;  else fetch next via DP\lThe zero-length EOX terminator is the SCSI-rx last-byte-stuck workaround (spec 5.1).\l"];
+  dE -> cap [style=invis];
+}
