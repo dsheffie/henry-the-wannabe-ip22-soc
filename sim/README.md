@@ -9,7 +9,7 @@ functional models.
 
 ```sh
 make build                                   # Verilate henry_soc + the r9999 core + tb
-make run                                      # boot /unix with arcs_irix.bin
+make run                                      # boot /unix with henry_arcs.bin (FSBL)
 make run KERNEL=foo.elf ARCS=blob MAXCYC=... # boot something else
 ```
 

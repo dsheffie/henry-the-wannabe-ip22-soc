@@ -14,7 +14,8 @@ VERILATOR ?= /home/dsheffie/local/bin/verilator
 TOP        = henry_soc
 
 KERNEL    ?= /home/dsheffie/code/chd-dumper/extracted/unix
-ARCS      ?= $(R9999)/arcs/arcs_irix.bin
+ARCS      ?= $(R9999)/arcs/henry_arcs.bin
+START_PC  ?= 0xbfc00000      # FSBL reset vector (henry_arcs); one blob boots Linux + IRIX
 
 VFLAGS = -cc --exe -O3 \
          -Wno-fatal -Wno-WIDTH -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE \
@@ -33,7 +34,7 @@ obj_dir/henry_tb: $(RTL)/henry_soc.sv $(RTL)/mc.sv $(RTL)/hpc3.sv $(RTL)/ioc.sv 
 build: obj_dir/henry_tb
 
 run: obj_dir/henry_tb
-	./obj_dir/henry_tb --kernel $(KERNEL) --arcs $(ARCS)
+	./obj_dir/henry_tb --kernel $(KERNEL) --arcs $(ARCS) --start-pc $(START_PC)
 
 clean:
 	rm -rf obj_dir

@@ -121,9 +121,13 @@ static void load_blob(const char *path, uint64_t pa) {
   if(fd < 0) { fprintf(stderr, "cannot open %s\n", path); exit(1); }
   struct stat st; fstat(fd, &st);
   uint8_t *f = (uint8_t*)mmap(nullptr, st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
-  // place at the DRAM offset the core will actually read (the FSBL lives in the
-  // PROM region, which the address map shadows into DRAM @ 0x10c00000).
-  bool bad = false; uint32_t off = fpga_map((uint32_t)pa, &bad);
+  // place at the DRAM offset the core will actually read. Mirror the full
+  // core->memory path (System Memory Alias for low <512KB -> 0x08000000, then
+  // fpga_map) just like load_elf_be32, so a stub-style arcs linked low (IRIX:
+  // pa 0x1000, arcs_boot @ pa 0x3000) lands where the core fetches it, AND the
+  // FSBL-style arcs at pa 0x1fc00000 still maps to the PROM shadow 0x10c00000.
+  uint32_t cpa = ((((uint32_t)pa) >> 19) == 0) ? (((uint32_t)pa) | 0x08000000u) : (uint32_t)pa;
+  bool bad = false; uint32_t off = fpga_map(cpa, &bad);
   memcpy(g_mem + off, f, st.st_size);
   printf("loaded ARCS firmware (%lld bytes) at physical 0x%llx (dram off 0x%x)\n",
          (long long)st.st_size, (unsigned long long)pa, off);
@@ -211,10 +215,15 @@ int main(int argc, char **argv) {
   std::vector<uint64_t> dump_pas;
   std::string trace_file;
   std::string rx_str;       // bytes to feed into the SCC serial Rx FIFO (--rx)
+  // --arcs load address (physical). The henry_arcs FSBL firmware loads at the PROM
+  // 0x1fc00000 (--start-pc 0xbfc00000). --arcs-addr overrides for a non-FSBL blob
+  // that links low (e.g. 0x1000). Default = FSBL.
+  uint64_t arcs_addr = 0x1fc00000ull;
   for(int i = 1; i < argc; i++) {
     std::string a = argv[i];
     if(a == "--kernel" && i+1 < argc)      kernel = argv[++i];
     else if(a == "--arcs" && i+1 < argc)   arcs   = argv[++i];
+    else if(a == "--arcs-addr" && i+1 < argc) arcs_addr = strtoull(argv[++i], nullptr, 0);
     else if(a == "--maxcyc" && i+1 < argc) max_cyc = strtoull(argv[++i], nullptr, 0);
     else if(a == "--start-pc" && i+1 < argc) start_pc = (uint32_t)strtoull(argv[++i], nullptr, 0);
     else if(a == "--dump" && i+1 < argc)   dump_pas.push_back(strtoull(argv[++i], nullptr, 0));
@@ -231,12 +240,14 @@ int main(int argc, char **argv) {
   uint32_t entry = load_elf_be32(kernel.c_str());
   uint32_t kentry = entry;                  // real kernel entry (trace starts here)
   if(!arcs.empty()) {
-    load_blob(arcs.c_str(), 0x1fc00000);   // FSBL lives in the Boot PROM region
-    // patch the FSBL kernel-entry slot @ phys 0x1fc00008 with the real ELF entry
-    // (mirrors the mips-axi driver), so the FSBL jumps to the right place even
-    // after a kernel rebuild shifts the entry off the baked-in default.
-    { bool b=false; uint32_t soff = fpga_map(0x1fc00008u, &b); put_be32(soff, kentry);
-      printf("patched FSBL kentry slot @0x1fc00008 (dram 0x%x) = 0x%08x\n", soff, kentry); }
+    load_blob(arcs.c_str(), arcs_addr);    // FSBL @0x1fc00000, or stub-style @0x1000 (--arcs-addr)
+    // FSBL path only: patch the kernel-entry slot @ phys 0x1fc00008 with the real
+    // ELF entry (mirrors the mips-axi driver). A non-FSBL blob loaded low hardcodes
+    // its kentry internally, so skip the patch when not loading at the PROM.
+    if(arcs_addr == 0x1fc00000ull) {
+      bool b=false; uint32_t soff = fpga_map(0x1fc00008u, &b); put_be32(soff, kentry);
+      printf("patched FSBL kentry slot @0x1fc00008 (dram 0x%x) = 0x%08x\n", soff, kentry);
+    }
     if(start_pc) { entry = start_pc; printf("fake-bios: start pc = %08x\n", start_pc); }
     else         entry = install_arcs_handoff(entry); // sash-style argv/envp handoff -> stub -> kernel
   }
