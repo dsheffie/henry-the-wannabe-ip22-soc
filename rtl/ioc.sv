@@ -19,7 +19,10 @@ module ioc
     output logic [127:0] rdata,
     output logic         scc_tx_valid,
     output logic [7:0]   scc_tx_byte,
-    output logic         timer0_irq);  // 8254 counter0 -> INT3 Timer0 (CPU IP4)
+    output logic         timer0_irq,   // 8254 counter0 -> INT3 Timer0 (CPU IP4)
+    input  logic         scc_rx_push,  // host/TB: push one byte into the SCC chanA Rx FIFO
+    input  logic [7:0]   scc_rx_data,
+    output logic         rx_avail);    // SCC Rx FIFO non-empty -> INT3 map_src[5] (Serial DUART)
 
    // SYSID stored 0x26000000 -> BE lw yields 0x00000026 (board id in bits[7:0]).
    localparam [31:0] IOC2_SYSID = 32'h26000000;
@@ -27,7 +30,8 @@ module ioc
    // Tx-Buffer-Empty (bit2) reflects "console FIFO can accept a byte": clear it
    // when the FIFO is full so the du driver's RR0 poll rate-limits to the drain
    // (otherwise it blasts and overflows the 8-deep FIFO -> dropped console bytes).
-   wire [7:0] w_rr0 = con_full ? (SCC_RR0 & 8'hfb) : SCC_RR0;  // &~0x04
+   // RR0 also carries bit0 = Rx Char Available (set while the chanA Rx FIFO is non-empty).
+   wire [7:0] w_rr0 = (con_full ? (SCC_RR0 & 8'hfb) : SCC_RR0) | (rx_avail ? 8'h01 : 8'h00);
 
    wire w_scc = (offs == 8'h30);               // the SCC 16-byte window @ IOC+0x30
    integer i, b;
@@ -65,13 +69,55 @@ module ioc
                                                               : (r_t2_load - w_t2_dec[15:0]);
    wire [7:0]  w_t2_rdbyte = r_t2_rd_phase ? r_t2_latch[15:8] : r_t2_latch[7:0];
 
+   // ---- SCC channel-A Rx FIFO (serial console input -> INT3 serial mappable) ----
+   // Host bytes are pushed via scc_rx_push/scc_rx_data. RR0 bit0 (Rx Char Available,
+   // above) reflects FIFO non-empty; a read of the chanA DATA byte (line 0x30 byte 7,
+   // mask[7] = IOC 0x37) returns the front byte and pops it. rx_avail drives INT3
+   // map_src[5] (Serial DUART) -- the SCC is an internal IOC2 macrocell, so this
+   // mappable source lives here, not on an external pin. Level-triggered: rx_avail
+   // stays high until the FIFO drains, so the ISR clears the IRQ by reading the bytes.
+   localparam int RXN = 8;
+   logic [7:0] r_rx_fifo [0:RXN-1];
+   logic [2:0] r_rx_wptr, r_rx_rptr;
+   logic [3:0] r_rx_count;
+   wire        w_rx_empty = (r_rx_count == 4'd0);
+   wire        w_rx_full  = (r_rx_count == 4'(RXN));
+   wire [7:0]  w_rx_front = r_rx_fifo[r_rx_rptr];
+   wire        w_rx_rd    = sel & ~is_store & w_scc & mask[7];   // chanA DATA read @0x37
+   wire        w_rx_push  = scc_rx_push & ~w_rx_full;
+   wire        w_rx_pop   = w_rx_rd     & ~w_rx_empty;
+   assign      rx_avail   = ~w_rx_empty;
+
+   always_ff @(posedge clk) begin
+      if(reset) begin
+         r_rx_wptr  <= 3'd0;
+         r_rx_rptr  <= 3'd0;
+         r_rx_count <= 4'd0;
+      end
+      else begin
+         if(w_rx_push) begin
+            r_rx_fifo[r_rx_wptr] <= scc_rx_data;
+            r_rx_wptr            <= r_rx_wptr + 3'd1;
+         end
+         if(w_rx_pop)
+            r_rx_rptr <= r_rx_rptr + 3'd1;
+         case({w_rx_push, w_rx_pop})
+           2'b10:   r_rx_count <= r_rx_count + 4'd1;
+           2'b01:   r_rx_count <= r_rx_count - 4'd1;
+           default: r_rx_count <= r_rx_count;
+         endcase
+      end
+   end
+
    always_comb begin
       rdata = '0;
       if(w_scc) begin
-         // SCC: CONTROL bytes -> RR0, DATA bytes -> 0 (no Rx)
+         // SCC: CONTROL bytes -> RR0; chanA DATA byte (0x37) -> Rx FIFO front.
          for(b = 0; b < 16; b = b + 1)
            if(mask[b] & (((b>>2)&1) == 0))
              rdata[8*b +: 8] = w_rr0;
+         if(mask[7])
+           rdata[8*7 +: 8] = w_rx_front;
       end
       else if(w_pit) begin
          // i8254 counter 2 read: tcnt2 (byte 11) returns the latched lo/hi byte.

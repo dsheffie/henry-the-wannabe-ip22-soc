@@ -210,6 +210,7 @@ int main(int argc, char **argv) {
   uint32_t start_pc = 0;   // fake-BIOS: start in the arcs boot stub (skip C++ handoff)
   std::vector<uint64_t> dump_pas;
   std::string trace_file;
+  std::string rx_str;       // bytes to feed into the SCC serial Rx FIFO (--rx)
   for(int i = 1; i < argc; i++) {
     std::string a = argv[i];
     if(a == "--kernel" && i+1 < argc)      kernel = argv[++i];
@@ -218,7 +219,9 @@ int main(int argc, char **argv) {
     else if(a == "--start-pc" && i+1 < argc) start_pc = (uint32_t)strtoull(argv[++i], nullptr, 0);
     else if(a == "--dump" && i+1 < argc)   dump_pas.push_back(strtoull(argv[++i], nullptr, 0));
     else if(a == "--trace" && i+1 < argc)  trace_file = argv[++i];
+    else if(a == "--rx" && i+1 < argc)     rx_str = argv[++i];
   }
+  std::vector<uint8_t> rx_bytes(rx_str.begin(), rx_str.end());
   if(kernel.empty()) { fprintf(stderr, "usage: %s --kernel <elf> [--arcs <blob>] [--maxcyc N]\n", argv[0]); return 1; }
 
   g_mem = (uint8_t*)mmap(nullptr, MEM_SIZE, PROT_READ|PROT_WRITE,
@@ -257,6 +260,7 @@ int main(int argc, char **argv) {
   // ---- reset ----
   tb->reset = 1; tb->resume = 0; tb->resume_pc = 0;
   tb->mem_rsp_valid = 0; tb->mem_rsp_bad = 0; tb->putchar_fifo_pop = 0;
+  tb->scc_rx_valid = 0; tb->scc_rx_byte = 0;
   for(int i = 0; i < 4; i++) tick();
 
   // ---- launch the core at the kernel entry (mirrors r9999 top.cc) ----
@@ -282,6 +286,14 @@ int main(int argc, char **argv) {
   // the mem_rsp set last cycle), THEN read mem_req and present mem_rsp for the
   // next posedge, then negedge eval.
   for(uint64_t cyc = 0; cyc < max_cyc && !halted && !Verilated::gotFinish(); cyc++) {
+    // SCC serial Rx injection (--rx): drip one byte into the IOC2 Rx FIFO every 64
+    // cycles once the core is running, so a directed test observes a serial IRQ.
+    tb->scc_rx_valid = 0;
+    { static size_t rx_idx = 0;
+      if(rx_idx < rx_bytes.size() && cyc >= 2000 && (cyc % 64) == 0) {
+        tb->scc_rx_valid = 1; tb->scc_rx_byte = rx_bytes[rx_idx++];
+      } }
+
     // drain the console (SCC UART + core putchar, merged on the putchar port):
     // decide pop from the settled pre-posedge state so the posedge-clocked FIFO
     // actually advances rptr (assert pop BEFORE the edge, print the popped head).
