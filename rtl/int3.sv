@@ -24,7 +24,7 @@
 //                -> istat0[7] (LIO2) -> IP2.
 //
 // Same 16-byte-granular device interface as ioc/mc/hpc3: offs = the 16-byte
-// line base, byte b within the line = data[8*b +: 8], selected by mask[b].
+// line base; byte b within the line = data bits [8*b+7 : 8*b], selected by mask[b].
 // -----------------------------------------------------------------------------
 module int3
   (input  logic         clk,
@@ -85,20 +85,20 @@ module int3
    always_comb begin
       rdata = '0;
       if(offs == 8'h80) begin
-         if(mask[3])  rdata[8*3  +: 8] = w_istat0;     // LOCAL0 STATUS @0x83
-         if(mask[7])  rdata[8*7  +: 8] = r_imask0;     // LOCAL0 MASK   @0x87
-         if(mask[11]) rdata[8*11 +: 8] = w_istat1;     // LOCAL1 STATUS @0x8b
-         if(mask[15]) rdata[8*15 +: 8] = r_imask1;     // LOCAL1 MASK   @0x8f
+         if(mask[3])  rdata[31:24]   = w_istat0;       // LOCAL0 STATUS @0x83 (byte 3)
+         if(mask[7])  rdata[63:56]   = r_imask0;       // LOCAL0 MASK   @0x87 (byte 7)
+         if(mask[11]) rdata[95:88]   = w_istat1;       // LOCAL1 STATUS @0x8b (byte 11)
+         if(mask[15]) rdata[127:120] = r_imask1;       // LOCAL1 MASK   @0x8f (byte 15)
       end
       else if(offs == 8'h90) begin
-         if(mask[3])  rdata[8*3  +: 8] = w_vmeistat;   // MAP STATUS    @0x93
-         if(mask[7])  rdata[8*7  +: 8] = r_cmeimask0;  // MAP MASK0     @0x97
-         if(mask[11]) rdata[8*11 +: 8] = r_cmeimask1;  // MAP MASK1     @0x9b
-         if(mask[15]) rdata[8*15 +: 8] = r_cmepol;     // MAP POL       @0x9f
+         if(mask[3])  rdata[31:24]   = w_vmeistat;     // MAP STATUS    @0x93 (byte 3)
+         if(mask[7])  rdata[63:56]   = r_cmeimask0;    // MAP MASK0     @0x97 (byte 7)
+         if(mask[11]) rdata[95:88]   = r_cmeimask1;    // MAP MASK1     @0x9b (byte 11)
+         if(mask[15]) rdata[127:120] = r_cmepol;       // MAP POL       @0x9f (byte 15)
       end
       else if(offs == 8'ha0) begin
          // TIMER CLEAR @0xa3 is write-only (reads 0).
-         if(mask[7])  rdata[8*7  +: 8] = w_errstat;    // ERROR STAT    @0xa7
+         if(mask[7])  rdata[63:56]   = w_errstat;      // ERROR STAT    @0xa7 (byte 7)
       end
    end
 
@@ -106,7 +106,7 @@ module int3
    wire       w_l0      = sel & is_store & (offs == 8'h80);
    wire       w_l1      = sel & is_store & (offs == 8'h90);
    wire       w_tc      = sel & is_store & (offs == 8'ha0) & mask[3];   // TIMER CLEAR @0xa3
-   wire [7:0] w_tclear  = wdata[8*3 +: 8];
+   wire [7:0] w_tclear  = wdata[31:24];                  // byte 3
 
    always_ff @(posedge clk) begin
       if(reset) begin
@@ -119,11 +119,11 @@ module int3
          r_timer1    <= 1'b0;
       end
       else begin
-         if(w_l0 & mask[7])  r_imask0    <= wdata[8*7  +: 8];   // LOCAL0 MASK  @0x87
-         if(w_l0 & mask[15]) r_imask1    <= wdata[8*15 +: 8];   // LOCAL1 MASK  @0x8f
-         if(w_l1 & mask[7])  r_cmeimask0 <= wdata[8*7  +: 8];   // MAP MASK0    @0x97
-         if(w_l1 & mask[11]) r_cmeimask1 <= wdata[8*11 +: 8];   // MAP MASK1    @0x9b
-         if(w_l1 & mask[15]) r_cmepol    <= wdata[8*15 +: 8];   // MAP POL      @0x9f
+         if(w_l0 & mask[7])  r_imask0    <= wdata[63:56];    // LOCAL0 MASK  @0x87 (byte 7)
+         if(w_l0 & mask[15]) r_imask1    <= wdata[127:120];  // LOCAL1 MASK  @0x8f (byte 15)
+         if(w_l1 & mask[7])  r_cmeimask0 <= wdata[63:56];    // MAP MASK0    @0x97 (byte 7)
+         if(w_l1 & mask[11]) r_cmeimask1 <= wdata[95:88];    // MAP MASK1    @0x9b (byte 11)
+         if(w_l1 & mask[15]) r_cmepol    <= wdata[127:120];  // MAP POL      @0x9f (byte 15)
          // 8254 timer interrupts latch on assert, clear on TIMER CLEAR bit0/1.
          if(timer0_irq)              r_timer0 <= 1'b1;
          else if(w_tc & w_tclear[0]) r_timer0 <= 1'b0;

@@ -55,8 +55,8 @@ module ioc
    wire        w_pit_tcword_wr= sel &  is_store & w_pit & mask[15];
    wire        w_pit_tcnt2_wr = sel &  is_store & w_pit & mask[11];
    wire        w_pit_tcnt2_rd = sel & ~is_store & w_pit & mask[11];
-   wire [7:0]  w_pit_tcword   = wdata[8*15 +: 8];
-   wire [7:0]  w_pit_tcnt2_in = wdata[8*11 +: 8];
+   wire [7:0]  w_pit_tcword   = wdata[127:120];   // tcword = byte 15
+   wire [7:0]  w_pit_tcnt2_in = wdata[95:88];     // tcnt2  = byte 11
 
    logic [31:0] r_cycle;        // PIT-tick counter, advanced at ~1.193 MHz by r_presc
    logic [6:0]  r_presc;        // core-clock prescaler, 0..PIT_DIV-1 (no RTL divider)
@@ -117,12 +117,12 @@ module ioc
            if(mask[b] & (((b>>2)&1) == 0))
              rdata[8*b +: 8] = w_rr0;
          if(mask[7])
-           rdata[8*7 +: 8] = w_rx_front;
+           rdata[63:56] = w_rx_front;   // chanA DATA = byte 7
       end
       else if(w_pit) begin
          // i8254 counter 2 read: tcnt2 (byte 11) returns the latched lo/hi byte.
          if(mask[11])
-           rdata[8*11 +: 8] = w_t2_rdbyte;
+           rdata[95:88] = w_t2_rdbyte;   // tcnt2 = byte 11
       end
       else begin
          // word-granular IOC2 regs (only SYSID @ +0x58 modeled)
@@ -214,7 +214,7 @@ module ioc
    // this 8254 IRQ; the 8254 is calibration-only there. Kept as the cleanest
    // testable real INT3 source (tests/pit).
    wire        w_pit_tcnt0_wr = sel & is_store & w_pit & mask[3];
-   wire [7:0]  w_pit_tcnt0_in = wdata[8*3 +: 8];
+   wire [7:0]  w_pit_tcnt0_in = wdata[31:24];   // tcnt0 = byte 3
 
    logic [15:0] r_t0_load, r_t0_count;
    logic        r_t0_wr_phase, r_t0_loading, r_t0_running;
