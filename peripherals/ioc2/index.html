@@ -1773,8 +1773,11 @@ not optional. ~10 lines of logic (decode 2 addrs, mux a constant, forward a byte
 <p>Base <code>0x1FBD9880</code> (registers <code>0x1FBD9880</code>–<code>0x1FBD98AC</code>, ioc.pdf §2.5 + §4.5). INT3 multiplexes system interrupts
 onto <strong>5 CPU interrupt outputs</strong> CPU_INT_N&lt;4:0&gt;, wired to CP0 Cause IP2..IP6. INT3 does <strong>no internal latching</strong>
 except the two 8254 timer interrupts; it expects already-latched, level-triggered, <strong>active-high</strong> status (a <code>1</code>
-= active interrupt regardless of mask/polarity). Each register is a <strong>byte at a 4-byte-aligned address</strong> (kernel
-does <code>readb</code>/<code>writeb</code>); masks reset to 0 (all masked).</p>
+= active interrupt regardless of mask/polarity). Each register is an 8-bit register on the <strong>low byte lane</strong>
+(<code>D[7:0]</code>): the §4.5 addresses below are the 4-byte-aligned <em>slots</em>, but the kernel <code>readb</code>/<code>writeb</code> actually hits
+the byte at <strong>slot+3</strong> (the struct is <code>u8 _pad[3]; volatile u8 reg;</code> per register — e.g. <code>istat0</code>'s byte is at
+<code>0x9883</code>), the <strong>same byte lane as the external 8254</strong>, so <code>int3.sv</code> decodes <code>mask[3/7/11/15]</code>. Masks reset to 0
+(all masked).</p>
 <h3 id="interrupt-funnel-signal-flow">Interrupt funnel (signal flow)<a class="headerlink" href="#interrupt-funnel-signal-flow" title="Permanent link">&para;</a></h3>
 <p>The whole block is a funnel: device/source lines → (optional mappable cascade) → per-level AND-mask + OR-reduce →
 one of five CPU IP pins → CP0. <strong>Green</strong> = the SCC-RX → IP2 path we're wiring next; <strong>blue</strong> = implemented + tested
