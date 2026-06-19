@@ -249,7 +249,7 @@ int main(int argc, char **argv) {
   auto tick = [&](void) { tb->clk = 1; tb->eval(); tb->clk = 0; tb->eval(); };
 
   // ---- reset ----
-  tb->reset = 1; tb->extern_irq = 0; tb->resume = 0; tb->resume_pc = 0;
+  tb->reset = 1; tb->resume = 0; tb->resume_pc = 0;
   tb->mem_rsp_valid = 0; tb->mem_rsp_bad = 0; tb->putchar_fifo_pop = 0;
   for(int i = 0; i < 4; i++) tick();
 

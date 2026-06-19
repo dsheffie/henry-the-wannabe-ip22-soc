@@ -29,7 +29,6 @@ module henry_soc
     )
   (input  logic                  clk,
    input  logic                  reset,
-   input  logic                  extern_irq,
 
    // boot launch handshake (testbench/boot-ROM points the core at the entry)
    input  logic                  resume,
@@ -114,6 +113,8 @@ module henry_soc
    // =====================================================================
    //  r9999 core
    // =====================================================================
+   // INT3 (IOC2 interrupt mux) drives the 5 CPU hardware interrupt pins.
+   wire w_int3_ip2, w_int3_ip3, w_int3_ip4, w_int3_ip5, w_int3_ip6;
    core_l1d_l1i cpu
      (.clk(clk),
       .reset(reset),
@@ -123,7 +124,11 @@ module henry_soc
       .putchar_fifo_pop(cp_pop),
       .putchar_fifo_wptr(),
       .putchar_fifo_rptr(),
-      .extern_irq(extern_irq),
+      .ip2(w_int3_ip2),
+      .ip3(w_int3_ip3),
+      .ip4(w_int3_ip4),
+      .ip5(w_int3_ip5),
+      .ip6(w_int3_ip6),
       .single_step(1'b0),
       .step(1'b0),
       .in_flush_mode(),
@@ -187,7 +192,7 @@ module henry_soc
 
    wire w_dev_accept = c_req_valid & w_is_dev & ~r_dev_busy;
 
-   wire [127:0] w_rd_mc, w_rd_hpc3, w_rd_ioc;
+   wire [127:0] w_rd_mc, w_rd_hpc3, w_rd_iocdev, w_rd_int3;
    wire         w_scc_tx_valid;
    wire [7:0]   w_scc_tx_byte;
 
@@ -208,8 +213,22 @@ module henry_soc
       .sel(w_dev_accept & w_is_ioc), .is_store(~w_is_load),
       .offs(c_req_addr[7:0]), .mask(c_req_mask), .wdata(c_req_store_data),
       .con_full(con_full),   // SCC RR0 Tx-ready reflects console-FIFO backpressure
-      .rdata(w_rd_ioc), .scc_tx_valid(w_scc_tx_valid), .scc_tx_byte(w_scc_tx_byte));
+      .rdata(w_rd_iocdev), .scc_tx_valid(w_scc_tx_valid), .scc_tx_byte(w_scc_tx_byte));
 
+   // INT3 interrupt multiplexor: shares the IOC2 access window (its registers sit
+   // at lines 0x80/0x90/0xa0; ioc reads 0 there, so the rdatas simply OR). Device
+   // sources tied 0 for now (skeleton) -- first to wire = SCC RX -> map_src[5].
+   int3 u_int3
+     (.clk(clk), .reset(reset),
+      .sel(w_dev_accept & w_is_ioc), .is_store(~w_is_load),
+      .offs(c_req_addr[7:0]), .mask(c_req_mask), .wdata(c_req_store_data),
+      .rdata(w_rd_int3),
+      .local0_src(7'd0), .local1_src(8'd0), .map_src(8'd0), .buserr(3'd0),
+      .timer0_irq(1'b0), .timer1_irq(1'b0),
+      .ip2(w_int3_ip2), .ip3(w_int3_ip3), .ip4(w_int3_ip4),
+      .ip5(w_int3_ip5), .ip6(w_int3_ip6));
+
+   wire [127:0] w_rd_ioc = w_rd_iocdev | w_rd_int3;
    wire [127:0] w_dev_sel_rdata = w_is_mc ? w_rd_mc : (w_is_ioc ? w_rd_ioc : w_rd_hpc3);
 
    always_ff @(posedge clk) begin

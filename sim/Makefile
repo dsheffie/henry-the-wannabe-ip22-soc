@@ -25,7 +25,7 @@ VFLAGS = -cc --exe -O3 \
 # Depend on the r9999 core sources too (via -y $(R9999)), so a core-only change
 # (e.g. a CP0/exec.sv edit) triggers a rebuild instead of silently running a
 # stale binary.
-obj_dir/henry_tb: $(RTL)/henry_soc.sv $(RTL)/mc.sv $(RTL)/hpc3.sv $(RTL)/ioc.sv henry_tb.cpp $(wildcard $(R9999)/*.sv $(R9999)/*.vh)
+obj_dir/henry_tb: $(RTL)/henry_soc.sv $(RTL)/mc.sv $(RTL)/hpc3.sv $(RTL)/ioc.sv $(RTL)/int3.sv henry_tb.cpp $(wildcard $(R9999)/*.sv $(R9999)/*.vh)
 	$(VERILATOR) $(VFLAGS) $(RTL)/henry_soc.sv henry_tb.cpp
 	$(MAKE) OPT_FAST="-O2" OPT_GLOBAL="-O2" -C obj_dir -f V$(TOP).mk
 

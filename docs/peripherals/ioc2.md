@@ -51,30 +51,74 @@ Note: IRIX talks to this register **directly**, not through ARCS — so emulatin
 not optional. ~10 lines of logic (decode 2 addrs, mux a constant, forward a byte) buys the entire boot log.
 
 ## INT3 interrupt controller
-Base `0x1FBD9880`. INT3 multiplexes system interrupts onto **5 CPU interrupt outputs** CPU_INT_N<4:0>, wired to
-CP0 Cause IP2..IP6. INT3 does **no internal latching** except the two 8254 timer interrupts; it expects already-
-latched, level-triggered, **active-high** status (a `1` = active interrupt regardless of mask/polarity).
+Base `0x1FBD9880` (registers `0x1FBD9880`–`0x1FBD98AC`, ioc.pdf §2.5 + §4.5). INT3 multiplexes system interrupts
+onto **5 CPU interrupt outputs** CPU_INT_N<4:0>, wired to CP0 Cause IP2..IP6. INT3 does **no internal latching**
+except the two 8254 timer interrupts; it expects already-latched, level-triggered, **active-high** status (a `1`
+= active interrupt regardless of mask/polarity). Each register is a **byte at a 4-byte-aligned address** (kernel
+does `readb`/`writeb`); masks reset to 0 (all masked).
 
-5 output levels (priority): **Level0 = Local0 → IP2**, **Level1 = Local1 → IP3**, **Level2 = Timer0 → IP4**,
-**Level3 = Timer1 → IP5**, **Level4 = Bus Error → IP6** (bus-error is non-maskable).
+### 5 output levels → CPU IP pins
+Across the 5 levels there are **27 distinct physical interrupt sources**.
 
-| Reg | Addr | Notable bits |
+| INT3 Level | CPU pin | Sources | Maskable | Latched |
+|-----------|---------|---------|----------|---------|
+| Level 0 — Local0 | **IP2** | 8 (incl. MAP_INT0) | yes (`imask0`) | no (level) |
+| Level 1 — Local1 | **IP3** | 8 (incl. MAP_INT1) | yes (`imask1`) | no (level) |
+| Level 2 — Timer0 | **IP4** | 1 (8254 cnt0)      | no | **yes** (clr `tclear[0]`) |
+| Level 3 — Timer1 | **IP5** | 1 (8254 cnt1)      | no | **yes** (clr `tclear[1]`) |
+| Level 4 — Bus Error | **IP6** | 3                | no INT3 mask¹ | no |
+
+¹ Bus errors have no mask *inside* INT3, but IP6 is still gated at the CPU like any line (`Status.IM[6]`/`IE`/`EXL`) — it is **not** a true NMI.
+
+### Register / source enumeration (§4.5)
+| Reg | Addr | Bits (b7…b0) |
 |-----|------|--------------|
-| Local0 Status | `0x9880` | b0 FIFO-full, b1 SCSI0, b2 SCSI1, b3 ENET, b4 MC-DMA-done, **b5 Parallel**, b6 Graphics, b7 MAP_INT0 |
-| Local0 Mask | `0x9884` | RW, same bit order; `1`=enable, default 0 (masked) after reset |
-| Local1 Status | `0x9888` | b0 GP0, **b1 Panel** (power/vol), b2 GP_LOCAL1<2>, b3 MAP_INT1, b4 HPC-DMA-done, b5 AC-Fail, b6 Vsync, b7 Vretrace |
-| Local1 Mask | `0x988C` | RW, same order, default 0 |
-| Map Status | `0x9890` | mappable ints; **b5 = Serial DUART**, b4 = Kbd/Mouse, b<7:6>/b<3:0> general. Status unaffected by mask/pol |
-| Map Mask0 | `0x9894` | RW → routes to MAP_INT0 (Local0 b7); b5 reserved=serial, b4 reserved=kbd |
-| Map Mask1 | `0x9898` | RW → routes to MAP_INT1 (Local1 b3) |
-| Map Pol | `0x989C` | RW polarity; `1`=active-high, `0`=active-low (default). **Serial(b5)/Kbd(b4) are active-low → leave 0** |
-| Timer Clear | `0x98A0` | W; b0 clears Timer0 int, b1 clears Timer1 int |
-| Error Status | `0x98A4` | R; b0 EISA-err, b1 MC-bus-err, b2 HPC-bus-err (the 3 non-maskable bus errors → IP6) |
+| Local0 Status (`istat0`) | `0x9880` (R) | b7 **MAP_INT0**, b6 Graphics, b5 Parallel, b4 MC-DMA-done, b3 ENET, b2 SCSI1, b1 SCSI0, b0 FIFO-full |
+| Local0 Mask (`imask0`) | `0x9884` (RW) | same bit order; `1`=enable, default 0 (masked) after reset |
+| Local1 Status (`istat1`) | `0x9888` (R) | b7 Vretrace, b6 Vsync, b5 AC-Fail, b4 HPC-DMA-done, b3 **MAP_INT1**, b2 GP_LOCAL1<2> (active-low, new in INT3), b1 Panel (pwr/vol buttons), b0 GP_LOCAL1<0> (active-low, new in INT3) |
+| Local1 Mask (`imask1`) | `0x988C` (RW) | same order, default 0 |
+| Map Status (`vmeistat`) | `0x9890` (R) | 8 mappable ints; b5 = **Serial DUART**, b4 = Kbd/Mouse, b<7:6>/b<3:0> general. Status unaffected by mask/pol |
+| Map Mask0 (`cmeimask0`) | `0x9894` (RW) | routes mappables → **MAP_INT0** (Local0 b7); b5 reserved=serial, b4 reserved=kbd |
+| Map Mask1 (`cmeimask1`) | `0x9898` (RW) | routes mappables → **MAP_INT1** (Local1 b3) |
+| Map Pol (`cmepol`) | `0x989C` (RW) | polarity; `1`=active-high, `0`=active-low (default). **Serial(b5)/Kbd(b4) are active-low → leave 0** |
+| Timer Clear (`tclear`) | `0x98A0` (W) | b1 clears Timer1 int, b0 clears Timer0 int |
+| Error Status (`errstat`) | `0x98A4` (R) | b2 HPC-bus-err, b1 MC-bus-err, b0 EISA-err — 3 bus errors → IP6, **no INT3 mask** (the controller can't gate them; still maskable at the CPU via `Status.IM[6]`) |
 
-**Serial IRQ path:** the SCC interrupt is a *mappable* int → Map Status `0x9890` **bit5**; routed via Map Mask0/1
-to a Local0/Local1 line, then to IP2/IP3. **Not needed for a polled-TX console** (IRIX's du driver polls RR0).
-Implement the registers as plain R/W storage first; wire real assertions only when adding Rx or interrupt-driven
-TX.
+### The mappable cascade
+There are **8 mappable, polarity-selectable inputs** (Map Status `0x9890`). Each is gated by **two** independent
+masks: `Map Mask0` (`0x9894`) ORs the selected mappables into **MAP_INT0** → Local0 b7 → IP2, and `Map Mask1`
+(`0x9898`) ORs them into **MAP_INT1** → Local1 b3 → IP3. Polarity per bit is set by `Map Pol` (default active-low),
+but a hard `1` is always active regardless of polarity. The **SCC serial interrupt is mappable bit 5** → routed
+via Map Mask0 to MAP_INT0 → istat0 b7 (the kernel's "LIO2") → **IP2**; this is the path for keyboard/console RX.
+
+### Henry relevance — what actually fires
+Of the 27 sources, only a handful have a real device model or plausible assertion in Henry:
+- **Serial DUART** (Map Status b5) → MAP_INT0 → **IP2** — console/keyboard RX. **The one live source to wire next**
+  (we have the SCC in `ioc.sv`).
+- **Timer0/Timer1** (IP4/IP5) — our 8254 is **calibration-only (no IRQ)**; Linux/IRIX drive the system tick from
+  CP0 Count/Compare on **IP7**, so these stay 0.
+- **SCSI0/1** (IP2) — relevant only once there's a root disk; no SCSI model yet.
+- **Bus errors** (IP6) — could be asserted from a bad-address fault if ever desired; not modeled.
+- Everything else (graphics, parallel, ENET, panel, vsync/retrace, AC-fail, GP, ISDN) — no device, stays 0.
+
+### Implementation — `rtl/int3.sv` (skeleton, 2026-06-18)
+INT3 is a standalone module **`rtl/int3.sv`**, instantiated in `henry_soc.sv` sharing the IOC2 access window (its
+registers sit at lines `0x80`/`0x90`/`0xa0`; `ioc.sv` reads 0 there, so `w_rd_ioc = w_rd_iocdev | w_rd_int3`).
+Its 5 outputs drive `core_l1d_l1i`'s `ip2..ip6` pins (this replaced the old 1-bit `extern_irq`). Aggregation:
+`ip2 = |(istat0 & imask0)`, `ip3 = |(istat1 & imask1)`, `ip6 = |buserr` (unmaskable), `ip4/ip5` = the two latched
+timer IRQs; `map_int0 = |(vmeistat & cmeimask0)` feeds `istat0[7]`. The §4.5 RW registers (`imask0`, `imask1`,
+`cmeimask0`, `cmeimask1`, `cmepol`) and the timer latches (tclear-cleared) are modeled; the device **sources are
+input ports tied to 0** for now (skeleton) → `ip2..ip6 = 0`, inert.
+
+Source-port mapping:
+- `local0_src[6:0]` = istat0 b6..b0 (Graphics/Parallel/MC-DMA/ENET/SCSI1/SCSI0/FIFO); b7 (MAP_INT0) computed.
+- `local1_src[7:0]` = istat1 (b3 = MAP_INT1 computed, that input bit ignored).
+- `map_src[7:0]` = the 8 mappable inputs (**`[5]` = serial RX** is the one to wire).
+- `buserr[2:0]` = {HPC, MC, EISA}; `timer0_irq`/`timer1_irq` = the 8254 latched IRQs.
+
+**Next:** wire the SCC serial RX — host stdin → SCC Rx FIFO in `ioc.sv` (RR0 bit0 Rx-Char-Available) → drive
+`map_src[5]` → MAP_INT0 → IP2, enabling interrupt-driven console input at the IRIX/Linux prompt. (Not needed for
+the polled-TX boot console; IRIX's du driver polls RR0 for TX.)
 
 ## 8254 timer
 Standard Intel 82C54 PIT, 3 counters, fed by a divide-by-20 state machine off CLK_20MHz → **1 MHz / 1 µs tick**.
