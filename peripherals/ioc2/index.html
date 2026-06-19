@@ -740,6 +740,67 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="INT3 interrupt controller">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#5-output-levels-cpu-ip-pins" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5 output levels → CPU IP pins
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#register-source-enumeration-45" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Register / source enumeration (§4.5)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-mappable-cascade" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The mappable cascade
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#henry-relevance-what-actually-fires" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Henry relevance — what actually fires
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#implementation-rtlint3sv-skeleton-2026-06-18" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Implementation — rtl/int3.sv (skeleton, 2026-06-18)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1348,6 +1409,67 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="INT3 interrupt controller">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#5-output-levels-cpu-ip-pins" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5 output levels → CPU IP pins
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#register-source-enumeration-45" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Register / source enumeration (§4.5)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-mappable-cascade" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The mappable cascade
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#henry-relevance-what-actually-fires" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Henry relevance — what actually fires
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#implementation-rtlint3sv-skeleton-2026-06-18" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Implementation — rtl/int3.sv (skeleton, 2026-06-18)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1504,76 +1626,155 @@ register, 1 = data). ✅ Confirmed against MAME <code>map(0x0c,0x0f) -&gt; z80sc
 <p>Note: IRIX talks to this register <strong>directly</strong>, not through ARCS — so emulating these 4 addresses is mandatory,
 not optional. ~10 lines of logic (decode 2 addrs, mux a constant, forward a byte) buys the entire boot log.</p>
 <h2 id="int3-interrupt-controller">INT3 interrupt controller<a class="headerlink" href="#int3-interrupt-controller" title="Permanent link">&para;</a></h2>
-<p>Base <code>0x1FBD9880</code>. INT3 multiplexes system interrupts onto <strong>5 CPU interrupt outputs</strong> CPU_INT_N&lt;4:0&gt;, wired to
-CP0 Cause IP2..IP6. INT3 does <strong>no internal latching</strong> except the two 8254 timer interrupts; it expects already-
-latched, level-triggered, <strong>active-high</strong> status (a <code>1</code> = active interrupt regardless of mask/polarity).</p>
-<p>5 output levels (priority): <strong>Level0 = Local0 → IP2</strong>, <strong>Level1 = Local1 → IP3</strong>, <strong>Level2 = Timer0 → IP4</strong>,
-<strong>Level3 = Timer1 → IP5</strong>, <strong>Level4 = Bus Error → IP6</strong> (bus-error is non-maskable).</p>
+<p>Base <code>0x1FBD9880</code> (registers <code>0x1FBD9880</code>–<code>0x1FBD98AC</code>, ioc.pdf §2.5 + §4.5). INT3 multiplexes system interrupts
+onto <strong>5 CPU interrupt outputs</strong> CPU_INT_N&lt;4:0&gt;, wired to CP0 Cause IP2..IP6. INT3 does <strong>no internal latching</strong>
+except the two 8254 timer interrupts; it expects already-latched, level-triggered, <strong>active-high</strong> status (a <code>1</code>
+= active interrupt regardless of mask/polarity). Each register is a <strong>byte at a 4-byte-aligned address</strong> (kernel
+does <code>readb</code>/<code>writeb</code>); masks reset to 0 (all masked).</p>
+<h3 id="5-output-levels-cpu-ip-pins">5 output levels → CPU IP pins<a class="headerlink" href="#5-output-levels-cpu-ip-pins" title="Permanent link">&para;</a></h3>
+<p>Across the 5 levels there are <strong>27 distinct physical interrupt sources</strong>.</p>
+<table>
+<thead>
+<tr>
+<th>INT3 Level</th>
+<th>CPU pin</th>
+<th>Sources</th>
+<th>Maskable</th>
+<th>Latched</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Level 0 — Local0</td>
+<td><strong>IP2</strong></td>
+<td>8 (incl. MAP_INT0)</td>
+<td>yes (<code>imask0</code>)</td>
+<td>no (level)</td>
+</tr>
+<tr>
+<td>Level 1 — Local1</td>
+<td><strong>IP3</strong></td>
+<td>8 (incl. MAP_INT1)</td>
+<td>yes (<code>imask1</code>)</td>
+<td>no (level)</td>
+</tr>
+<tr>
+<td>Level 2 — Timer0</td>
+<td><strong>IP4</strong></td>
+<td>1 (8254 cnt0)</td>
+<td>no</td>
+<td><strong>yes</strong> (clr <code>tclear[0]</code>)</td>
+</tr>
+<tr>
+<td>Level 3 — Timer1</td>
+<td><strong>IP5</strong></td>
+<td>1 (8254 cnt1)</td>
+<td>no</td>
+<td><strong>yes</strong> (clr <code>tclear[1]</code>)</td>
+</tr>
+<tr>
+<td>Level 4 — Bus Error</td>
+<td><strong>IP6</strong></td>
+<td>3</td>
+<td>no INT3 mask¹</td>
+<td>no</td>
+</tr>
+</tbody>
+</table>
+<p>¹ Bus errors have no mask <em>inside</em> INT3, but IP6 is still gated at the CPU like any line (<code>Status.IM[6]</code>/<code>IE</code>/<code>EXL</code>) — it is <strong>not</strong> a true NMI.</p>
+<h3 id="register-source-enumeration-45">Register / source enumeration (§4.5)<a class="headerlink" href="#register-source-enumeration-45" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
 <th>Reg</th>
 <th>Addr</th>
-<th>Notable bits</th>
+<th>Bits (b7…b0)</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Local0 Status</td>
-<td><code>0x9880</code></td>
-<td>b0 FIFO-full, b1 SCSI0, b2 SCSI1, b3 ENET, b4 MC-DMA-done, <strong>b5 Parallel</strong>, b6 Graphics, b7 MAP_INT0</td>
+<td>Local0 Status (<code>istat0</code>)</td>
+<td><code>0x9880</code> (R)</td>
+<td>b7 <strong>MAP_INT0</strong>, b6 Graphics, b5 Parallel, b4 MC-DMA-done, b3 ENET, b2 SCSI1, b1 SCSI0, b0 FIFO-full</td>
 </tr>
 <tr>
-<td>Local0 Mask</td>
-<td><code>0x9884</code></td>
-<td>RW, same bit order; <code>1</code>=enable, default 0 (masked) after reset</td>
+<td>Local0 Mask (<code>imask0</code>)</td>
+<td><code>0x9884</code> (RW)</td>
+<td>same bit order; <code>1</code>=enable, default 0 (masked) after reset</td>
 </tr>
 <tr>
-<td>Local1 Status</td>
-<td><code>0x9888</code></td>
-<td>b0 GP0, <strong>b1 Panel</strong> (power/vol), b2 GP_LOCAL1&lt;2&gt;, b3 MAP_INT1, b4 HPC-DMA-done, b5 AC-Fail, b6 Vsync, b7 Vretrace</td>
+<td>Local1 Status (<code>istat1</code>)</td>
+<td><code>0x9888</code> (R)</td>
+<td>b7 Vretrace, b6 Vsync, b5 AC-Fail, b4 HPC-DMA-done, b3 <strong>MAP_INT1</strong>, b2 GP_LOCAL1&lt;2&gt; (active-low, new in INT3), b1 Panel (pwr/vol buttons), b0 GP_LOCAL1&lt;0&gt; (active-low, new in INT3)</td>
 </tr>
 <tr>
-<td>Local1 Mask</td>
-<td><code>0x988C</code></td>
-<td>RW, same order, default 0</td>
+<td>Local1 Mask (<code>imask1</code>)</td>
+<td><code>0x988C</code> (RW)</td>
+<td>same order, default 0</td>
 </tr>
 <tr>
-<td>Map Status</td>
-<td><code>0x9890</code></td>
-<td>mappable ints; <strong>b5 = Serial DUART</strong>, b4 = Kbd/Mouse, b&lt;7:6&gt;/b&lt;3:0&gt; general. Status unaffected by mask/pol</td>
+<td>Map Status (<code>vmeistat</code>)</td>
+<td><code>0x9890</code> (R)</td>
+<td>8 mappable ints; b5 = <strong>Serial DUART</strong>, b4 = Kbd/Mouse, b&lt;7:6&gt;/b&lt;3:0&gt; general. Status unaffected by mask/pol</td>
 </tr>
 <tr>
-<td>Map Mask0</td>
-<td><code>0x9894</code></td>
-<td>RW → routes to MAP_INT0 (Local0 b7); b5 reserved=serial, b4 reserved=kbd</td>
+<td>Map Mask0 (<code>cmeimask0</code>)</td>
+<td><code>0x9894</code> (RW)</td>
+<td>routes mappables → <strong>MAP_INT0</strong> (Local0 b7); b5 reserved=serial, b4 reserved=kbd</td>
 </tr>
 <tr>
-<td>Map Mask1</td>
-<td><code>0x9898</code></td>
-<td>RW → routes to MAP_INT1 (Local1 b3)</td>
+<td>Map Mask1 (<code>cmeimask1</code>)</td>
+<td><code>0x9898</code> (RW)</td>
+<td>routes mappables → <strong>MAP_INT1</strong> (Local1 b3)</td>
 </tr>
 <tr>
-<td>Map Pol</td>
-<td><code>0x989C</code></td>
-<td>RW polarity; <code>1</code>=active-high, <code>0</code>=active-low (default). <strong>Serial(b5)/Kbd(b4) are active-low → leave 0</strong></td>
+<td>Map Pol (<code>cmepol</code>)</td>
+<td><code>0x989C</code> (RW)</td>
+<td>polarity; <code>1</code>=active-high, <code>0</code>=active-low (default). <strong>Serial(b5)/Kbd(b4) are active-low → leave 0</strong></td>
 </tr>
 <tr>
-<td>Timer Clear</td>
-<td><code>0x98A0</code></td>
-<td>W; b0 clears Timer0 int, b1 clears Timer1 int</td>
+<td>Timer Clear (<code>tclear</code>)</td>
+<td><code>0x98A0</code> (W)</td>
+<td>b1 clears Timer1 int, b0 clears Timer0 int</td>
 </tr>
 <tr>
-<td>Error Status</td>
-<td><code>0x98A4</code></td>
-<td>R; b0 EISA-err, b1 MC-bus-err, b2 HPC-bus-err (the 3 non-maskable bus errors → IP6)</td>
+<td>Error Status (<code>errstat</code>)</td>
+<td><code>0x98A4</code> (R)</td>
+<td>b2 HPC-bus-err, b1 MC-bus-err, b0 EISA-err — 3 bus errors → IP6, <strong>no INT3 mask</strong> (the controller can't gate them; still maskable at the CPU via <code>Status.IM[6]</code>)</td>
 </tr>
 </tbody>
 </table>
-<p><strong>Serial IRQ path:</strong> the SCC interrupt is a <em>mappable</em> int → Map Status <code>0x9890</code> <strong>bit5</strong>; routed via Map Mask0/1
-to a Local0/Local1 line, then to IP2/IP3. <strong>Not needed for a polled-TX console</strong> (IRIX's du driver polls RR0).
-Implement the registers as plain R/W storage first; wire real assertions only when adding Rx or interrupt-driven
-TX.</p>
+<h3 id="the-mappable-cascade">The mappable cascade<a class="headerlink" href="#the-mappable-cascade" title="Permanent link">&para;</a></h3>
+<p>There are <strong>8 mappable, polarity-selectable inputs</strong> (Map Status <code>0x9890</code>). Each is gated by <strong>two</strong> independent
+masks: <code>Map Mask0</code> (<code>0x9894</code>) ORs the selected mappables into <strong>MAP_INT0</strong> → Local0 b7 → IP2, and <code>Map Mask1</code>
+(<code>0x9898</code>) ORs them into <strong>MAP_INT1</strong> → Local1 b3 → IP3. Polarity per bit is set by <code>Map Pol</code> (default active-low),
+but a hard <code>1</code> is always active regardless of polarity. The <strong>SCC serial interrupt is mappable bit 5</strong> → routed
+via Map Mask0 to MAP_INT0 → istat0 b7 (the kernel's "LIO2") → <strong>IP2</strong>; this is the path for keyboard/console RX.</p>
+<h3 id="henry-relevance-what-actually-fires">Henry relevance — what actually fires<a class="headerlink" href="#henry-relevance-what-actually-fires" title="Permanent link">&para;</a></h3>
+<p>Of the 27 sources, only a handful have a real device model or plausible assertion in Henry:
+- <strong>Serial DUART</strong> (Map Status b5) → MAP_INT0 → <strong>IP2</strong> — console/keyboard RX. <strong>The one live source to wire next</strong>
+  (we have the SCC in <code>ioc.sv</code>).
+- <strong>Timer0/Timer1</strong> (IP4/IP5) — our 8254 is <strong>calibration-only (no IRQ)</strong>; Linux/IRIX drive the system tick from
+  CP0 Count/Compare on <strong>IP7</strong>, so these stay 0.
+- <strong>SCSI0/1</strong> (IP2) — relevant only once there's a root disk; no SCSI model yet.
+- <strong>Bus errors</strong> (IP6) — could be asserted from a bad-address fault if ever desired; not modeled.
+- Everything else (graphics, parallel, ENET, panel, vsync/retrace, AC-fail, GP, ISDN) — no device, stays 0.</p>
+<h3 id="implementation-rtlint3sv-skeleton-2026-06-18">Implementation — <code>rtl/int3.sv</code> (skeleton, 2026-06-18)<a class="headerlink" href="#implementation-rtlint3sv-skeleton-2026-06-18" title="Permanent link">&para;</a></h3>
+<p>INT3 is a standalone module <strong><code>rtl/int3.sv</code></strong>, instantiated in <code>henry_soc.sv</code> sharing the IOC2 access window (its
+registers sit at lines <code>0x80</code>/<code>0x90</code>/<code>0xa0</code>; <code>ioc.sv</code> reads 0 there, so <code>w_rd_ioc = w_rd_iocdev | w_rd_int3</code>).
+Its 5 outputs drive <code>core_l1d_l1i</code>'s <code>ip2..ip6</code> pins (this replaced the old 1-bit <code>extern_irq</code>). Aggregation:
+<code>ip2 = |(istat0 &amp; imask0)</code>, <code>ip3 = |(istat1 &amp; imask1)</code>, <code>ip6 = |buserr</code> (unmaskable), <code>ip4/ip5</code> = the two latched
+timer IRQs; <code>map_int0 = |(vmeistat &amp; cmeimask0)</code> feeds <code>istat0[7]</code>. The §4.5 RW registers (<code>imask0</code>, <code>imask1</code>,
+<code>cmeimask0</code>, <code>cmeimask1</code>, <code>cmepol</code>) and the timer latches (tclear-cleared) are modeled; the device <strong>sources are
+input ports tied to 0</strong> for now (skeleton) → <code>ip2..ip6 = 0</code>, inert.</p>
+<p>Source-port mapping:
+- <code>local0_src[6:0]</code> = istat0 b6..b0 (Graphics/Parallel/MC-DMA/ENET/SCSI1/SCSI0/FIFO); b7 (MAP_INT0) computed.
+- <code>local1_src[7:0]</code> = istat1 (b3 = MAP_INT1 computed, that input bit ignored).
+- <code>map_src[7:0]</code> = the 8 mappable inputs (<strong><code>[5]</code> = serial RX</strong> is the one to wire).
+- <code>buserr[2:0]</code> = {HPC, MC, EISA}; <code>timer0_irq</code>/<code>timer1_irq</code> = the 8254 latched IRQs.</p>
+<p><strong>Next:</strong> wire the SCC serial RX — host stdin → SCC Rx FIFO in <code>ioc.sv</code> (RR0 bit0 Rx-Char-Available) → drive
+<code>map_src[5]</code> → MAP_INT0 → IP2, enabling interrupt-driven console input at the IRIX/Linux prompt. (Not needed for
+the polled-TX boot console; IRIX's du driver polls RR0 for TX.)</p>
 <h2 id="8254-timer">8254 timer<a class="headerlink" href="#8254-timer" title="Permanent link">&para;</a></h2>
 <p>Standard Intel 82C54 PIT, 3 counters, fed by a divide-by-20 state machine off CLK_20MHz → <strong>1 MHz / 1 µs tick</strong>.
 Counter2 output clocks Counter0 and Counter1; Counter0 terminal count → Timer0 int (INT3 IP4, the system tick),
