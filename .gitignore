@@ -17,3 +17,10 @@ venv/
 /sim/**/work/
 *.vcd
 *.fst
+
+# bare-metal test build outputs + sim run outputs
+*.elf
+*.dis
+log.txt
+pushout.txt
+branch_info.txt
