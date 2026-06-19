@@ -744,6 +744,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#interrupt-funnel-signal-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Interrupt funnel (signal flow)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#5-output-levels-cpu-ip-pins" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -770,6 +781,17 @@
     <span class="md-ellipsis">
       
         The mappable cascade
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#where-the-mappable-inputs-come-from-and-what-is-not-in-the-ioc2-spec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where the mappable inputs come from (and what is NOT in the IOC2 spec)
       
     </span>
   </a>
@@ -804,13 +826,63 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#8254-timer" class="md-nav__link">
+  <a href="#8254-timer-intel-82c54-pit" class="md-nav__link">
     <span class="md-ellipsis">
       
-        8254 timer
+        8254 timer (Intel 82C54 PIT)
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="8254 timer (Intel 82C54 PIT)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#registers-byte-addressing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Registers &amp; byte addressing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#control-word-format-write-to-the-control-word-port" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Control Word format (write to the Control Word port)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#modes-intel-datasheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Modes (Intel datasheet)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-henry-models" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What henry models
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1413,6 +1485,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#interrupt-funnel-signal-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Interrupt funnel (signal flow)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#5-output-levels-cpu-ip-pins" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1439,6 +1522,17 @@
     <span class="md-ellipsis">
       
         The mappable cascade
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#where-the-mappable-inputs-come-from-and-what-is-not-in-the-ioc2-spec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where the mappable inputs come from (and what is NOT in the IOC2 spec)
       
     </span>
   </a>
@@ -1473,13 +1567,63 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#8254-timer" class="md-nav__link">
+  <a href="#8254-timer-intel-82c54-pit" class="md-nav__link">
     <span class="md-ellipsis">
       
-        8254 timer
+        8254 timer (Intel 82C54 PIT)
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="8254 timer (Intel 82C54 PIT)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#registers-byte-addressing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Registers &amp; byte addressing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#control-word-format-write-to-the-control-word-port" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Control Word format (write to the Control Word port)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#modes-intel-datasheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Modes (Intel datasheet)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-henry-models" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What henry models
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1631,6 +1775,93 @@ onto <strong>5 CPU interrupt outputs</strong> CPU_INT_N&lt;4:0&gt;, wired to CP0
 except the two 8254 timer interrupts; it expects already-latched, level-triggered, <strong>active-high</strong> status (a <code>1</code>
 = active interrupt regardless of mask/polarity). Each register is a <strong>byte at a 4-byte-aligned address</strong> (kernel
 does <code>readb</code>/<code>writeb</code>); masks reset to 0 (all masked).</p>
+<h3 id="interrupt-funnel-signal-flow">Interrupt funnel (signal flow)<a class="headerlink" href="#interrupt-funnel-signal-flow" title="Permanent link">&para;</a></h3>
+<p>The whole block is a funnel: device/source lines → (optional mappable cascade) → per-level AND-mask + OR-reduce →
+one of five CPU IP pins → CP0. <strong>Green</strong> = the SCC-RX → IP2 path we're wiring next; <strong>blue</strong> = implemented + tested
+(Timer0 → IP4); <strong>grey</strong> = tied 0 / not modeled in Henry.</p>
+<p>Structured like the RISC-V PLIC spec's Figure 3 (sources → gateways → core → target):</p>
+<pre class="mermaid"><code>flowchart LR
+    %% ---------- sources ----------
+    subgraph SRC["sources"]
+      SER["b5 Serial DUART&lt;br/&gt;(SCC RX, internal)"]
+      OMAP["b7:6, b4, b3:0&lt;br/&gt;other mappables"]
+      DV0["Local0 device lines&lt;br/&gt;SCSI/ENET/PP/GFX/FIFO"]
+      DV1["Local1 device lines&lt;br/&gt;video/panel/AC-fail"]
+      T0["8254 counter0"]
+      T1["8254 counter1"]
+      BER["bus err HPC/MC/EISA"]
+    end
+
+    %% ---------- gateways: the mappable cascade ----------
+    subgraph GW["INT3 mappable cascade (gateways)"]
+      ANDM0{{"AND cmeimask0"}}
+      ORM0{{"OR"}}
+      MI0["MAP_INT0"]
+      ANDM1{{"AND cmeimask1"}}
+      ORM1{{"OR"}}
+      MI1["MAP_INT1"]
+      ANDM0 --&gt; ORM0 --&gt; MI0
+      ANDM1 --&gt; ORM1 --&gt; MI1
+    end
+
+    %% ---------- core: the 5 priority levels ----------
+    subgraph CORE["INT3 core (5 levels)"]
+      AND0{{"AND imask0"}}
+      ORL0{{"OR"}}
+      IP2(["IP2"])
+      AND1{{"AND imask1"}}
+      ORL1{{"OR"}}
+      IP3(["IP3"])
+      LAT0["latch · clr tclear0"]
+      IP4(["IP4"])
+      LAT1["latch · clr tclear1"]
+      IP5(["IP5"])
+      IP6(["IP6 (unmaskable)"])
+      AND0 --&gt; ORL0 --&gt; IP2
+      AND1 --&gt; ORL1 --&gt; IP3
+      LAT0 --&gt; IP4
+      LAT1 --&gt; IP5
+    end
+
+    %% ---------- target: the CPU ----------
+    subgraph CPU["R4000 CP0 (target)"]
+      IPR["Cause.IP 6:2"]
+      ANDIM{{"AND Status.IM&lt;br/&gt;and IE, ~EXL, ~ERL"}}
+      TAKE["take interrupt"]
+      IPR --&gt; ANDIM --&gt; TAKE
+    end
+
+    %% ---------- cross-stage wiring ----------
+    SER --&gt; ANDM0
+    SER --&gt; ANDM1
+    OMAP -.-&gt; ANDM0
+    OMAP -.-&gt; ANDM1
+    MI0 --&gt;|"istat0 b7"| AND0
+    DV0 -.-&gt; AND0
+    MI1 --&gt;|"istat1 b3"| AND1
+    DV1 -.-&gt; AND1
+    T0 --&gt; LAT0
+    T1 -.-&gt; LAT1
+    BER -.-&gt; IP6
+    IP2 --&gt; IPR
+    IP3 --&gt; IPR
+    IP4 --&gt; IPR
+    IP5 --&gt; IPR
+    IP6 --&gt; IPR
+
+    classDef live fill:#d4f4d4,stroke:#28a428,stroke-width:2px;
+    classDef impl fill:#d4e4ff,stroke:#3060c0;
+    classDef stub fill:#f2f2f2,stroke:#bbb,color:#888;
+    class SER,ANDM0,ORM0,MI0,AND0,ORL0,IP2 live
+    class T0,LAT0,IP4 impl
+    class OMAP,DV0,DV1,ANDM1,ORM1,MI1,AND1,ORL1,IP3,T1,LAT1,IP5,BER,IP6 stub</code></pre>
+<p>The PLIC analogy is exact: the <strong>mappable cascade = the PLIC gateways</strong> (a source passes through a routing mask),
+the <strong>per-level <code>AND imaskN</code> + OR = the PLIC core's per-source enable+gather</strong>, and <strong><code>Status.IM</code> at the CPU = the
+PLIC priority threshold</strong> (the final gate before the target sees it).</p>
+<p>Reading the green path: SCC RX asserts <code>map_src[5]</code> → (<code>AND cmeimask0</code>, OR) → <strong>MAP_INT0</strong> → lands in <code>istat0[7]</code> →
+(<code>AND imask0</code>, OR) → <strong>IP2</strong> → <code>Cause.IP[2]</code> → taken once <code>Status.IM[2]</code> is set. Note the <strong>two</strong> INT3 masks in
+series (<code>cmeimask0</code> then <code>imask0</code>) plus the CPU's <code>Status.IM[2]</code>. To wire it: drive <code>map_src[5]</code> from an <code>rx_avail</code>
+output added to <code>ioc.sv</code> — <code>int3.sv</code> itself is unchanged.</p>
 <h3 id="5-output-levels-cpu-ip-pins">5 output levels → CPU IP pins<a class="headerlink" href="#5-output-levels-cpu-ip-pins" title="Permanent link">&para;</a></h3>
 <p>Across the 5 levels there are <strong>27 distinct physical interrupt sources</strong>.</p>
 <table>
@@ -1750,6 +1981,53 @@ masks: <code>Map Mask0</code> (<code>0x9894</code>) ORs the selected mappables i
 (<code>0x9898</code>) ORs them into <strong>MAP_INT1</strong> → Local1 b3 → IP3. Polarity per bit is set by <code>Map Pol</code> (default active-low),
 but a hard <code>1</code> is always active regardless of polarity. The <strong>SCC serial interrupt is mappable bit 5</strong> → routed
 via Map Mask0 to MAP_INT0 → istat0 b7 (the kernel's "LIO2") → <strong>IP2</strong>; this is the path for keyboard/console RX.</p>
+<h3 id="where-the-mappable-inputs-come-from-and-what-is-not-in-the-ioc2-spec">Where the mappable inputs come from (and what is NOT in the IOC2 spec)<a class="headerlink" href="#where-the-mappable-inputs-come-from-and-what-is-not-in-the-ioc2-spec" title="Permanent link">&para;</a></h3>
+<p>This is the part that confuses people: <strong>which physical signal drives each mappable input is fixed wiring, and for
+the 6 "general" mappables it is NOT specified by the IOC2 spec at all.</strong> The IOC2 I/O list defines them only as
+package pins:</p>
+<blockquote>
+<p><code>MAP_INT_N&lt;7:6,3:0&gt;</code> — Input — <em>"Mappable interrupts for general use. Polarity selectable, default is active low."</em>
+<code>CPU_INT_N&lt;4:0&gt;</code> — Output — the 5 CPU interrupt outputs (= IP2..IP6).</p>
+</blockquote>
+<p>So the 8 mappable inputs split into two kinds:</p>
+<table>
+<thead>
+<tr>
+<th>Mappable bit</th>
+<th>Source</th>
+<th>In the IOC2 spec?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>b5</strong> Serial DUART</td>
+<td><strong>internal</strong> IOC2 macrocell (the on-chip Z8530 SCC)</td>
+<td>yes — reserved by §4.5</td>
+</tr>
+<tr>
+<td><strong>b4</strong> Keyboard/Mouse</td>
+<td><strong>internal</strong> IOC2 macrocell (the on-chip 8042)</td>
+<td>yes — reserved by §4.5</td>
+</tr>
+<tr>
+<td><strong>b7, b6, b3, b2, b1, b0</strong></td>
+<td><strong>external</strong> pins <code>MAP_INT_N&lt;7:6,3:0&gt;</code> — "general use"</td>
+<td><strong>NO source assigned</strong></td>
+</tr>
+</tbody>
+</table>
+<p>The general-use bits are just polarity-selectable input <em>pins</em>. What (if anything) a real Indy soldered to them —
+a GIO-slot interrupt, an expansion device — is a <strong>board/system-level decision documented in the IP22 system spec
+/ schematics and the GIO bus spec, not in this IOC2 document.</strong> There is no prose anywhere in <code>ioc.pdf</code> that says
+e.g. "GIO slot X → MAP_INT_N&lt;0&gt;"; the chip only promises "here are 6 general interrupt input pins."</p>
+<p><strong>Consequences for Henry</strong> (the <code>int3.sv</code> <code>map_src[7:0]</code> port):
+- <code>map_src[5]</code> (serial) — <em>internal</em> on real silicon ⇒ in Henry it is driven <strong>inside <code>ioc.sv</code></strong> (the SCC RX),
+  which faithfully mirrors the chip. This is the one live source to wire.
+- <code>map_src[4]</code> (kbd/mouse) — internal 8042 ⇒ not modeled, tied 0.
+- <code>map_src[7:6, 3:0]</code> — external GIO/expansion pins ⇒ Henry has <strong>no GIO</strong>, and the spec assigns them no source,
+  so they are correctly tied 0. There is nothing to "look up" for these — they are unassigned by design.</p>
+<p>In short: <code>int3.sv</code> only ever <em>consumes</em> <code>map_src</code>; the source wiring lives in <code>henry_soc.sv</code>, and for the general
+mappables there is no canonical source to wire because the IOC2 spec leaves them to the system designer.</p>
 <h3 id="henry-relevance-what-actually-fires">Henry relevance — what actually fires<a class="headerlink" href="#henry-relevance-what-actually-fires" title="Permanent link">&para;</a></h3>
 <p>Of the 27 sources, only a handful have a real device model or plausible assertion in Henry:
 - <strong>Serial DUART</strong> (Map Status b5) → MAP_INT0 → <strong>IP2</strong> — console/keyboard RX. <strong>The one live source to wire next</strong>
@@ -1781,39 +2059,141 @@ acking each via <code>tclear</code> → checksum <code>0x10</code> (IP4). Valida
 <p><strong>Next:</strong> wire the SCC serial RX — host stdin → SCC Rx FIFO in <code>ioc.sv</code> (RR0 bit0 Rx-Char-Available) → drive
 <code>map_src[5]</code> → MAP_INT0 → IP2, enabling interrupt-driven console input at the IRIX/Linux prompt. (Not needed for
 the polled-TX boot console; IRIX's du driver polls RR0 for TX.)</p>
-<h2 id="8254-timer">8254 timer<a class="headerlink" href="#8254-timer" title="Permanent link">&para;</a></h2>
-<p>Standard Intel 82C54 PIT, 3 counters, fed by a divide-by-20 state machine off CLK_20MHz → <strong>1 MHz / 1 µs tick</strong>.
-Counter2 output clocks Counter0 and Counter1; Counter0 terminal count → Timer0 int (INT3 IP4, the system tick),
-Counter1 TC → Timer1 int (IP5). Registers at base <code>0x1FBD98B0</code>:</p>
+<h2 id="8254-timer-intel-82c54-pit">8254 timer (Intel 82C54 PIT)<a class="headerlink" href="#8254-timer-intel-82c54-pit" title="Permanent link">&para;</a></h2>
+<p>Standard Intel <strong>82C54</strong> CHMOS Programmable Interval Timer — three independent 16-bit down-counters. On IP22 it's
+clocked at <strong>exactly 1 MHz</strong> (1 µs/tick — <code>SGINT_TIMER_CLOCK</code>, <em>not</em> the PC's 1.193 MHz). Counter0 terminal count
+→ INT3 Timer0 → <strong>IP4</strong>, Counter1 → Timer1 → <strong>IP5</strong>, Counter2 = calibration only (<code>dosample</code> measures CP0 Count
+against a known Counter2 down-count). <em>(Source: Intel 82C54 datasheet, Intel order #23124406.)</em></p>
+<h3 id="registers-byte-addressing">Registers &amp; byte addressing<a class="headerlink" href="#registers-byte-addressing" title="Permanent link">&para;</a></h3>
+<p>The four ports are 4-byte-aligned slots in the IOC2 window, but the 82C54 is an 8-bit part wired to the <strong>low byte
+lane</strong>, so each is accessed as a <strong>byte at slot+3</strong> (this is why <code>ioc.sv</code> matches on <code>mask[3/7/11/15]</code>):</p>
 <table>
 <thead>
 <tr>
-<th>Reg</th>
-<th>Addr</th>
+<th>Port</th>
+<th>Slot</th>
+<th>Byte addr (kseg1)</th>
+<th>henry mask bit</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>Counter 0</td>
 <td><code>0x98B0</code></td>
+<td><code>0xBFBD98B3</code></td>
+<td><code>mask[3]</code></td>
 </tr>
 <tr>
 <td>Counter 1</td>
 <td><code>0x98B4</code></td>
+<td><code>0xBFBD98B7</code></td>
+<td><code>mask[7]</code></td>
 </tr>
 <tr>
 <td>Counter 2</td>
 <td><code>0x98B8</code></td>
+<td><code>0xBFBD98BB</code></td>
+<td><code>mask[11]</code></td>
 </tr>
 <tr>
 <td>Control Word</td>
 <td><code>0x98BC</code></td>
+<td><code>0xBFBD98BF</code></td>
+<td><code>mask[15]</code></td>
 </tr>
 </tbody>
 </table>
-<p>⚠️ Not on the critical console path. IRIX needs a working tick eventually (scheduler/<code>clock</code>), but the polled
-serial boot reaches its first console output before the timer matters. Implement as a real 82C54 (mode-3 square
-wave on C0) when chasing past early boot.</p>
+<p>(The IOC2's <em>internal</em> registers — SYSID, INT3 — sit on byte lane 0; the 8254, an external 8-bit chip, is on lane 3.)</p>
+<h3 id="control-word-format-write-to-the-control-word-port">Control Word format (write to the Control Word port)<a class="headerlink" href="#control-word-format-write-to-the-control-word-port" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Bits</th>
+<th>Field</th>
+<th>Values</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>D7:D6</td>
+<td><strong>SC</strong> — Select Counter</td>
+<td><code>00</code>=C0, <code>01</code>=C1, <code>10</code>=C2, <code>11</code>=Read-Back command</td>
+</tr>
+<tr>
+<td>D5:D4</td>
+<td><strong>RW</strong> — Read/Write</td>
+<td><code>00</code>=Counter-Latch command, <code>01</code>=LSB only, <code>10</code>=MSB only, <strong><code>11</code>=LSB then MSB</strong></td>
+</tr>
+<tr>
+<td>D3:D1</td>
+<td><strong>M</strong> — Mode</td>
+<td><code>000</code>=0, <code>001</code>=1, <code>x10</code>=<strong>2</strong>, <code>x11</code>=<strong>3</strong>, <code>100</code>=4, <code>101</code>=5</td>
+</tr>
+<tr>
+<td>D0</td>
+<td><strong>BCD</strong></td>
+<td><code>0</code>=binary 16-bit, <code>1</code>=BCD (4 decades)</td>
+</tr>
+</tbody>
+</table>
+<p>So "program Counter0, periodic, 16-bit, lo+hi" is <code>0x34</code> (Mode 2) or <code>0x36</code> (Mode 3).</p>
+<h3 id="modes-intel-datasheet">Modes (Intel datasheet)<a class="headerlink" href="#modes-intel-datasheet" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>Name</th>
+<th>Behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>Interrupt on Terminal Count</td>
+<td>one-shot: OUT low until count expires, then high</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Hardware Retriggerable One-Shot</td>
+<td>GATE-triggered one-shot</td>
+</tr>
+<tr>
+<td><strong>2</strong></td>
+<td><strong>Rate Generator</strong></td>
+<td>divide-by-N, <strong>periodic</strong>; <em>"typically used to generate a Real Time Clock interrupt"</em> — OUT pulses low for 1 CLK when the count reaches 1, reloads, repeats every N CLKs</td>
+</tr>
+<tr>
+<td><strong>3</strong></td>
+<td><strong>Square Wave</strong></td>
+<td>like Mode 2 but 50% duty (OUT high first half, low second); period N; "typically used for Baud rate generation"</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Software Triggered Strobe</td>
+<td>one-shot strobe on terminal count</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Hardware Triggered Strobe</td>
+<td>GATE-triggered strobe</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Programming protocol:</strong> write the Control Word, then the initial count to the counter port (for <code>RW=11</code>, <strong>LSB
+first, then MSB</strong> — the counter loads and starts on the MSB write). To <em>read</em> a live count, first issue a <strong>Counter
+Latch Command</strong> (Control Word with <code>RW=00</code> + the target's SC bits), which snapshots the count so it can be read
+LSB-then-MSB without disturbing counting (this is what <code>dosample</code> does on Counter2).</p>
+<h3 id="what-henry-models">What henry models<a class="headerlink" href="#what-henry-models" title="Permanent link">&para;</a></h3>
+<p><code>ioc.sv</code> implements:
+- <strong>Counter0</strong> as a periodic down-counter at the 1 MHz PIT rate: the 2-byte (LSB→MSB) load starts it; at terminal
+  count (→1) it emits a 1-cycle <code>timer0_irq</code> pulse and reloads — i.e. <strong>Mode 2 / Mode 3 edge behavior</strong> (we model
+  the interrupt edge, not the OUT duty cycle). Drives INT3 Timer0 → IP4. <strong>Tested</strong>: <code>tests/pit</code>.
+- <strong>Counter2</strong> as the calibration down-counter (Counter-Latch + LSB/MSB read) for <code>dosample</code>.</p>
+<p>Not modeled (not needed): Modes 0/1/4/5, BCD counting, the GATE inputs, the Read-Back <strong>status</strong> command, the OUT
+duty cycle, Counter1 (a trivial mirror of Counter0), and "count of 1 is illegal in Mode 2." The kernel programs
+Counter0 in a periodic mode and only needs the terminal-count interrupt edge, which is what we emit.</p>
+<p>⚠️ IP22 Linux/IRIX drive the real system tick from <strong>CP0 Count/Compare (IP7)</strong>, not this 8254 IRQ — so Counter0→IP4
+is chip-faithful but dormant during a real boot (see the INT3 section).</p>
 <h2 id="boot-identification-power-regs">Boot-identification &amp; power regs<a class="headerlink" href="#boot-identification-power-regs" title="Permanent link">&para;</a></h2>
 <p>PROM/IRIX probe these during early init; Henry must return plausible values or init stalls/branches wrong. Most
 are simple constant-return or accept-and-store.</p>
@@ -1914,6 +2294,8 @@ on read</strong> (except the four constants above). That keeps PROM/IRIX init wa
 <ul>
 <li><code>~/code/sgi/docs/indy_docs/ip22/ioc.pdf</code> — VTI IOC2 spec (Vic Alessi, 1993): §2.1 85CX30 DUART, §2.5 INT3,
   §4.0 register map (p.13), §4.5 INT3 reg bits (p.14–16), §4.6 misc/ID/power regs (p.16–18).</li>
+<li>Intel <strong>82C54</strong> CHMOS Programmable Interval Timer datasheet (Intel order #23124406) — control-word format, the
+  six counter modes (Mode 2 Rate Generator, Mode 3 Square Wave), and the LSB/MSB write + Counter-Latch read protocol.</li>
 <li><code>~/code/r9999/IP22_CHIP_REGISTERS.md</code> — IOC2 section (absolute base 0x1FBD9800 correction; SCC console recipe).</li>
 <li><code>~/code/r9999/IRIX_KERNEL_GAPS.md</code> — console section (measured: IRIX boot console = Z8530 direct, arcs_write=0).</li>
 <li><code>~/code/mame/src/mame/sgi/ioc2.cpp</code> / <code>ioc2.h</code> — golden reference (<code>scc_dc_w</code> TX hook, <code>get_system_id()=0x26</code>,
