@@ -22,7 +22,8 @@ module ioc
     output logic         timer0_irq,   // 8254 counter0 -> INT3 Timer0 (CPU IP4)
     input  logic         scc_rx_push,  // host/TB: push one byte into the SCC chanA Rx FIFO
     input  logic [7:0]   scc_rx_data,
-    output logic         rx_avail);    // SCC Rx FIFO non-empty -> INT3 map_src[5] (Serial DUART)
+    output logic         rx_avail,     // SCC Rx FIFO non-empty -> INT3 map_src[5] (Serial DUART)
+    output logic         rx_full);     // SCC Rx FIFO full -> producer (ARM/PS) must not push (flow-control)
 
    // SYSID stored 0x26000000 -> BE lw yields 0x00000026 (board id in bits[7:0]).
    localparam [31:0] IOC2_SYSID = 32'h26000000;
@@ -87,6 +88,7 @@ module ioc
    wire        w_rx_push  = scc_rx_push & ~w_rx_full;
    wire        w_rx_pop   = w_rx_rd     & ~w_rx_empty;
    assign      rx_avail   = ~w_rx_empty;
+   assign      rx_full    = w_rx_full;    // flow-control status for the ARM/PS producer
 
    always_ff @(posedge clk) begin
       if(reset) begin

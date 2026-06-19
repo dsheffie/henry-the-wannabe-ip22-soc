@@ -33,6 +33,7 @@ module henry_soc
    // SCC serial Rx: host/TB pushes a byte -> IOC2 SCC Rx FIFO -> INT3 serial IRQ (IP2)
    input  logic                  scc_rx_valid,
    input  logic [7:0]            scc_rx_byte,
+   output logic                  scc_rx_full,   // SCC Rx FIFO full -> ARM/PS flow-control (poll before push)
 
    // boot launch handshake (testbench/boot-ROM points the core at the entry)
    input  logic                  resume,
@@ -219,7 +220,8 @@ module henry_soc
       .con_full(con_full),   // SCC RR0 Tx-ready reflects console-FIFO backpressure
       .rdata(w_rd_iocdev), .scc_tx_valid(w_scc_tx_valid), .scc_tx_byte(w_scc_tx_byte),
       .timer0_irq(w_ioc_timer0),
-      .scc_rx_push(scc_rx_valid), .scc_rx_data(scc_rx_byte), .rx_avail(w_scc_rx_avail));
+      .scc_rx_push(scc_rx_valid), .scc_rx_data(scc_rx_byte), .rx_avail(w_scc_rx_avail),
+      .rx_full(scc_rx_full));
 
    // INT3 interrupt multiplexor: shares the IOC2 access window (its registers sit
    // at lines 0x80/0x90/0xa0; ioc reads 0 there, so the rdatas simply OR). Live
