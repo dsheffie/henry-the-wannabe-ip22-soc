@@ -54,8 +54,11 @@ not optional. ~10 lines of logic (decode 2 addrs, mux a constant, forward a byte
 Base `0x1FBD9880` (registers `0x1FBD9880`–`0x1FBD98AC`, ioc.pdf §2.5 + §4.5). INT3 multiplexes system interrupts
 onto **5 CPU interrupt outputs** CPU_INT_N<4:0>, wired to CP0 Cause IP2..IP6. INT3 does **no internal latching**
 except the two 8254 timer interrupts; it expects already-latched, level-triggered, **active-high** status (a `1`
-= active interrupt regardless of mask/polarity). Each register is a **byte at a 4-byte-aligned address** (kernel
-does `readb`/`writeb`); masks reset to 0 (all masked).
+= active interrupt regardless of mask/polarity). Each register is an 8-bit register on the **low byte lane**
+(`D[7:0]`): the §4.5 addresses below are the 4-byte-aligned *slots*, but the kernel `readb`/`writeb` actually hits
+the byte at **slot+3** (the struct is `u8 _pad[3]; volatile u8 reg;` per register — e.g. `istat0`'s byte is at
+`0x9883`), the **same byte lane as the external 8254**, so `int3.sv` decodes `mask[3/7/11/15]`. Masks reset to 0
+(all masked).
 
 ### Interrupt funnel (signal flow)
 The whole block is a funnel: device/source lines → (optional mappable cascade) → per-level AND-mask + OR-reduce →

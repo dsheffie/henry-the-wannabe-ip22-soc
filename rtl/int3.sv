@@ -77,32 +77,36 @@ module int3
    assign ip5 = r_timer1;                  // Level3 Timer1 (latched)
    assign ip6 = |buserr;                   // Level4 BusErr (not maskable)
 
-   // ---- register read (offs = line base; reg = byte b -> rdata[8*b +: 8]) ----
+   // ---- register read ----
+   // Each IOC2 byte register sits at slot+3 (byte lane 3 / D[7:0]) -- the kernel
+   // struct sgint_regs is "u8 _pad[3]; volatile u8 reg;" per register. So within a
+   // 16-byte line: byte 3 = the +0x0 slot reg, byte 7 = +0x4, byte 11 = +0x8,
+   // byte 15 = +0xc (same byte lane as the external 8254: mask[3/7/11/15]).
    always_comb begin
       rdata = '0;
       if(offs == 8'h80) begin
-         if(mask[0])  rdata[8*0  +: 8] = w_istat0;     // LOCAL0 STATUS @0x80
-         if(mask[4])  rdata[8*4  +: 8] = r_imask0;     // LOCAL0 MASK   @0x84
-         if(mask[8])  rdata[8*8  +: 8] = w_istat1;     // LOCAL1 STATUS @0x88
-         if(mask[12]) rdata[8*12 +: 8] = r_imask1;     // LOCAL1 MASK   @0x8c
+         if(mask[3])  rdata[8*3  +: 8] = w_istat0;     // LOCAL0 STATUS @0x83
+         if(mask[7])  rdata[8*7  +: 8] = r_imask0;     // LOCAL0 MASK   @0x87
+         if(mask[11]) rdata[8*11 +: 8] = w_istat1;     // LOCAL1 STATUS @0x8b
+         if(mask[15]) rdata[8*15 +: 8] = r_imask1;     // LOCAL1 MASK   @0x8f
       end
       else if(offs == 8'h90) begin
-         if(mask[0])  rdata[8*0  +: 8] = w_vmeistat;   // MAP STATUS    @0x90
-         if(mask[4])  rdata[8*4  +: 8] = r_cmeimask0;  // MAP MASK0     @0x94
-         if(mask[8])  rdata[8*8  +: 8] = r_cmeimask1;  // MAP MASK1     @0x98
-         if(mask[12]) rdata[8*12 +: 8] = r_cmepol;     // MAP POL       @0x9c
+         if(mask[3])  rdata[8*3  +: 8] = w_vmeistat;   // MAP STATUS    @0x93
+         if(mask[7])  rdata[8*7  +: 8] = r_cmeimask0;  // MAP MASK0     @0x97
+         if(mask[11]) rdata[8*11 +: 8] = r_cmeimask1;  // MAP MASK1     @0x9b
+         if(mask[15]) rdata[8*15 +: 8] = r_cmepol;     // MAP POL       @0x9f
       end
       else if(offs == 8'ha0) begin
-         // TIMER CLEAR @0xa0 is write-only (reads 0).
-         if(mask[4])  rdata[8*4  +: 8] = w_errstat;    // ERROR STAT    @0xa4
+         // TIMER CLEAR @0xa3 is write-only (reads 0).
+         if(mask[7])  rdata[8*7  +: 8] = w_errstat;    // ERROR STAT    @0xa7
       end
    end
 
    // ---- register writes + 8254 timer latch / TIMER CLEAR ----
    wire       w_l0      = sel & is_store & (offs == 8'h80);
    wire       w_l1      = sel & is_store & (offs == 8'h90);
-   wire       w_tc      = sel & is_store & (offs == 8'ha0) & mask[0];   // TIMER CLEAR @0xa0
-   wire [7:0] w_tclear  = wdata[8*0 +: 8];
+   wire       w_tc      = sel & is_store & (offs == 8'ha0) & mask[3];   // TIMER CLEAR @0xa3
+   wire [7:0] w_tclear  = wdata[8*3 +: 8];
 
    always_ff @(posedge clk) begin
       if(reset) begin
@@ -115,11 +119,11 @@ module int3
          r_timer1    <= 1'b0;
       end
       else begin
-         if(w_l0 & mask[4])  r_imask0    <= wdata[8*4  +: 8];   // LOCAL0 MASK
-         if(w_l0 & mask[12]) r_imask1    <= wdata[8*12 +: 8];   // LOCAL1 MASK
-         if(w_l1 & mask[4])  r_cmeimask0 <= wdata[8*4  +: 8];   // MAP MASK0
-         if(w_l1 & mask[8])  r_cmeimask1 <= wdata[8*8  +: 8];   // MAP MASK1
-         if(w_l1 & mask[12]) r_cmepol    <= wdata[8*12 +: 8];   // MAP POL
+         if(w_l0 & mask[7])  r_imask0    <= wdata[8*7  +: 8];   // LOCAL0 MASK  @0x87
+         if(w_l0 & mask[15]) r_imask1    <= wdata[8*15 +: 8];   // LOCAL1 MASK  @0x8f
+         if(w_l1 & mask[7])  r_cmeimask0 <= wdata[8*7  +: 8];   // MAP MASK0    @0x97
+         if(w_l1 & mask[11]) r_cmeimask1 <= wdata[8*11 +: 8];   // MAP MASK1    @0x9b
+         if(w_l1 & mask[15]) r_cmepol    <= wdata[8*15 +: 8];   // MAP POL      @0x9f
          // 8254 timer interrupts latch on assert, clear on TIMER CLEAR bit0/1.
          if(timer0_irq)              r_timer0 <= 1'b1;
          else if(w_tc & w_tclear[0]) r_timer0 <= 1'b0;
