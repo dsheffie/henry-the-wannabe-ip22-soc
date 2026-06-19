@@ -38,13 +38,14 @@ module ioc
    // cnt2, then polls the latched value until its high byte reads 0, measuring CP0
    // Count over the interval. We tie the down-count to a free-running cycle counter
    // so the poll converges with a sane, deterministic CP0-Count delta.
-   // The real PC/AT i8254 runs at 1.193182 MHz, and the kernel's dosample
-   // calibration ASSUMES that rate (mips_hpt_frequency = CP0-Count-delta /
-   // (PIT-count / 1.193182 MHz)). So clock the down-count at ~1.193 MHz: divide
-   // the 100 MHz core clock by 84 (100e6/1.193182e6 = 83.8). A wrong rate (e.g.
-   // the old /8 = 12.5 MHz) corrupts the calibration -> Linux's timekeeping_advance
-   // loop runs away on a bogus frequency. (Matches what IRIX assumes too.)
-   localparam int PIT_DIV = 84;                // core-clock / PIT-rate (1.193 MHz @ 100 MHz)
+   // The IP22 i8254 is clocked at EXACTLY 1 MHz -- NOT the PC's 1.193182 MHz
+   // (kernel asm/sgi/ioc.h: "Unlike in PCs it's clocked at exactly 1MHz",
+   // SGINT_TIMER_CLOCK = 1000000). Both IRIX and Linux dosample calibration assume
+   // 1 MHz (mips_hpt_frequency = CP0-Count-delta / (PIT-count / 1 MHz)). So clock
+   // the down-count at 1 MHz: divide the 100 MHz core clock by 100. A wrong rate
+   // (the old /8 = 12.5 MHz) corrupts the calibration -> Linux timekeeping_advance
+   // runs away on a bogus frequency; /84 (1.193 MHz) booted but skewed timing ~19%.
+   localparam int PIT_DIV = 100;               // core-clock / PIT-rate (1 MHz @ 100 MHz)
    wire        w_pit          = (offs == 8'hb0);
    wire        w_pit_tcword_wr= sel &  is_store & w_pit & mask[15];
    wire        w_pit_tcnt2_wr = sel &  is_store & w_pit & mask[11];
