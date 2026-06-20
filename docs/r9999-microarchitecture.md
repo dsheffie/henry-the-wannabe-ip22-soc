@@ -124,4 +124,34 @@ The **fully-associative 48-entry TLB CAMs** — one per L1 cache, so every fetch
 
 ---
 
+## Branch delay slots and the control FSM
+
+The single biggest ISA difference between r9999 (MIPS) and its sibling RISC-V soft core `rv64core` isn't register width or opcodes — it's one architectural rule: **in MIPS the instruction after a branch (the *delay slot*) always enters the pipeline, and on a taken branch it executes *before* control reaches the target.** RISC-V has no such rule. That one rule is why r9999's primary control FSM (`core.sv`) carries a cluster of states `rv64core` simply doesn't have:
+
+| Concern | r9999 states | rv64core |
+|---|---|---|
+| The delay slot itself | **`DELAY_SLOT`** | — |
+| Precise exceptions with EPC + BD bit | **`ARCH_FAULT` → `WRITE_EPC` → `EXCEPTION_DRAIN`** | folded inline into `ACTIVE` → `DRAIN` |
+| A fault *inside* a delay slot | **`SERIALIZE_IN_FAULTED_DELAY_SLOT`, `WAIT_FOR_SERIALIZE_IN_FAULTED_DELAY_SLOT`** | — |
+
+`rv64core` spends its "extra" states on RISC-V concerns instead — `WAIT_FOR_CSR_WRITE`, `WAIT_FOR_MMU`, and a legacy syscall-emulation monitor path — none of which touch control flow. Every corner case below is a place where r9999's FSM must do something the RISC-V machine never thinks about.
+
+**1. The branch and its delay slot are one atomic unit.** When a branch reaches the ROB head needing a redirect, r9999 doesn't just restart — it captures the branch's metadata (`n_has_delay_slot`, `n_take_br`, `n_restart_pc`) and enters `DRAIN`, and `head_of_rob_ptr_valid` is held true in `DRAIN` *only while `!r_ds_done`* so the delay slot can still retire. The pair commit together (`retire`/`retire_two`); you can never retire the branch and squash its slot. `rv64core`'s branch path is one line — `n_restart_pc = t_rob_head.target_pc` — retire, redirect, done.
+
+**2. Misprediction recovery must preserve the slot.** r9999 recovers `ACTIVE → DRAIN → RAT → ACTIVE` (the no-checkpoint recovery described above): it drains younger work *but lets the delay slot through*, then copies the retirement RAT back. The squash boundary is "after the delay slot," not "after the branch." In `rv64core` the boundary is simply "after the branch" — there's nothing in between.
+
+**3. Branch-likely nullification.** MIPS `beql`/`bnel`/… *nullify* their delay slot when the branch is **not** taken. r9999 marks these `has_nullifying_delay_slot`, and `DRAIN` encodes the rule directly: if `r_take_br` the slot retires (`t_retire`); if not, `t_retire` stays 0 and the slot is dropped — `n_ds_done` is set either way. RISC-V has no branch-likely, so `rv64core` has no nullify concept at all.
+
+**4. A fault in the delay slot blames the branch.** The famous one. In `ARCH_FAULT` → `WRITE_EPC`, r9999 computes `n_epc = in_delay_slot ? (pc − 4) : pc` and sets `n_exc_in_delay = in_delay_slot` — **EPC points at the branch, and `Cause.BD` is set.** On `eret` the kernel re-executes the branch, which re-executes the slot. `rv64core` writes `n_epc = t_mrob_head.pc` — always the faulting instruction's own PC, no BD bit, no `−4`. (This BD/EPC handling, and gating EPC on `Status.EXL` for nested refills, is exactly the bug class from `MAME_QUESTIONS` Q5 / round-7.)
+
+**5. A branch *in* a delay slot — architecturally UNPREDICTABLE — is given a defined answer.** When the head instruction is itself in a delay slot, r9999 restarts to `r_last_branch_target` rather than its own `target_pc`: `n_restart_pc = in_delay_slot ? r_last_branch_target : t_rob_head.target_pc`. The *outer* branch wins; the inner branch's target is discarded. Tellingly, this exact ternary appears in **three** states — `ACTIVE`, `WAIT_FOR_SERIALIZE_AND_RESTART`, and `CACHE_FLUSH` — every place a redirect is produced. `grep` for `in_delay_slot`/`last_branch_target` in `rv64core/core.sv` returns nothing.
+
+**6. The exception boundary can't fall between the pair.** You may not take an interrupt or fault *between* a branch and its delay slot. r9999 enforces this at allocation: with a fault pending, the alloc condition is gated by `r_pending_fault ? r_in_delay_slot : 1'b1` — only the delay slot may still be allocated, nothing past it — so the machine resolves the pair before redirecting to a vector. `n_in_delay_slot` is threaded through rename from the just-allocated branch's `has_delay_slot`. `rv64core`'s alloc has no such guard.
+
+**7. When the slot faults but the branch must commit first.** If a delay slot faults while its branch is a serializing/oldest-first op, r9999 can't just take the fault — it routes through `SERIALIZE_IN_FAULTED_DELAY_SLOT` / `WAIT_FOR_SERIALIZE_IN_FAULTED_DELAY_SLOT`, which allocate and wait for the *branch* (`rob_next_head`) to complete, then decide the fault against the correct instruction. Two whole states exist solely for this ordering puzzle; `rv64core`, with no pair to order, has zero.
+
+**The tax.** r9999 needs a 3-state exception sequence (`ARCH_FAULT` → `WRITE_EPC` → `EXCEPTION_DRAIN`) where `rv64core` writes `epc`/`cause` inline and falls straight into `DRAIN`, plus four extra delay-slot states besides — all to honor one ISA rule. This is, literally, the control-complexity tax of branch delay slots that RISC-V was designed to avoid: a win for a scalar 5-stage R2000 pipeline, but on an out-of-order machine the delay slot turns every redirect, every exception, and every squash into a "…and the delay slot" special case.
+
+---
+
 *All structural facts above are from the r9999 RTL (`*.sv`) and `machine.vh`, canonical (non-`FORMAL`) configuration. The [IRIX boot flow](irix-boot-flow.md) page covers what this core *runs*; this page covers what it *is*.*
