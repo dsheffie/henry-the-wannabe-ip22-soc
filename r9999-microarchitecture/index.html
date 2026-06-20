@@ -473,6 +473,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#branch-delay-slots-and-the-control-fsm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Branch delay slots and the control FSM
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1297,6 +1308,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#branch-delay-slots-and-the-control-fsm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Branch delay slots and the control FSM
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1479,6 +1501,44 @@
 <p class="admonition-title">Known FPGA bottleneck</p>
 </div>
 <p>The <strong>fully-associative 48-entry TLB CAMs</strong> — one per L1 cache, so every fetch <em>and</em> every load/store does a 48-way parallel CAM match — are the current critical path on the Ultra96-v2 build (negative WNS at 100 MHz). The 48-entry size is fixed by the architecture; the fix is a hardware <strong>micro-TLB</strong> in front of each CAM — a small fast L1 translation cache that removes the big CAM from the common-case path.</p>
+<hr />
+<h2 id="branch-delay-slots-and-the-control-fsm">Branch delay slots and the control FSM<a class="headerlink" href="#branch-delay-slots-and-the-control-fsm" title="Permanent link">&para;</a></h2>
+<p>The single biggest ISA difference between r9999 (MIPS) and its sibling RISC-V soft core <code>rv64core</code> isn't register width or opcodes — it's one architectural rule: <strong>in MIPS the instruction after a branch (the <em>delay slot</em>) always enters the pipeline, and on a taken branch it executes <em>before</em> control reaches the target.</strong> RISC-V has no such rule. That one rule is why r9999's primary control FSM (<code>core.sv</code>) carries a cluster of states <code>rv64core</code> simply doesn't have:</p>
+<table>
+<thead>
+<tr>
+<th>Concern</th>
+<th>r9999 states</th>
+<th>rv64core</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The delay slot itself</td>
+<td><strong><code>DELAY_SLOT</code></strong></td>
+<td>—</td>
+</tr>
+<tr>
+<td>Precise exceptions with EPC + BD bit</td>
+<td><strong><code>ARCH_FAULT</code> → <code>WRITE_EPC</code> → <code>EXCEPTION_DRAIN</code></strong></td>
+<td>folded inline into <code>ACTIVE</code> → <code>DRAIN</code></td>
+</tr>
+<tr>
+<td>A fault <em>inside</em> a delay slot</td>
+<td><strong><code>SERIALIZE_IN_FAULTED_DELAY_SLOT</code>, <code>WAIT_FOR_SERIALIZE_IN_FAULTED_DELAY_SLOT</code></strong></td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p><code>rv64core</code> spends its "extra" states on RISC-V concerns instead — <code>WAIT_FOR_CSR_WRITE</code>, <code>WAIT_FOR_MMU</code>, and a legacy syscall-emulation monitor path — none of which touch control flow. Every corner case below is a place where r9999's FSM must do something the RISC-V machine never thinks about.</p>
+<p><strong>1. The branch and its delay slot are one atomic unit.</strong> When a branch reaches the ROB head needing a redirect, r9999 doesn't just restart — it captures the branch's metadata (<code>n_has_delay_slot</code>, <code>n_take_br</code>, <code>n_restart_pc</code>) and enters <code>DRAIN</code>, and <code>head_of_rob_ptr_valid</code> is held true in <code>DRAIN</code> <em>only while <code>!r_ds_done</code></em> so the delay slot can still retire. The pair commit together (<code>retire</code>/<code>retire_two</code>); you can never retire the branch and squash its slot. <code>rv64core</code>'s branch path is one line — <code>n_restart_pc = t_rob_head.target_pc</code> — retire, redirect, done.</p>
+<p><strong>2. Misprediction recovery must preserve the slot.</strong> r9999 recovers <code>ACTIVE → DRAIN → RAT → ACTIVE</code> (the no-checkpoint recovery described above): it drains younger work <em>but lets the delay slot through</em>, then copies the retirement RAT back. The squash boundary is "after the delay slot," not "after the branch." In <code>rv64core</code> the boundary is simply "after the branch" — there's nothing in between.</p>
+<p><strong>3. Branch-likely nullification.</strong> MIPS <code>beql</code>/<code>bnel</code>/… <em>nullify</em> their delay slot when the branch is <strong>not</strong> taken. r9999 marks these <code>has_nullifying_delay_slot</code>, and <code>DRAIN</code> encodes the rule directly: if <code>r_take_br</code> the slot retires (<code>t_retire</code>); if not, <code>t_retire</code> stays 0 and the slot is dropped — <code>n_ds_done</code> is set either way. RISC-V has no branch-likely, so <code>rv64core</code> has no nullify concept at all.</p>
+<p><strong>4. A fault in the delay slot blames the branch.</strong> The famous one. In <code>ARCH_FAULT</code> → <code>WRITE_EPC</code>, r9999 computes <code>n_epc = in_delay_slot ? (pc − 4) : pc</code> and sets <code>n_exc_in_delay = in_delay_slot</code> — <strong>EPC points at the branch, and <code>Cause.BD</code> is set.</strong> On <code>eret</code> the kernel re-executes the branch, which re-executes the slot. <code>rv64core</code> writes <code>n_epc = t_mrob_head.pc</code> — always the faulting instruction's own PC, no BD bit, no <code>−4</code>. (This BD/EPC handling, and gating EPC on <code>Status.EXL</code> for nested refills, is exactly the bug class from <code>MAME_QUESTIONS</code> Q5 / round-7.)</p>
+<p><strong>5. A branch <em>in</em> a delay slot — architecturally UNPREDICTABLE — is given a defined answer.</strong> When the head instruction is itself in a delay slot, r9999 restarts to <code>r_last_branch_target</code> rather than its own <code>target_pc</code>: <code>n_restart_pc = in_delay_slot ? r_last_branch_target : t_rob_head.target_pc</code>. The <em>outer</em> branch wins; the inner branch's target is discarded. Tellingly, this exact ternary appears in <strong>three</strong> states — <code>ACTIVE</code>, <code>WAIT_FOR_SERIALIZE_AND_RESTART</code>, and <code>CACHE_FLUSH</code> — every place a redirect is produced. <code>grep</code> for <code>in_delay_slot</code>/<code>last_branch_target</code> in <code>rv64core/core.sv</code> returns nothing.</p>
+<p><strong>6. The exception boundary can't fall between the pair.</strong> You may not take an interrupt or fault <em>between</em> a branch and its delay slot. r9999 enforces this at allocation: with a fault pending, the alloc condition is gated by <code>r_pending_fault ? r_in_delay_slot : 1'b1</code> — only the delay slot may still be allocated, nothing past it — so the machine resolves the pair before redirecting to a vector. <code>n_in_delay_slot</code> is threaded through rename from the just-allocated branch's <code>has_delay_slot</code>. <code>rv64core</code>'s alloc has no such guard.</p>
+<p><strong>7. When the slot faults but the branch must commit first.</strong> If a delay slot faults while its branch is a serializing/oldest-first op, r9999 can't just take the fault — it routes through <code>SERIALIZE_IN_FAULTED_DELAY_SLOT</code> / <code>WAIT_FOR_SERIALIZE_IN_FAULTED_DELAY_SLOT</code>, which allocate and wait for the <em>branch</em> (<code>rob_next_head</code>) to complete, then decide the fault against the correct instruction. Two whole states exist solely for this ordering puzzle; <code>rv64core</code>, with no pair to order, has zero.</p>
+<p><strong>The tax.</strong> r9999 needs a 3-state exception sequence (<code>ARCH_FAULT</code> → <code>WRITE_EPC</code> → <code>EXCEPTION_DRAIN</code>) where <code>rv64core</code> writes <code>epc</code>/<code>cause</code> inline and falls straight into <code>DRAIN</code>, plus four extra delay-slot states besides — all to honor one ISA rule. This is, literally, the control-complexity tax of branch delay slots that RISC-V was designed to avoid: a win for a scalar 5-stage R2000 pipeline, but on an out-of-order machine the delay slot turns every redirect, every exception, and every squash into a "…and the delay slot" special case.</p>
 <hr />
 <p><em>All structural facts above are from the r9999 RTL (<code>*.sv</code>) and <code>machine.vh</code>, canonical (non-<code>FORMAL</code>) configuration. The <a href="../irix-boot-flow/">IRIX boot flow</a> page covers what this core </em>runs<em>; this page covers what it </em>is<em>.</em></p>
 
