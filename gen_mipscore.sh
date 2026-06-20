@@ -51,4 +51,11 @@ echo "[gen_mipscore] $(ls "$BUILD"/*.sv | wc -l) .sv + $(ls "$BUILD"/*.vh 2>/dev
 [ -s "$BUILD/mipscore.v" ] || { echo "[gen_mipscore] ERROR: empty mipscore.v (sv2v failed?)" >&2; exit 1; }
 cp "$BUILD/mipscore.v" "$ROOT"/hdl/mipscore.v
 echo "[gen_mipscore] wrote hdl/mipscore.v ($(wc -c < "$ROOT"/hdl/mipscore.v) bytes)"
+
+# Copy the canonical AXI IP wrapper files (versioned here in ip_hdl/) into the
+# IP's hdl dir alongside mipscore.v. Keeping our versions in-repo means the IP
+# repo's hdl/ is pure build output (mipscore.v is gitignored there) and the axi
+# wrapper edits (e.g. the SCC Rx path) live under version control we actually use.
+cp "$ROOT"/ip_hdl/*.v "$ROOT"/hdl/
+echo "[gen_mipscore] copied $(ls "$ROOT"/ip_hdl/*.v | wc -l) AXI IP wrapper file(s) ip_hdl/ -> hdl/"
 echo "[gen_mipscore] modules: $(grep -oE 'module (henry_soc|ioc|mc|hpc3|core_l1d_l1i)' "$ROOT"/hdl/mipscore.v | sort -u | tr '\n' ' ')"
