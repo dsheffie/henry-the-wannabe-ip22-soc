@@ -1808,8 +1808,8 @@ spec §3.3, and MAME all agree <strong>DIR=1 is memory→device</strong>. Trust 
 4. Teardown: <code>ctrl |= FLUSH</code>, spin while <code>ACTIVE</code>, then <code>ctrl = 0</code>. Reset: <code>ctrl = CRESET; udelay(50); ctrl=0</code>.</p>
 <p>MAME's golden model moves SCSI DMA <strong>byte-at-a-time directly between DRAM and the controller, bypassing the
 fifo entirely</strong> — so the zero-length terminator is harmless and Henry may model it the same way.</p>
-<p><strong>WD33C93 controller</strong>: 8-bit device in the HD0 window at <code>0x44000</code> (HD1 <code>0x4c000</code>), accessed as
-<strong>SASR = base+3 (0x44003)</strong> (register-select pointer) and <strong>SCMD = base+7 (0x44007)</strong> (data; auto-increments
+<p><strong>WD33C93 controller</strong>: 8-bit device in the HD0 window at <code>0x40000</code> (HD1 <code>0x48000</code>), accessed as
+<strong>SASR = base+3 (0x40003)</strong> (register-select pointer) and <strong>SCMD = base+7 (0x40007)</strong> (data; auto-increments
 the pointer). The SCSI CDB lives in the controller's register file (regs 0x03–0x0e); the workhorse command is
 <strong>Select-w/Atn-and-Transfer (0x18 ← COMMAND, 0x08)</strong>; reading SCSI Status (reg 0x17) clears INTRQ; success
 code = <code>0x16</code> (<code>SELECT_TRANSFER_SUCCESS</code>). Init: <code>dma_mode = CTRL_BURST (0x20)</code>, <code>FS = 20 MHz</code>, host ID 7.</p>
@@ -1880,13 +1880,13 @@ correctness, and that the HPC3 master path must hit DRAM with <strong>no</strong
 </tr>
 <tr>
 <td>0x40000–0x47fff</td>
-<td>SCSI HD0 device window</td>
-<td>decode base 0x40000; <strong>WD33C93 regs at +0x4000 = 0x44000</strong> ⚠️</td>
+<td>SCSI HD0 device window (WD33C93)</td>
+<td>SASR=0x40003, SCMD=0x40007 (byte = big-endian low byte of the word reg)</td>
 </tr>
 <tr>
 <td>0x48000–0x4ffff</td>
-<td>SCSI HD1 device window</td>
-<td>decode base 0x48000; <strong>WD33C93 regs at +0x4000 = 0x4c000</strong> ⚠️</td>
+<td>SCSI HD1 device window (WD33C93)</td>
+<td>SASR=0x48003, SCMD=0x48007</td>
 </tr>
 <tr>
 <td>0x54000</td>
@@ -1905,8 +1905,12 @@ correctness, and that the HPC3 master path must hit DRAM with <strong>no</strong
 </tr>
 </tbody>
 </table>
-<p>⚠️ <strong>SCSI window correction:</strong> the WD33C93 register windows live at <strong>0x44000 / 0x4c000</strong> (device-base
-<strong>+0x4000</strong>), <em>not</em> 0x40000 / 0x48000 — those are the decode bases. MAME's earlier sub-map had this wrong.</p>
+<p>✅ <strong>SCSI window (corrected 2026-06-20):</strong> the WD33C93 register windows are at <strong>0x40000 (HD0) / 0x48000
+(HD1)</strong> — SASR=0x40003, SCMD=0x40007. This matches MAME's authoritative <code>hpc3.cpp</code> address map
+(<code>map(0x00040000,0x00047fff).rw(hd_r&lt;0&gt;,hd_w&lt;0&gt;)</code>) and live IRIX (which accesses 0x40003/0x40007). A prior
+note here claimed <strong>+0x4000 = 0x44000/0x4c000</strong> — that was WRONG: it trusted MAME's <em>unhandled-access log
+string</em> (<code>0x1fbc4000 + offset&lt;&lt;2</code>, a formatter bug) instead of <code>map()</code>. The bad address propagated into
+interp_mips and stalled IRIX at "Root device target/1 not available" until corrected.</p>
 <p>⚠️ <strong>bbRAM window (corrected 2026-06-19 from the spec):</strong> the battery-backed RAM / RTC decodes <strong>0x60000–0x7ffff
 only</strong> (spec §3.0: <code>pbus.bbram</code> = 0x1fbe0000–0x1fbfffff = 128 KB). An earlier draft of this doc claimed it ran
 to 0xfffff — that was <strong>wrong</strong>; MAME's 0x60000–0x7ffff and the spec agree. The whole first-chip I/O window is
@@ -1968,7 +1972,7 @@ ds1386 model (MAME has one) behind the ×4 byte-per-word address wrapper.</p>
 Stub-friendly for first boot (PROM tolerates a blank/default serial), but the bit-bang register must exist.</p>
 <h2 id="scsi-wd33c93-ethernet-seeq-glue">SCSI (WD33C93) &amp; Ethernet (seeq) glue<a class="headerlink" href="#scsi-wd33c93-ethernet-seeq-glue" title="Permanent link">&para;</a></h2>
 <p>HPC3 is <em>glue</em>, not the device. The actual SCSI controller is a <strong>WD33C93</strong> (or Fujitsu 86603) reached
-through the device window (HD0 @0x44000, HD1 @0x4c000); HPC3 supplies its DMA channel (descriptor walk +
+through the device window (HD0 @0x40000, HD1 @0x48000); HPC3 supplies its DMA channel (descriptor walk +
 fifo) and PIO path. The actual Ethernet controller is a <strong>Seeq 8003</strong> (with 8020 transceiver) at 0x54000;
 HPC3 supplies the enet-tx/enet-rx DMA channels (the <code>EOXP</code>/<code>IPG</code>/<code>TXD</code> <code>BC</code> fields are for it). Henry reuses
 MAME's WD33C93 and Seeq device models and only implements the HPC3 channel/fifo/PIO wrapper around them. The
@@ -1995,7 +1999,7 @@ doc). Per-channel DMA interrupt status is readable from two HPC3 registers (the 
 <li><strong>PIO register R/W</strong> for the general regs (<code>intstat</code>, <code>gio.misc</code>, <code>bus_error</code>) and channel/config regs.</li>
 <li><strong>ds1386 RTC/NVRAM @0x60000</strong> (byte-per-word ×4) — boot env, <strong>mandatory</strong>.</li>
 <li><strong>Serial EEPROM @0x30008</strong> (bit-bang; default/blank contents OK).</li>
-<li><strong>One SCSI channel + WD33C93 @0x44000</strong> — descriptor-walk DMA into DRAM to read the root disk / load the
+<li><strong>One SCSI channel + WD33C93 @0x40000</strong> — descriptor-walk DMA into DRAM to read the root disk / load the
    kernel.</li>
 </ol>
 <p>Stub until real I/O is needed: <strong>Ethernet (Seeq) DMA, audio (HAL2), parallel, floppy, the other SCSI channel,
@@ -2031,7 +2035,7 @@ and the general PBUS DMA channels.</strong> They can be decode-only / read-as-0 
   (p1), DMA descriptor format + buffer rules (p6–7), PIO/word-access + single-stage-write-queue bug (p5,10),
   DMA interrupt timing + flush/coherence absence (p8).</li>
 <li><code>~/code/r9999/IP22_CHIP_REGISTERS.md</code> (HPC3 section + corrections #8/#9) — sub-map, SCSI-window correction
-  (0x44000/0x4c000), bbRAM window 0x60000–0xfffff, ds1386 byte-per-word ×4, EEPROM bit-bang, coherence finding.</li>
+  (0x40000/0x48000), bbRAM window 0x60000–0x7ffff, ds1386 byte-per-word ×4, EEPROM bit-bang, coherence finding.</li>
 <li>MAME IP22/Indy driver — golden reference for FIFO-port offsets, ds1386, WD33C93 and Seeq device models.</li>
 </ul>
 
