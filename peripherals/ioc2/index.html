@@ -1865,6 +1865,15 @@ PLIC priority threshold</strong> (the final gate before the target sees it).</p>
 (<code>AND imask0</code>, OR) → <strong>IP2</strong> → <code>Cause.IP[2]</code> → taken once <code>Status.IM[2]</code> is set. Note the <strong>two</strong> INT3 masks in
 series (<code>cmeimask0</code> then <code>imask0</code>) plus the CPU's <code>Status.IM[2]</code>. To wire it: drive <code>map_src[5]</code> from an <code>rx_avail</code>
 output added to <code>ioc.sv</code> — <code>int3.sv</code> itself is unchanged.</p>
+<p>✅ <strong>Mappable cascade (map_src[5] = SCC serial) → IP2 validated against live IRIX (2026-06-20, interp_mips ISS).</strong>
+The first confirmed user of this path is the <strong>SCC <em>Tx</em>-buffer-empty interrupt</strong> (not RX): interrupt-driven
+<code>/dev/console</code> output (the tty driver draining its write FIFO) needs the SCC INT line, whereas the early
+kernel/PROM console is polled. The chain works exactly as drawn: SCC asserts its INT (Z8530: a data write
+empties the Tx buffer, and with <code>WR1.TxINT_ENAB</code> + <code>WR9.MIE</code> set it latches Tx-IP; the ISR reads <code>RR3</code>
+chip-wide int-pending and acks with <code>RES_Tx_P</code>) → <code>map_src[5]</code> → <code>cmeimask0</code> → <code>istat0[7]</code> (LIO2) → <code>imask0</code> →
+IP2. Register byte lanes in the IOC2 window (<code>base+off*4+3</code>): map status (vmeistat) <code>0x59893</code>, map mask0
+(cmeimask0) <code>0x59897</code>, map mask1 <code>0x5989b</code>, map polarity <code>0x5989f</code>. The same cascade with <code>cmeimask1</code> →
+<code>istat1[3]</code> (LIO3) → IP3 is the local1 path.</p>
 <h3 id="5-output-levels-cpu-ip-pins">5 output levels → CPU IP pins<a class="headerlink" href="#5-output-levels-cpu-ip-pins" title="Permanent link">&para;</a></h3>
 <p>Across the 5 levels there are <strong>27 distinct physical interrupt sources</strong>.</p>
 <table>

@@ -1951,6 +1951,15 @@ byte of the word. This is the SGI NVRAM that holds the boot-monitor environment:
 ds1386 Henry will not get through the boot monitor. The ds1386 <em>internal</em> register/NVRAM layout (clock
 registers, NVRAM bytes) follows the Dallas datasheet, not the HPC3 spec — Henry should reuse the standard
 ds1386 model (MAME has one) behind the ×4 byte-per-word address wrapper.</p>
+<p><strong>⚠️ The clock registers are NOT optional — the IRIX kernel hangs on garbage time (verified 2026-06-20).</strong>
+After SCSI/disk init the kernel reads the ds1386 wall clock and runs <code>rtodc()</code> (RTC→date conversion). With the
+clock registers unimplemented (reading 0), <code>rtodc</code>'s loop bound is garbage and it spins effectively forever —
+boot never reaches userspace. Returning a <strong>fixed, valid BCD time</strong> is enough: the kernel prints <code>WARNING: lost
+battery backup clock</code> and proceeds. The byte offsets IRIX actually reads (ds1386 reg <code>i</code> at <code>0x60000 + i*4</code>,
+value in the low byte / <code>[31:24]</code> after the BE swap, same lane convention as the IOC2 SYSID): seconds <code>0x60004</code>,
+minutes <code>0x60008</code>, hours <code>0x60010</code>, day-of-week <code>0x60018</code>, date <code>0x60020</code>, month <code>0x60024</code>, year <code>0x60028</code>,
+command/status <code>0x6002c</code> (polled). All values BCD; month/date must be 1-based and valid or the conversion
+underflows.</p>
 <h2 id="serial-eeprom-nmc93cs56-0x30008">Serial EEPROM (NMC93CS56) @0x30008<a class="headerlink" href="#serial-eeprom-nmc93cs56-0x30008" title="Permanent link">&para;</a></h2>
 <p>A separate serial EEPROM (National <strong>NMC93CS56</strong>) holds the chassis serial number and boot-monitor env;
 <strong>distinct from the ds1386 NVRAM</strong>. It is bit-banged through the single PIO register <code>eeprom.data</code> @0x30008:</p>
