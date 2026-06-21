@@ -23,7 +23,8 @@ module ioc
     input  logic         scc_rx_push,  // host/TB: push one byte into the SCC chanA Rx FIFO
     input  logic [7:0]   scc_rx_data,
     output logic         rx_avail,     // SCC Rx FIFO non-empty -> INT3 map_src[5] (Serial DUART)
-    output logic         rx_full);     // SCC Rx FIFO full -> producer (ARM/PS) must not push (flow-control)
+    output logic         rx_full,      // SCC Rx FIFO full -> producer (ARM/PS) must not push (flow-control)
+    output logic         scc_tx_int);  // SCC Tx-buffer-empty IRQ -> map_src[5] (joins rx_avail)
 
    // SYSID stored 0x26000000 -> BE lw yields 0x00000026 (board id in bits[7:0]).
    localparam [31:0] IOC2_SYSID = 32'h26000000;
@@ -32,7 +33,7 @@ module ioc
    // when the FIFO is full so the du driver's RR0 poll rate-limits to the drain
    // (otherwise it blasts and overflows the 8-deep FIFO -> dropped console bytes).
    // RR0 also carries bit0 = Rx Char Available (set while the chanA Rx FIFO is non-empty).
-   wire [7:0] w_rr0 = (con_full ? (SCC_RR0 & 8'hfb) : SCC_RR0) | (rx_avail ? 8'h01 : 8'h00);
+   // (Per-channel RR0 incl. the Tx busy term is built below: w_rr0_a / w_rr0_b.)
 
    wire w_scc = (offs == 8'h30);               // the SCC 16-byte window @ IOC+0x30
    integer i, b;
@@ -111,13 +112,104 @@ module ioc
       end
    end
 
+   // ---- Z8530 SCC Tx interrupt (ported from validated interp_mips sgi_scc.cc) ----
+   // Tx-IP is set on transmit COMPLETION (a written char finishes shifting out),
+   // NOT on the data write; the next data write CLEARS it (re-arm -> deasserts the
+   // serial IRQ so the kernel can return to userspace), as does WR0=RES_Tx_P. The
+   // pending Tx int is gated live on WR1.TxINT_ENAB. Cross-validated vs MAME /
+   // Linux ip22zilog / NetBSD zstty / IRIS. Per channel (0=B,1=A); the chip-wide
+   // RR3 (read at register pointer 3) exposes both channels' Tx-IP. scc_tx_int
+   // joins rx_avail on map_src[5] (Serial DUART) -> LIO2 -> CPU IP2.
+   localparam [7:0]  SCC_CMD_MASK    = 8'h38;   // WR0 command field [5:3]
+   localparam [7:0]  SCC_CMD_PNT_HI  = 8'h08;   // point-high: +8 to the register pointer
+   localparam [7:0]  SCC_CMD_RES_TXP = 8'h28;   // reset Tx int pending
+   localparam [7:0]  SCC_CHBTxIP     = 8'h02;   // RR3 channel-B Tx-IP
+   localparam [7:0]  SCC_CHATxIP     = 8'h10;   // RR3 channel-A Tx-IP
+   localparam [15:0] TX_DRAIN        = 16'd512; // cycles a char shifts out before completion
+
+   logic [3:0]  r_scc_ptr   [0:1];  // RR/WR register pointer per channel (0..15)
+   logic [7:0]  r_scc_wr1   [0:1];  // WR1 per channel (TxINT_ENAB = bit1)
+   logic        r_scc_tx_ip [0:1];  // Tx-buffer-empty int pending (set on completion)
+   logic        r_scc_busy  [0:1];  // a char is shifting out (buffer not empty)
+   logic [15:0] r_scc_cnt   [0:1];  // shift-out countdown to completion
+
+   // classify the (single) masked SCC byte access: data iff (b>>2)&1, channel = (b>>3)&1.
+   logic        w_scc_ctrl, w_scc_data, w_scc_ch;
+   logic [7:0]  w_scc_wbyte;
+   always_comb begin
+      w_scc_ctrl  = 1'b0;
+      w_scc_data  = 1'b0;
+      w_scc_ch    = 1'b0;
+      w_scc_wbyte = 8'h0;
+      if(sel & w_scc)
+        for(b = 0; b < 16; b = b + 1)
+          if(mask[b]) begin
+             w_scc_ch = (b >> 3) & 1;
+             if(((b >> 2) & 1) == 1) begin w_scc_data = 1'b1; w_scc_wbyte = wdata[8*b +: 8]; end
+             else                         w_scc_ctrl = 1'b1;
+          end
+   end
+
+   // gated per-channel Tx interrupt; chip-wide RR3 exposes both channels' Tx-IP.
+   wire       w_tx_int0 = r_scc_wr1[0][1] & r_scc_tx_ip[0];
+   wire       w_tx_int1 = r_scc_wr1[1][1] & r_scc_tx_ip[1];
+   wire [7:0] w_rr3     = (w_tx_int1 ? SCC_CHATxIP : 8'h0) | (w_tx_int0 ? SCC_CHBTxIP : 8'h0);
+   assign     scc_tx_int = w_tx_int0 | w_tx_int1;
+
+   // RR0 per channel: Tx-Buffer-Empty (bit2) clear while shifting or while the
+   // console FIFO is full (backpressure rate-limits the poll); bit0 = Rx avail.
+   wire [7:0] w_rr0_b = ((con_full | r_scc_busy[0]) ? (SCC_RR0 & 8'hfb) : SCC_RR0) | (rx_avail ? 8'h01 : 8'h00);
+   wire [7:0] w_rr0_a = ((con_full | r_scc_busy[1]) ? (SCC_RR0 & 8'hfb) : SCC_RR0) | (rx_avail ? 8'h01 : 8'h00);
+
+   always_ff @(posedge clk) begin
+      if(reset) begin
+         for(i = 0; i < 2; i = i + 1) begin
+            r_scc_ptr[i]   <= 4'd0;
+            r_scc_wr1[i]   <= 8'd0;
+            r_scc_tx_ip[i] <= 1'b0;
+            r_scc_busy[i]  <= 1'b0;
+            r_scc_cnt[i]   <= 16'd0;
+         end
+      end
+      else begin
+         // shift-out timing: a busy char completes -> raise the Tx-IP edge.
+         for(i = 0; i < 2; i = i + 1)
+           if(r_scc_busy[i]) begin
+              if(r_scc_cnt[i] == 16'd0) begin r_scc_busy[i] <= 1'b0; r_scc_tx_ip[i] <= 1'b1; end
+              else                           r_scc_cnt[i]  <= r_scc_cnt[i] - 16'd1;
+           end
+         // SCC register access (placed last so a data-write re-arm wins over a
+         // same-cycle completion on the same channel).
+         if(w_scc_ctrl & is_store) begin
+            if(r_scc_ptr[w_scc_ch] == 4'd0) begin   // WR0: command + next register pointer
+               if((w_scc_wbyte & SCC_CMD_MASK) == SCC_CMD_RES_TXP) r_scc_tx_ip[w_scc_ch] <= 1'b0;
+               r_scc_ptr[w_scc_ch] <= {((w_scc_wbyte & SCC_CMD_MASK) == SCC_CMD_PNT_HI), w_scc_wbyte[2:0]};
+            end
+            else begin                              // write WR[ptr]; pointer auto-resets
+               if(r_scc_ptr[w_scc_ch] == 4'd1) r_scc_wr1[w_scc_ch] <= w_scc_wbyte;
+               r_scc_ptr[w_scc_ch] <= 4'd0;
+            end
+         end
+         else if(w_scc_ctrl & ~is_store)            // control read: pointer auto-resets to 0
+           r_scc_ptr[w_scc_ch] <= 4'd0;
+         else if(w_scc_data & is_store & ~con_full) begin  // data write accepted: re-arm + shift
+            r_scc_tx_ip[w_scc_ch] <= 1'b0;
+            r_scc_busy[w_scc_ch]  <= 1'b1;
+            r_scc_cnt[w_scc_ch]   <= TX_DRAIN;
+         end
+      end
+   end
+
    always_comb begin
       rdata = '0;
       if(w_scc) begin
-         // SCC: CONTROL bytes -> RR0; chanA DATA byte (0x37) -> Rx FIFO front.
+         // SCC CONTROL read -> RR[pointer] (RR0, or RR3 chip-wide IP); DATA read
+         // (byte 7) -> Rx FIFO front.
          for(b = 0; b < 16; b = b + 1)
            if(mask[b] & (((b>>2)&1) == 0))
-             rdata[8*b +: 8] = w_rr0;
+             rdata[8*b +: 8] = (r_scc_ptr[(b>>3)&1] == 4'd3) ? w_rr3
+                             : (r_scc_ptr[(b>>3)&1] == 4'd0) ? (((b>>3)&1) ? w_rr0_a : w_rr0_b)
+                             : 8'h0;
          if(mask[7])
            rdata[63:56] = w_rx_front;   // chanA DATA = byte 7
       end

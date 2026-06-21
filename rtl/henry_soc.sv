@@ -200,6 +200,7 @@ module henry_soc
    wire [127:0] w_rd_mc, w_rd_hpc3, w_rd_iocdev, w_rd_int3;
    wire         w_scc_tx_valid;
    wire [7:0]   w_scc_tx_byte;
+   wire         w_scc_tx_int;   // SCC Tx-buffer-empty IRQ (joins rx on map_src[5])
 
    mc #(.MEMCFG0(MEMCFG0)) u_mc
      (.clk(clk), .reset(reset),
@@ -221,12 +222,13 @@ module henry_soc
       .rdata(w_rd_iocdev), .scc_tx_valid(w_scc_tx_valid), .scc_tx_byte(w_scc_tx_byte),
       .timer0_irq(w_ioc_timer0),
       .scc_rx_push(scc_rx_valid), .scc_rx_data(scc_rx_byte), .rx_avail(w_scc_rx_avail),
-      .rx_full(scc_rx_full));
+      .rx_full(scc_rx_full), .scc_tx_int(w_scc_tx_int));
 
    // INT3 interrupt multiplexor: shares the IOC2 access window (its registers sit
    // at lines 0x80/0x90/0xa0; ioc reads 0 there, so the rdatas simply OR). Live
-   // sources: the 8254 counter0 -> Timer0 -> IP4, and the SCC Rx (map_src[5] =
-   // Serial DUART) -> MAP_INT0 -> IP2. Other device source lines are tied 0.
+   // sources: the 8254 counter0 -> Timer0 -> IP4, and the SCC serial line
+   // (map_src[5] = Serial DUART, Rx-avail OR Tx-buffer-empty) -> MAP_INT0 -> IP2.
+   // Other device source lines are tied 0.
    wire w_ioc_timer0;
    wire w_scc_rx_avail;
    int3 u_int3
@@ -235,7 +237,7 @@ module henry_soc
       .offs(c_req_addr[7:0]), .mask(c_req_mask), .wdata(c_req_store_data),
       .rdata(w_rd_int3),
       .local0_src(7'd0), .local1_src(8'd0),
-      .map_src({2'd0, w_scc_rx_avail, 5'd0}),   // bit5 = Serial DUART (SCC Rx)
+      .map_src({2'd0, w_scc_rx_avail | w_scc_tx_int, 5'd0}),  // bit5 = Serial DUART (SCC Rx|Tx)
       .buserr(3'd0),
       .timer0_irq(w_ioc_timer0), .timer1_irq(1'b0),
       .ip2(w_int3_ip2), .ip3(w_int3_ip3), .ip4(w_int3_ip4),
