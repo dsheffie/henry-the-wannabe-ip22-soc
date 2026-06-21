@@ -484,6 +484,78 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#the-tlb-translation-datapath" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The TLB — translation datapath
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The TLB — translation datapath">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#two-stage-lookup-and-why-conflating-the-stages-bites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Two-stage lookup (and why conflating the stages bites)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-r_tlb_written-slot-bit-sail-entryvalid" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The r_tlb_written slot bit (= Sail entry.valid)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cp0-state-the-refill-handler-reads-all-must-be-full-width" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CP0 state the refill handler reads (all must be full-width)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vector-selection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Vector selection
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#segment-decode-mipssegsv" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Segment decode (mipsseg.sv)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1319,6 +1391,78 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#the-tlb-translation-datapath" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The TLB — translation datapath
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The TLB — translation datapath">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#two-stage-lookup-and-why-conflating-the-stages-bites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Two-stage lookup (and why conflating the stages bites)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-r_tlb_written-slot-bit-sail-entryvalid" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The r_tlb_written slot bit (= Sail entry.valid)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cp0-state-the-refill-handler-reads-all-must-be-full-width" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CP0 state the refill handler reads (all must be full-width)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vector-selection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Vector selection
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#segment-decode-mipssegsv" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Segment decode (mipsseg.sv)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1539,6 +1683,66 @@
 <p><strong>6. The exception boundary can't fall between the pair.</strong> You may not take an interrupt or fault <em>between</em> a branch and its delay slot. r9999 enforces this at allocation: with a fault pending, the alloc condition is gated by <code>r_pending_fault ? r_in_delay_slot : 1'b1</code> — only the delay slot may still be allocated, nothing past it — so the machine resolves the pair before redirecting to a vector. <code>n_in_delay_slot</code> is threaded through rename from the just-allocated branch's <code>has_delay_slot</code>. <code>rv64core</code>'s alloc has no such guard.</p>
 <p><strong>7. When the slot faults but the branch must commit first.</strong> If a delay slot faults while its branch is a serializing/oldest-first op, r9999 can't just take the fault — it routes through <code>SERIALIZE_IN_FAULTED_DELAY_SLOT</code> / <code>WAIT_FOR_SERIALIZE_IN_FAULTED_DELAY_SLOT</code>, which allocate and wait for the <em>branch</em> (<code>rob_next_head</code>) to complete, then decide the fault against the correct instruction. Two whole states exist solely for this ordering puzzle; <code>rv64core</code>, with no pair to order, has zero.</p>
 <p><strong>The tax.</strong> r9999 needs a 3-state exception sequence (<code>ARCH_FAULT</code> → <code>WRITE_EPC</code> → <code>EXCEPTION_DRAIN</code>) where <code>rv64core</code> writes <code>epc</code>/<code>cause</code> inline and falls straight into <code>DRAIN</code>, plus four extra delay-slot states besides — all to honor one ISA rule. This is, literally, the control-complexity tax of branch delay slots that RISC-V was designed to avoid: a win for a scalar 5-stage R2000 pipeline, but on an out-of-order machine the delay slot turns every redirect, every exception, and every squash into a "…and the delay slot" special case.</p>
+<h2 id="the-tlb-translation-datapath">The TLB — translation datapath<a class="headerlink" href="#the-tlb-translation-datapath" title="Permanent link">&para;</a></h2>
+<p>r9999's MMU is a software-managed MIPS TLB: a <strong>48-entry fully-associative JTLB</strong>, instantiated <strong>twice</strong> — one copy in <code>l1i.sv</code> (the ITLB, fetch translation) and one in <code>l1d.sv</code> (the DTLB, load/store translation). Both are kept identical: every <code>TLBWR</code>/<code>TLBWI</code> broadcasts the written entry on <code>tlb_entry_out</code>/<code>tlb_entry_out_valid</code> (assembled in <code>exec.sv</code> from the CP0 staging regs) to <strong>both</strong> caches' <code>tlb_entry_in</code> ports, so one software write lands in both CAMs. There is no micro-TLB — each is the full 48-way CAM, which is the design's worst timing path (the fully-associative match → priority encode → PFN mux dominates WNS).</p>
+<p><strong>Dual-page entries.</strong> Each entry is a MIPS even/odd <em>pair</em>: one <code>VPN2</code> (page number, low bit dropped) plus two physical halves — <code>pfn0/v0/d0/c0/g0</code> (even) and <code>pfn1/v1/d1/c1/g1</code> (odd); <code>va[12]</code> selects the half on a hit. Pages are <strong>4 KB only</strong> — <code>PageMask</code> is stored (and must read back what was written; it is <strong>not</strong> RAZ/WI) but is <strong>not used in the match</strong>. Variable-page-size matching is a deferred gap, safe because a vanilla IRIX/Linux boot writes 100% <code>PageMask=0</code>.</p>
+<h3 id="two-stage-lookup-and-why-conflating-the-stages-bites">Two-stage lookup (and why conflating the stages bites)<a class="headerlink" href="#two-stage-lookup-and-why-conflating-the-stages-bites" title="Permanent link">&para;</a></h3>
+<p>A MIPS TLB lookup is <strong>two independent stages</strong>:</p>
+<ol>
+<li><strong>Match</strong> — does any slot's <code>(VPN2, R, ASID/Global)</code> equal the VA's? In <code>tlb.sv</code>:
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>w_hit8k[i]         = (r_tlb[i].vpn[26:0] == va[39:13]) &amp; (r_tlb[i].r == va[63:62]);
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>w_addr_space_match = (r_tlb[i].asid == asid) | (r_tlb[i].g0 &amp; r_tlb[i].g1);
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>w_hits[i]          = w_addr_space_match[i] &amp; w_hit8k[i] &amp; r_tlb_written[i];
+</code></pre></div>
+   The compare is the <strong>full</strong> <code>VPN2 = va[39:13]</code> (27 bits) <strong>plus region <code>R = va[63:62]</code></strong>, matching the Sail spec (<code>mips_tlb.sail tlbEntryMatch</code>) — not a 19-bit <code>va[31:13]</code> shortcut. <strong>No match ⇒ TLB Refill.</strong></li>
+<li><strong>Validity</strong> — only <em>after</em> a match: the selected half's <code>V</code> (<code>va[12] ? v1 : v0</code>). <code>V=0 ⇒ TLB-Invalid</code>; a store with <code>D=0 ⇒ TLB-Modified</code>; else <code>PA = {pfn, va[11:0]}</code>.</li>
+</ol>
+<p>The point that bites: <strong>Refill ("no slot for this page") and Invalid ("slot exists but page not present") are different exceptions with different handlers.</strong> Refill = "go look it up"; Invalid = "I have a slot marked not-present, go fault it in."</p>
+<h3 id="the-r_tlb_written-slot-bit-sail-entryvalid">The <code>r_tlb_written</code> slot bit (= Sail <code>entry.valid</code>)<a class="headerlink" href="#the-r_tlb_written-slot-bit-sail-entryvalid" title="Permanent link">&para;</a></h3>
+<p>A slot is matchable <strong>once software has written it</strong> (<code>TLBWR</code>/<code>TLBWI</code>), tracked by a per-slot <code>r_tlb_written</code> bit (set on write, cleared at reset) — <strong>not</strong> by <code>(v0|v1)</code>. This is load-bearing because <strong>demand paging installs both-pages-invalid entries</strong>: the refill handler, finding a not-yet-present PTE, does <code>tlbwr</code> with <code>v0=v1=0</code> (real VPN, zero PFN). That entry <strong>must still match</strong> so the retry takes <strong>TLB-Invalid → <code>do_page_fault</code></strong>, which allocates the page; the next refill then installs <code>V=1</code>. The canonical first-touch of a user page:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>fetch 0x120000230 → no slot     → Refill → tlbwr v0=v1=0 (PTE absent)
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>retry             → slot matches → V=0    → TLB-Invalid → do_page_fault (allocate)
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>retry             → Refill       → tlbwr V=1 (real PFN) → fetch hits → process runs
+</code></pre></div>
+<p>An earlier match used <code>&amp; (v0|v1)</code> instead of <code>&amp; r_tlb_written</code> — a cheap "is this slot real?" guard against power-on garbage VPNs. It worked for valid entries but <strong>excluded the demand-paging <code>v0=v1=0</code> entry</strong>, so the Invalid stage never fired: the retry re-refilled forever, <code>do_page_fault</code> was never reached, and the first user page was never allocated — an <strong>infinite-refill livelock</strong> that blocked Linux/IRIX from running <code>/init</code>. (Found by tracing <code>interp_mips</code> — which <em>does</em> map the page — and an RTL <code>[tlbinstall]</code> probe that showed <code>v0=0 v1=0</code> installs at the right <code>vpn=0x90000</code> that never matched.)</p>
+<p>The fix splits the two meanings exactly as Sail does: <code>entry.valid</code> (<code>mips_tlb.sail:71</code>, set on every TLB write at <code>mips_insts.sail:1749</code>) gates the <strong>match</strong>, while per-page <code>v0/v1</code> drive the <strong>Invalid</strong> exception. <code>r_tlb_written</code> <em>is</em> <code>entry.valid</code>. It is a model/implementation bit, <strong>not</strong> an architectural register field — the R4400 manual has only <code>V0/V1</code>. Real hardware avoids needing it by requiring software to <code>tlb_init</code> all 48 slots to non-matching values at boot; r9999 carries the bit instead, so correctness can't be defeated by a forgotten init in firmware or a bare-metal test. <strong>Timing-free:</strong> a single flop bit replaces the <code>(v0|v1)</code> OR, so the critical CAM term stays a plain 3-input AND.</p>
+<h3 id="cp0-state-the-refill-handler-reads-all-must-be-full-width">CP0 state the refill handler reads (all must be full-width)<a class="headerlink" href="#cp0-state-the-refill-handler-reads-all-must-be-full-width" title="Permanent link">&para;</a></h3>
+<p>The IP22 kernel's runtime-generated XTLB refill handler is a <strong>3-level page-table walk</strong> reading three CP0 sources — a 32-bit truncation in any of them silently corrupts the walk:</p>
+<table>
+<thead>
+<tr>
+<th>CP0 reg</th>
+<th>r9999 contents</th>
+<th>the handler uses it for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>BadVAddr</code> (8)</td>
+<td>full 64-bit faulting VA (<code>dmfc0</code> returns <code>r_badvaddr</code>, not sign-extended)</td>
+<td>PGD index (<code>BadVAddr&gt;&gt;27</code>) + PMD index (<code>BadVAddr&gt;&gt;18</code>)</td>
+</tr>
+<tr>
+<td><code>Context</code> (4)</td>
+<td><code>{PTEBase[31:23], BadVPN2=va[31:13], 0000}</code> (19-bit VPN2)</td>
+<td>32-bit-addressing PTE pointer</td>
+</tr>
+<tr>
+<td><code>XContext</code> (20)</td>
+<td><code>{XPTEBase[30:0], R[1:0], BadVPN2=va[39:13], 0000}</code> (27-bit VPN2)</td>
+<td>64-bit-addressing PTE index</td>
+</tr>
+</tbody>
+</table>
+<p>On any TLB fault, <code>save_to_tlb_regs</code> (asserted for <strong>both</strong> i-side fetch and d-side load/store misses, <code>core.sv</code>) auto-loads <code>EntryHi.VPN2 = core_badvaddr[39:13]</code>, <code>EntryHi.R = core_badvaddr[63:62]</code>, and <code>BadVPN2</code> — all full. The handler does <strong>not</strong> rewrite <code>EntryHi</code>; it relies on this auto-load, then only <code>dmtc0</code>s <code>EntryLo0/1</code> (the walked PTEs) before <code>tlbwr</code>. So the installed VPN comes entirely from the hardware auto-load.</p>
+<h3 id="vector-selection">Vector selection<a class="headerlink" href="#vector-selection" title="Permanent link">&para;</a></h3>
+<p><code>core.sv</code> picks the refill vector by the <strong>addressing mode of the faulting access</strong>: the <strong>XTLB</strong> vector (<code>ebase+0x080</code>) when 64-bit addressing is active for that mode (<code>in_64b_kernel_mode | in_64b_supervisor_mode | in_64b_user_mode</code>), else the 32-bit <strong>TLB</strong> vector (<code>ebase+0x000</code>); both only when <code>EXL=0</code>. A nested miss (<code>EXL=1</code>) and TLB-Invalid/Modified fall to the general vector (<code>ebase+0x180</code>). n64 user processes run <code>UX=1</code>, so a user miss vectors to XTLB refill — which is why the handler reads <code>XContext</code>.</p>
+<h3 id="segment-decode-mipssegsv">Segment decode (<code>mipsseg.sv</code>)<a class="headerlink" href="#segment-decode-mipssegsv" title="Permanent link">&para;</a></h3>
+<p>Ahead of the CAM, <code>mipsseg</code> classifies the VA: <strong>xkphys</strong> (<code>va[63:62]=10</code>, needs <code>w_in_64b_mode</code>) → unmapped <code>PA=va[58:0]</code>; <strong>xkuseg/xsseg/xkseg</strong> (64-bit mode) → TLB-mapped; <strong>32-bit compat</strong> (sign-extended <code>va[63:32]=ffffffff</code>, or <code>!w_in_64b_mode</code>) → <code>kuseg/kseg0/kseg1/kseg2</code> by <code>va[31:29]</code>. <code>w_in_64b_mode = in_kernel_mode | (in_user_mode &amp; UX) | (in_supervisor_mode &amp; SX)</code> — kernel is always 64-bit-capable (independent of KX, which gates only addressing/XTLB selection). A mapped non-compat VA outside <code>SEGBITS</code> raises AdEL/AdES.</p>
+<blockquote>
+<p><strong>Doc note:</strong> the older "match only the low-19-bit <code>VPN2</code> / ignore region" workaround (commit <code>e451d50</code>, described in <a href="../coherence-cache-tlb/">Cache, coherence &amp; TLB</a>) was <strong>superseded</strong> by the full Sail-conformant <code>va[39:13]+R</code> compare now in <code>tlb.sv</code>; the high-VA <code>wirepda</code> case it patched is handled correctly because <code>EntryHi</code> stores the full <code>VPN2</code>/<code>R</code> from the GPR (per Sail <code>MTC0</code>).</p>
+</blockquote>
+<p><strong>Open TLB gaps:</strong> variable page size (<code>PageMask</code> in the match), i-side out-of-range PA/VA AdEL, and TLB-<code>C</code> cacheability for mapped pages (currently hardcoded in <code>mipsseg</code>).</p>
 <hr />
 <p><em>All structural facts above are from the r9999 RTL (<code>*.sv</code>) and <code>machine.vh</code>, canonical (non-<code>FORMAL</code>) configuration. The <a href="../irix-boot-flow/">IRIX boot flow</a> page covers what this core </em>runs<em>; this page covers what it </em>is<em>.</em></p>
 

@@ -1624,6 +1624,19 @@ L2 visible to software (<code>Config.SC=1</code>), so the ~30 static <code>cache
 <p>D-cache ops are <strong>NOP-safe while I/O stays backdoored</strong> (no snoop logic, no incoherent DMA behind L1d).
 If real incoherent DMA is ever added, honor the invalidate-vs-writeback distinction — especially <code>0x11</code>.</p>
 <h2 id="tlb">TLB<a class="headerlink" href="#tlb" title="Permanent link">&para;</a></h2>
+<div class="admonition info">
+<p class="admonition-title">Full TLB datapath write-up</p>
+<p>The detailed r9999 translation datapath — two-stage match/validity, the <code>r_tlb_written</code>
+(= Sail <code>entry.valid</code>) slot bit and the demand-paging refill→invalid→page-fault flow it
+enables, the <code>BadVAddr</code>/<code>Context</code>/<code>XContext</code> the refill handler reads, vector selection, and
+<code>mipsseg</code> segment decode — now lives in
+<a href="../r9999-microarchitecture/#the-tlb-translation-datapath">r9999 microarchitecture → The TLB</a>.
+<strong>Two things below are superseded by it:</strong> (1) the match is the full Sail-conformant
+<code>va[39:13]+R</code> compare, <em>not</em> the 19-bit <code>va[31:13]</code> workaround in "suspect #2"; (2) a slot is
+matched on the per-slot <em>written</em> bit, not <code>(v0|v1)</code> — the old <code>(v0|v1)</code> guard caused an
+infinite-refill livelock on the first userspace page (it excluded the demand-paging <code>v0=v1=0</code>
+entry, so the retry re-refilled instead of taking TLB-Invalid → <code>do_page_fault</code>).</p>
+</div>
 <ul>
 <li><strong>Size:</strong> 48 dual-entry JTLB — identical on R4000/R4400/R4600/R4700/R5000/RM (only R10000/R12000 go
   to 64). r9999's 48-entry CAM matches. <code>start</code> sets <strong><code>Wired=8</code></strong> (slots 0–7 reserved).</li>
