@@ -4,9 +4,10 @@
 // Translated from the r9999 sgi_hpc.cc functional model.
 //
 // Word-granular register slave (same interface as mc.sv).  Models the few regs
-// the kernel reads (intstat/misc); the SCSI/enet/PBUS DMA/PIO windows are
-// write-absorbed.  Reads not yet modeled return 0 (a documented gap -- see
-// tests/devregs: HPC 0x11004/0x58010/0x58020 etc. that MAME returns nonzero for).
+// the kernel reads (intstat/misc) plus the ds1386 RTC clock @0x60000 (fixed BCD
+// time -- required so IRIX rtodc() doesn't spin); the SCSI/enet/PBUS DMA/PIO
+// windows are write-absorbed.  Reads not yet modeled return 0 (a documented gap
+// -- see tests/devregs: HPC 0x11004/0x58010/0x58020 etc. MAME returns nonzero).
 // -----------------------------------------------------------------------------
 module hpc3
    (input  logic         clk,
@@ -20,6 +21,13 @@ module hpc3
 
    logic [31:0] r_intstat, r_misc;
 
+   // ds1386 RTC / battery-backed clock @0x60000 (byte-per-word x4: internal reg i
+   // at offset 0x60000 + i*4, value in the low byte = [31:24] after the BE swap,
+   // same lane convention as the IOC2 SYSID). A FIXED, valid BCD wall-clock
+   // (2000-01-01 00:00:00) -- NOT optional: with the clock regs reading 0, IRIX's
+   // rtodc() loop bound is garbage and boot spins forever; a valid BCD time lets
+   // it print "lost battery backup clock" and proceed. (Ported from interp_mips
+   // sgi_hpc.cc; see docs/peripherals/hpc3.md. month/date are 1-based BCD.)
    function automatic logic [31:0] hpc_rd(input logic [18:0] o);
       logic [31:0] x;
       begin
@@ -27,6 +35,14 @@ module hpc3
          case(o)
            19'h30000: x = r_intstat;
            19'h30004: x = r_misc;
+           19'h60004: x = 32'h00000000; // ds1386 seconds      (BCD 00)
+           19'h60008: x = 32'h00000000; // ds1386 minutes      (BCD 00)
+           19'h60010: x = 32'h00000000; // ds1386 hours        (BCD 00, 24h)
+           19'h60018: x = 32'h01000000; // ds1386 day-of-week  (1)
+           19'h60020: x = 32'h01000000; // ds1386 date         (1st)
+           19'h60024: x = 32'h01000000; // ds1386 month        (January)
+           19'h60028: x = 32'h00000000; // ds1386 year         (BCD 00 = 2000)
+           19'h6002c: x = 32'h00000000; // ds1386 command/status (not busy)
            default:   x = 32'd0;     // unmodeled HPC3 read regs -> 0 (gap)
          endcase
          hpc_rd = x;
