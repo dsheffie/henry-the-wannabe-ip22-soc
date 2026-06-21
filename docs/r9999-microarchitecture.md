@@ -152,6 +152,65 @@ The single biggest ISA difference between r9999 (MIPS) and its sibling RISC-V so
 
 **The tax.** r9999 needs a 3-state exception sequence (`ARCH_FAULT` → `WRITE_EPC` → `EXCEPTION_DRAIN`) where `rv64core` writes `epc`/`cause` inline and falls straight into `DRAIN`, plus four extra delay-slot states besides — all to honor one ISA rule. This is, literally, the control-complexity tax of branch delay slots that RISC-V was designed to avoid: a win for a scalar 5-stage R2000 pipeline, but on an out-of-order machine the delay slot turns every redirect, every exception, and every squash into a "…and the delay slot" special case.
 
+## The TLB — translation datapath
+
+r9999's MMU is a software-managed MIPS TLB: a **48-entry fully-associative JTLB**, instantiated **twice** — one copy in `l1i.sv` (the ITLB, fetch translation) and one in `l1d.sv` (the DTLB, load/store translation). Both are kept identical: every `TLBWR`/`TLBWI` broadcasts the written entry on `tlb_entry_out`/`tlb_entry_out_valid` (assembled in `exec.sv` from the CP0 staging regs) to **both** caches' `tlb_entry_in` ports, so one software write lands in both CAMs. There is no micro-TLB — each is the full 48-way CAM, which is the design's worst timing path (the fully-associative match → priority encode → PFN mux dominates WNS).
+
+**Dual-page entries.** Each entry is a MIPS even/odd *pair*: one `VPN2` (page number, low bit dropped) plus two physical halves — `pfn0/v0/d0/c0/g0` (even) and `pfn1/v1/d1/c1/g1` (odd); `va[12]` selects the half on a hit. Pages are **4 KB only** — `PageMask` is stored (and must read back what was written; it is **not** RAZ/WI) but is **not used in the match**. Variable-page-size matching is a deferred gap, safe because a vanilla IRIX/Linux boot writes 100% `PageMask=0`.
+
+### Two-stage lookup (and why conflating the stages bites)
+
+A MIPS TLB lookup is **two independent stages**:
+
+1. **Match** — does any slot's `(VPN2, R, ASID/Global)` equal the VA's? In `tlb.sv`:
+   ```
+   w_hit8k[i]         = (r_tlb[i].vpn[26:0] == va[39:13]) & (r_tlb[i].r == va[63:62]);
+   w_addr_space_match = (r_tlb[i].asid == asid) | (r_tlb[i].g0 & r_tlb[i].g1);
+   w_hits[i]          = w_addr_space_match[i] & w_hit8k[i] & r_tlb_written[i];
+   ```
+   The compare is the **full** `VPN2 = va[39:13]` (27 bits) **plus region `R = va[63:62]`**, matching the Sail spec (`mips_tlb.sail tlbEntryMatch`) — not a 19-bit `va[31:13]` shortcut. **No match ⇒ TLB Refill.**
+2. **Validity** — only *after* a match: the selected half's `V` (`va[12] ? v1 : v0`). `V=0 ⇒ TLB-Invalid`; a store with `D=0 ⇒ TLB-Modified`; else `PA = {pfn, va[11:0]}`.
+
+The point that bites: **Refill ("no slot for this page") and Invalid ("slot exists but page not present") are different exceptions with different handlers.** Refill = "go look it up"; Invalid = "I have a slot marked not-present, go fault it in."
+
+### The `r_tlb_written` slot bit (= Sail `entry.valid`)
+
+A slot is matchable **once software has written it** (`TLBWR`/`TLBWI`), tracked by a per-slot `r_tlb_written` bit (set on write, cleared at reset) — **not** by `(v0|v1)`. This is load-bearing because **demand paging installs both-pages-invalid entries**: the refill handler, finding a not-yet-present PTE, does `tlbwr` with `v0=v1=0` (real VPN, zero PFN). That entry **must still match** so the retry takes **TLB-Invalid → `do_page_fault`**, which allocates the page; the next refill then installs `V=1`. The canonical first-touch of a user page:
+
+```
+fetch 0x120000230 → no slot     → Refill → tlbwr v0=v1=0 (PTE absent)
+retry             → slot matches → V=0    → TLB-Invalid → do_page_fault (allocate)
+retry             → Refill       → tlbwr V=1 (real PFN) → fetch hits → process runs
+```
+
+An earlier match used `& (v0|v1)` instead of `& r_tlb_written` — a cheap "is this slot real?" guard against power-on garbage VPNs. It worked for valid entries but **excluded the demand-paging `v0=v1=0` entry**, so the Invalid stage never fired: the retry re-refilled forever, `do_page_fault` was never reached, and the first user page was never allocated — an **infinite-refill livelock** that blocked Linux/IRIX from running `/init`. (Found by tracing `interp_mips` — which *does* map the page — and an RTL `[tlbinstall]` probe that showed `v0=0 v1=0` installs at the right `vpn=0x90000` that never matched.)
+
+The fix splits the two meanings exactly as Sail does: `entry.valid` (`mips_tlb.sail:71`, set on every TLB write at `mips_insts.sail:1749`) gates the **match**, while per-page `v0/v1` drive the **Invalid** exception. `r_tlb_written` *is* `entry.valid`. It is a model/implementation bit, **not** an architectural register field — the R4400 manual has only `V0/V1`. Real hardware avoids needing it by requiring software to `tlb_init` all 48 slots to non-matching values at boot; r9999 carries the bit instead, so correctness can't be defeated by a forgotten init in firmware or a bare-metal test. **Timing-free:** a single flop bit replaces the `(v0|v1)` OR, so the critical CAM term stays a plain 3-input AND.
+
+### CP0 state the refill handler reads (all must be full-width)
+
+The IP22 kernel's runtime-generated XTLB refill handler is a **3-level page-table walk** reading three CP0 sources — a 32-bit truncation in any of them silently corrupts the walk:
+
+| CP0 reg | r9999 contents | the handler uses it for |
+|---|---|---|
+| `BadVAddr` (8) | full 64-bit faulting VA (`dmfc0` returns `r_badvaddr`, not sign-extended) | PGD index (`BadVAddr>>27`) + PMD index (`BadVAddr>>18`) |
+| `Context` (4) | `{PTEBase[31:23], BadVPN2=va[31:13], 0000}` (19-bit VPN2) | 32-bit-addressing PTE pointer |
+| `XContext` (20) | `{XPTEBase[30:0], R[1:0], BadVPN2=va[39:13], 0000}` (27-bit VPN2) | 64-bit-addressing PTE index |
+
+On any TLB fault, `save_to_tlb_regs` (asserted for **both** i-side fetch and d-side load/store misses, `core.sv`) auto-loads `EntryHi.VPN2 = core_badvaddr[39:13]`, `EntryHi.R = core_badvaddr[63:62]`, and `BadVPN2` — all full. The handler does **not** rewrite `EntryHi`; it relies on this auto-load, then only `dmtc0`s `EntryLo0/1` (the walked PTEs) before `tlbwr`. So the installed VPN comes entirely from the hardware auto-load.
+
+### Vector selection
+
+`core.sv` picks the refill vector by the **addressing mode of the faulting access**: the **XTLB** vector (`ebase+0x080`) when 64-bit addressing is active for that mode (`in_64b_kernel_mode | in_64b_supervisor_mode | in_64b_user_mode`), else the 32-bit **TLB** vector (`ebase+0x000`); both only when `EXL=0`. A nested miss (`EXL=1`) and TLB-Invalid/Modified fall to the general vector (`ebase+0x180`). n64 user processes run `UX=1`, so a user miss vectors to XTLB refill — which is why the handler reads `XContext`.
+
+### Segment decode (`mipsseg.sv`)
+
+Ahead of the CAM, `mipsseg` classifies the VA: **xkphys** (`va[63:62]=10`, needs `w_in_64b_mode`) → unmapped `PA=va[58:0]`; **xkuseg/xsseg/xkseg** (64-bit mode) → TLB-mapped; **32-bit compat** (sign-extended `va[63:32]=ffffffff`, or `!w_in_64b_mode`) → `kuseg/kseg0/kseg1/kseg2` by `va[31:29]`. `w_in_64b_mode = in_kernel_mode | (in_user_mode & UX) | (in_supervisor_mode & SX)` — kernel is always 64-bit-capable (independent of KX, which gates only addressing/XTLB selection). A mapped non-compat VA outside `SEGBITS` raises AdEL/AdES.
+
+> **Doc note:** the older "match only the low-19-bit `VPN2` / ignore region" workaround (commit `e451d50`, described in [Cache, coherence & TLB](coherence-cache-tlb.md)) was **superseded** by the full Sail-conformant `va[39:13]+R` compare now in `tlb.sv`; the high-VA `wirepda` case it patched is handled correctly because `EntryHi` stores the full `VPN2`/`R` from the GPR (per Sail `MTC0`).
+
+**Open TLB gaps:** variable page size (`PageMask` in the match), i-side out-of-range PA/VA AdEL, and TLB-`C` cacheability for mapped pages (currently hardcoded in `mipsseg`).
+
 ---
 
 *All structural facts above are from the r9999 RTL (`*.sv`) and `machine.vh`, canonical (non-`FORMAL`) configuration. The [IRIX boot flow](irix-boot-flow.md) page covers what this core *runs*; this page covers what it *is*.*

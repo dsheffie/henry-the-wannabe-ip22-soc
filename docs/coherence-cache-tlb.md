@@ -124,6 +124,19 @@ If real incoherent DMA is ever added, honor the invalidate-vs-writeback distinct
 
 ## TLB
 
+!!! info "Full TLB datapath write-up"
+
+    The detailed r9999 translation datapath — two-stage match/validity, the `r_tlb_written`
+    (= Sail `entry.valid`) slot bit and the demand-paging refill→invalid→page-fault flow it
+    enables, the `BadVAddr`/`Context`/`XContext` the refill handler reads, vector selection, and
+    `mipsseg` segment decode — now lives in
+    [r9999 microarchitecture → The TLB](r9999-microarchitecture.md#the-tlb-translation-datapath).
+    **Two things below are superseded by it:** (1) the match is the full Sail-conformant
+    `va[39:13]+R` compare, *not* the 19-bit `va[31:13]` workaround in "suspect #2"; (2) a slot is
+    matched on the per-slot *written* bit, not `(v0|v1)` — the old `(v0|v1)` guard caused an
+    infinite-refill livelock on the first userspace page (it excluded the demand-paging `v0=v1=0`
+    entry, so the retry re-refilled instead of taking TLB-Invalid → `do_page_fault`).
+
 - **Size:** 48 dual-entry JTLB — identical on R4000/R4400/R4600/R4700/R5000/RM (only R10000/R12000 go
   to 64). r9999's 48-entry CAM matches. `start` sets **`Wired=8`** (slots 0–7 reserved).
 - **Boot is 4 KB-only.** 3000 explicit TLB writes during boot → **100% `PageMask=0` (4 KB), zero large
