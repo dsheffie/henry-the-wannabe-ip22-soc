@@ -183,6 +183,30 @@ during seek latency (thousands of disconnect/reselect events in the trace) — a
 WD33C93 auto-sequencer handles transparently; a fused controller+disk model may complete in one shot and post
 the same `0x16` status without modeling it.
 
+**Target STATUS byte lands in reg 0x0f (Target LUN) — critical for LUN/target enumeration.** After a
+Select-and-Transfer completes, the WD33C93 overwrites reg **0x0f** with the **STATUS byte the target returned**
+in the SCSI STATUS phase: `0x00` = GOOD, `0x02` = CHECK CONDITION. IRIX's autoconfig reads 0x0f (not just the
+0x16 controller-completion code in 0x17) to decide GOOD vs CHECK on every probe command. This drives bus walk:
+IRIX issues INQUIRY to every target 0–7 × LUN 0–7; a real single-LUN disk answers LUN 0 GOOD and returns
+**CHECK CONDITION (0x02)** for LUN ≥ 1 (sense key 0x05 ILLEGAL REQUEST / ASC 0x25 LOGICAL UNIT NOT SUPPORTED),
+which IRIX confirms with a following REQUEST SENSE (`0x03`) then moves on. **Modeling gotcha (verified the hard
+way):** if a model leaves 0x0f holding the LUN value the host just wrote, IRIX reads back e.g. LUN 2 = `0x02`,
+mistakes it for CHECK CONDITION, and falls into an INQUIRY→REQUEST-SENSE loop. A fused controller+disk model
+must (a) write the real STATUS byte into 0x0f on completion and (b) report CHECK CONDITION + LUN-not-supported
+sense for non-existent LUNs/targets. (Selection of an absent target should instead post a **selection-timeout**
+completion rather than 0x16.)
+
+**End-to-end read sequence (verified interrupt-driven against live IRIX, 2026-06-20).** For a data-in command:
+(1) the driver builds the descriptor chain and writes `nbdp`; (2) **arms the channel** by writing the control
+register with `ch_active` (`0x10`) set — *32-bit* register, big-endian; (3) programs the WD33C93 CDB/dest/LUN
+and writes COMMAND = Select-w/Atn-and-Transfer (`0x08`); (4) the WD33C93 runs the bus phases and asserts **DRQ**
+per byte, the HPC3 channel drains DRAM↔controller until the descriptor count hits 0; (5) on completion the
+WD33C93 raises **INTRQ** → IOC2 `istat0[1]` (SCSI0) → **IP2** (see `ioc2.md`); (6) the ISR reads SCSI Status
+(reg 0x17, clears INTRQ) + the target STATUS (reg 0x0f) and the data already in DRAM. The driver typically arms
+the DMA *before* issuing the command and then blocks on the interrupt — so a model that completes the transfer
+synchronously inside the COMMAND write still must post INTRQ and hold it until reg 0x17 is read, or IRIX never
+wakes from its idle loop.
+
 ## Cache coherence — NONE in hardware (the mandatory software contract)
 
 ⚠️ **HPC3 has zero coherence hardware — no snoop, no invalidate-on-DMA.** The entire spec contains no

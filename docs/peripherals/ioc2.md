@@ -188,6 +188,14 @@ masks: `Map Mask0` (`0x9894`) ORs the selected mappables into **MAP_INT0** → L
 but a hard `1` is always active regardless of polarity. The **SCC serial interrupt is mappable bit 5** → routed
 via Map Mask0 to MAP_INT0 → istat0 b7 (the kernel's "LIO2") → **IP2**; this is the path for keyboard/console RX.
 
+✅ **SCSI0 → IP2 validated against live IRIX (2026-06-20, interp_mips ISS).** The `istat0` **b1 = SCSI0**
+path is real and load-bearing for disk boot: the WD33C93 raises **INTRQ** on Select-and-Transfer completion;
+that level drives `istat0[1]` → (`AND imask0`, OR) → **IP2** → `Cause.IP[2]`. With this wired, IRIX (which sits
+in its idle loop after issuing the probe command) takes IP2, services the SCSI completion, and walks the bus.
+INTRQ is **level-sensitive** and clears when the kernel reads the WD33C93 SCSI Status (reg 0x17) — so `istat0[1]`
+must track the live INTRQ line, not latch. (Same byte at `0x9883`; mask `imask0[1]` at `0x9887`, which the
+kernel writes during SCSI init.) This is the **second confirmed IP2 source** after the SCC-RX mappable path.
+
 ### Where the mappable inputs come from (and what is NOT in the IOC2 spec)
 This is the part that confuses people: **which physical signal drives each mappable input is fixed wiring, and for
 the 6 "general" mappables it is NOT specified by the IOC2 spec at all.** The IOC2 I/O list defines them only as
