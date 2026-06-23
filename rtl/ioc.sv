@@ -125,6 +125,8 @@ module ioc
    localparam [7:0]  SCC_CMD_RES_TXP = 8'h28;   // reset Tx int pending
    localparam [7:0]  SCC_CHBTxIP     = 8'h02;   // RR3 channel-B Tx-IP
    localparam [7:0]  SCC_CHATxIP     = 8'h10;   // RR3 channel-A Tx-IP
+   localparam [7:0]  SCC_CHBRxIP     = 8'h04;   // RR3 channel-B Rx-IP (IRIX console = chanB)
+   localparam [7:0]  SCC_CHARxIP     = 8'h20;   // RR3 channel-A Rx-IP
    localparam [15:0] TX_DRAIN        = 16'd512; // cycles a char shifts out before completion
 
    logic [3:0]  r_scc_ptr   [0:1];  // RR/WR register pointer per channel (0..15)
@@ -153,7 +155,14 @@ module ioc
    // gated per-channel Tx interrupt; chip-wide RR3 exposes both channels' Tx-IP.
    wire       w_tx_int0 = r_scc_wr1[0][1] & r_scc_tx_ip[0];
    wire       w_tx_int1 = r_scc_wr1[1][1] & r_scc_tx_ip[1];
-   wire [7:0] w_rr3     = (w_tx_int1 ? SCC_CHATxIP : 8'h0) | (w_tx_int0 ? SCC_CHBTxIP : 8'h0);
+   // gated per-channel Rx interrupt: WR1 Rx-int mode (bits 4:3) enabled & a char
+   // waiting. IRIX's console getty reads RR3 to find the pending source and will
+   // NOT read the char unless its Rx-IP bit is set here (validated via interp_mips:
+   // without this, the getty takes the IP2, sees no Rx-IP in RR3, and never reads).
+   wire       w_rx_int0 = (r_scc_wr1[0][4:3] != 2'b00) & rx_avail;  // chanB (console)
+   wire       w_rx_int1 = (r_scc_wr1[1][4:3] != 2'b00) & rx_avail;  // chanA
+   wire [7:0] w_rr3     = (w_tx_int1 ? SCC_CHATxIP : 8'h0) | (w_tx_int0 ? SCC_CHBTxIP : 8'h0)
+                        | (w_rx_int1 ? SCC_CHARxIP : 8'h0) | (w_rx_int0 ? SCC_CHBRxIP : 8'h0);
    assign     scc_tx_int = w_tx_int0 | w_tx_int1;
 
    // RR0 per channel: Tx-Buffer-Empty (bit2) clear while shifting or while the
