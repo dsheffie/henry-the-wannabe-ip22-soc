@@ -56,6 +56,7 @@ flowchart TD
 | understand the whole system | this page + [Architecture](architecture.md) |
 | wire r9999 in & know what to implement | [CPU integration](cpu-integration.md) |
 | get IRIX to print "IRIX is alive" | [Boot & console](boot-and-console.md) + [IOC2](peripherals/ioc2.md) |
+| drive an interrupt-driven serial console | [SCC implementation & Tx interrupt](peripherals/scc.md) |
 | build the firmware Henry presents | [Firmware / ARCS shim](firmware-arcs.md) |
 | get cache/DMA/TLB right | [Cache, coherence & TLB](coherence-cache-tlb.md) |
 | implement a chip | the [peripheral specs](peripherals/mc.md) |

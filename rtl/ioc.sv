@@ -146,9 +146,10 @@ module ioc
       if(sel & w_scc)
         for(b = 0; b < 16; b = b + 1)
           if(mask[b]) begin
-             w_scc_ch = (b >> 3) & 1;
-             if(((b >> 2) & 1) == 1) begin w_scc_data = 1'b1; w_scc_wbyte = wdata[8*b +: 8]; end
-             else                         w_scc_ctrl = 1'b1;
+             w_scc_ch    = (b >> 3) & 1;
+             w_scc_wbyte = wdata[8*b +: 8];   // capture the byte for BOTH ctrl and data
+             if(((b >> 2) & 1) == 1) w_scc_data = 1'b1;   // WR/RR data reg
+             else                    w_scc_ctrl = 1'b1;   // WR0 cmd / WR1 / pointer (carries the byte)
           end
    end
 

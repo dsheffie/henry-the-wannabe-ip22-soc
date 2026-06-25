@@ -38,6 +38,11 @@ register, 1 = data). ✅ Confirmed against MAME `map(0x0c,0x0f) -> z80scc ab_dc_
 | `0x1FBD9838` | 0x0e | Port2 (chan B) command/RR0 | return `0x04`, swallow writes (2nd serial port — not console). ⚠️ |
 | `0x1FBD983C` | 0x0f | Port2 (chan B) data | swallow / 0. ⚠️ |
 
+> **Beyond polled output:** this table is the *minimum to print*. For the register pointer machine,
+> the TX datapath (shared console FIFO + the 512-cycle shift timer), and the **Tx-buffer-empty
+> interrupt** path through INT3 → IP2 that an interrupt-driven driver (Linux `ip22zilog`) needs, see
+> [SCC implementation & Tx interrupt](scc.md).
+
 Minimal TX recipe (the whole console for Henry):
 1. **Write `0x1FBD9834`** → take `data[7:0]`, append to the console output sink. That's the printed character.
 2. **Read `0x1FBD9830`** → always return **`0x04`** so the driver's "wait for Tx empty" poll (`while(!(RR0&4));`)
