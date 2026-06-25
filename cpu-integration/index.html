@@ -432,10 +432,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#gap-2-caches-are-incoherent-cachenop-is-a-latent-bug-see-coherence-doc" class="md-nav__link">
+  <a href="#gap-2-closed-cache-is-fully-decoded-flush-wired-was-a-latent-nop-bug" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Gap 2 — caches are incoherent → cache→NOP is a LATENT BUG (see coherence doc)
+        Gap 2 — CLOSED: cache is fully decoded + flush-wired (was a latent NOP bug)
       
     </span>
   </a>
@@ -1316,10 +1316,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#gap-2-caches-are-incoherent-cachenop-is-a-latent-bug-see-coherence-doc" class="md-nav__link">
+  <a href="#gap-2-closed-cache-is-fully-decoded-flush-wired-was-a-latent-nop-bug" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Gap 2 — caches are incoherent → cache→NOP is a LATENT BUG (see coherence doc)
+        Gap 2 — CLOSED: cache is fully decoded + flush-wired (was a latent NOP bug)
       
     </span>
   </a>
@@ -1412,8 +1412,8 @@ and <code>wait</code>). No action needed for any of:</p>
   <code>break</code>, <code>syscall</code>.</li>
 <li><strong>64-bit (MIPS III):</strong> <code>ld/sd/lwu/ldl/ldr/sdl/sdr</code>, <code>daddu/daddiu/daddi/dsubu/dnegu</code>, the full
   <code>d*</code> shift family, <code>dmult/dmultu/ddiv/ddivu</code>.</li>
-<li><strong>System / CP0:</strong> <code>mtc0/mfc0/dmtc0/dmfc0</code>, <code>tlbr/tlbwi/tlbwr/tlbp</code>, <code>eret</code>, <code>cache</code> (today NOP — see
-  Gap 2), <code>sync</code>.</li>
+<li><strong>System / CP0:</strong> <code>mtc0/mfc0/dmtc0/dmfc0</code>, <code>tlbr/tlbwi/tlbwr/tlbp</code>, <code>eret</code>, <code>cache</code> (fully decoded +
+  flush-wired — see Gap 2), <code>sync</code>.</li>
 <li><strong>Atomics:</strong> <code>ll/sc/lld/scd</code>.</li>
 </ul>
 <p>The kernel runs <strong>no FP arithmetic at all</strong> (no <code>add.*/sub.*/mul.*/div.*/sqrt/abs/neg/c.*</code>), so an
@@ -1463,7 +1463,7 @@ flags go to <code>FCSR.Cause</code> on a trap or accumulate in the sticky <code>
 (including <code>sqrt</code> via soft-float); the FP-complete synth meets timing (<strong>WNS +0.235 ns @ 100 MHz</strong>).
 See <code>r9999/FPU_PORT_STUDY.md</code>, <code>r9999/FPU_ROUNDING_EXCEPTIONS.md</code>.</p>
 <hr />
-<h2 id="gap-2-caches-are-incoherent-cachenop-is-a-latent-bug-see-coherence-doc">Gap 2 — caches are incoherent → <code>cache</code>→NOP is a LATENT BUG  (see coherence doc)<a class="headerlink" href="#gap-2-caches-are-incoherent-cachenop-is-a-latent-bug-see-coherence-doc" title="Permanent link">&para;</a></h2>
+<h2 id="gap-2-closed-cache-is-fully-decoded-flush-wired-was-a-latent-nop-bug">Gap 2 — CLOSED: <code>cache</code> is fully decoded + flush-wired  (was a latent NOP bug)<a class="headerlink" href="#gap-2-closed-cache-is-fully-decoded-flush-wired-was-a-latent-nop-bug" title="Permanent link">&para;</a></h2>
 <p>r9999 has separate <strong>L1i + L1d</strong> over an L2 that <strong>is</strong> transparent/coherent (hidden from the kernel
 via <code>Config.SC=1</code> → kernel sees "R4000PC", so all ~30 static secondary/L2 <code>cache_sel=2/3</code> sites are
 gated out — confirmed <strong>0 dynamic</strong>; no L2 modeling needed). The live coherence axis is <strong>L1i vs.
@@ -1472,19 +1472,17 @@ D-side stores</strong>: the kernel <strong>writes code</strong> through L1d/L2 (
 copy. So the I-cache <code>cache</code> ops <strong>must be honored, not NOP'd</strong>.</p>
 <p><code>cache</code> (op <code>0x2f</code>) is executed <strong>5.2 M times</strong> over a 120 s boot; four primary ops = 99.94%. Decode:
 <code>op = instr[20:16]</code>, <code>cache_sel = op[1:0]</code> (0=I,1=D,2=SD,3=SI), <code>operation = op[4:2]</code>.</p>
-<p>Decode / handling obligations:</p>
+<p><strong>Implemented in r9999</strong> (<code>decode_mips.sv</code> op <code>0x2f</code> → <code>CACHE_OP</code>; <code>l1i.sv</code> / <code>l1d.sv</code>):</p>
 <ul>
-<li><strong>Fully decode the op field</strong> (do not blanket-NOP); <strong>privilege-check</strong> (<code>cache</code> is kernel/CU0-only
-  → user mode = Coprocessor-Unusable); compute EA = <code>base + signext(offset)</code>.</li>
-<li><strong>I-cache ops (<code>0x10</code> Hit-Inval-I, <code>0x00</code> Index-Inval-I, and the I-side of any others): drive the
-  existing <code>l1i.sv</code> <code>flush_req</code>/<code>FLUSH_CACHE</code>.</strong> The I-cache is never dirty, so a <strong>whole-L1i flush is
-  a correct over-approximation of EVERY I-cache op</strong> — simplest wiring: any I-cache <code>cache</code> op →
-  <code>flush_req</code>. <strong>This is the one real obligation today</strong> — a <em>wiring</em> task; the flush HW already
-  exists in <code>l1i.sv</code>.</li>
-<li><strong>D-cache ops (<code>0x01</code>/<code>0x15</code>/<code>0x11</code>/<code>0x19</code>): NOP-safe while there is no incoherent DMA</strong> (no snoop
-  logic in L1d; I/O is backdoored). <strong>IF</strong> incoherent DMA is ever added behind L1d, honor the
-  invalidate-vs-writeback distinction — esp. <strong><code>0x11</code> D-Hit-Invalidate must invalidate WITHOUT
-  writeback</strong> (DMA-in); do not promote it to writeback-invalidate or you corrupt DMA'd data.</li>
+<li>✅ <strong>Fully decoded</strong> (no blanket-NOP) and <strong>kernel-mode-gated</strong> (<code>in_kernel_mode</code> → a user-mode
+  <code>cache</code> does not execute the op); serializing; EA = <code>base + signext(offset)</code> is computed into the
+  uop (<code>cache_is_d = insn[16]</code>, <code>cache_inval = insn[20:18]==3'b100</code>).</li>
+<li>✅ <strong>I-cache ops → <code>l1i.sv</code> <code>flush_req</code></strong> — a <strong>whole-L1i flush</strong>, the correct over-approximation of
+  every I-cache op (the I-cache is never dirty). This is what makes runtime CPU patching / module
+  loads code-coherent.</li>
+<li>✅ <strong>D-cache ops → <code>l1d.sv</code> <code>flush_cl_req</code>/<code>flush_cl_addr</code></strong> — a <strong>per-line writeback</strong> of the line
+  at the EA (pushing it to L2). <strong>D-Hit-Invalidate</strong> (<code>cache_inval</code>, op field <code>0b100</code>) drops the line
+  <strong>WITHOUT</strong> writeback (the DMA-in case), correctly distinguished from writeback ops.</li>
 <li><strong>Index-Store-Tag (<code>0x08</code>/<code>0x09</code>) / Fill (<code>0x14</code>): NOP</strong> — r9999's caches reset clean (no power-on
   tag scrub); cache size comes from <code>Config</code>, not the tag probe.</li>
 </ul>
@@ -1577,9 +1575,9 @@ never evicts slot 0).</p>
 <td>—</td>
 </tr>
 <tr>
-<td><strong><code>cache</code> op decode + I-cache flush wiring</strong></td>
-<td>decode missing (<code>cache</code>→NOP, <strong>latent bug</strong>)</td>
-<td><strong>Gap 2</strong> — decode full op field; any I-cache op → <code>l1i</code> <code>flush_req</code>; D-ops NOP-safe</td>
+<td><strong><code>cache</code> op decode + I/D flush wiring</strong></td>
+<td><strong>DONE</strong> — was <code>cache</code>→NOP (latent bug)</td>
+<td><strong>Gap 2 CLOSED</strong> — full op-field decode, kernel-gated; I-ops → <code>l1i</code> <code>flush_req</code> (whole-L1i); D-ops → <code>l1d</code> per-line <code>flush_cl</code> (+ Hit-Invalidate, no-writeback)</td>
 </tr>
 <tr>
 <td><strong>FP regfile 32×64b + <code>Status.CU1/FR</code> (FR=1)</strong></td>

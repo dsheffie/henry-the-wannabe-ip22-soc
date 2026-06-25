@@ -1460,7 +1460,10 @@ would diverge from the real IP22.</p>
 </div>
 <h2 id="the-cache-instruction-decode-routing">The <code>cache</code> instruction — decode &amp; routing<a class="headerlink" href="#the-cache-instruction-decode-routing" title="Permanent link">&para;</a></h2>
 <p>r9999 must <strong>fully decode <code>cache</code></strong> (opcode <code>0x2f</code>) and route by the op field — a blanket NOP is a
-latent bug. Field decode of the op register field <code>op = instr[20:16]</code>:
+latent bug. <strong>Implemented</strong> (<code>decode_mips.sv</code> → <code>CACHE_OP</code>, kernel-gated): I-cache ops drive a
+whole-L1i <code>flush_req</code>; D-cache ops do a per-line writeback (<code>l1d</code> <code>flush_cl</code> at the EA), with
+D-Hit-Invalidate dropping the line without writeback. Field decode of the op register field
+<code>op = instr[20:16]</code>:
 <code>cache_sel = op[1:0]</code> (0=I-primary, 1=D-primary, 2=SD secondary-data, 3=SI secondary-instr);
 <code>operation = op[4:2]</code>.</p>
 <p><strong>Boot histogram</strong> — C++ instrumentation on MAME's mips3 <code>case 0x2f</code>, <strong>5,208,585 cache ops over a
