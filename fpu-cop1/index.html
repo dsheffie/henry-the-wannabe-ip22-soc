@@ -25,7 +25,7 @@
     
     
       
-        <title>FPU (COP1) — what IRIX boot needs - Henry — the wannabe IP22 SoC</title>
+        <title>FPU (COP1) — what r9999 implements - Henry — the wannabe IP22 SoC</title>
       
     
     
@@ -76,7 +76,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#fpu-cop1-boot-requirements" class="md-skip">
+        <a href="#fpu-cop1-implementation" class="md-skip">
           Skip to content
         </a>
       
@@ -112,7 +112,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              FPU (COP1) — what IRIX boot needs
+              FPU (COP1) — what r9999 implements
             
           </span>
         </div>
@@ -525,7 +525,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--implemented (MAME-validated workload)"></span>
   
 
   
@@ -550,7 +550,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--implemented (MAME-validated workload)"></span>
   
 
   
@@ -595,22 +595,22 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#the-op-set-r9999-must-implement-to-boot" class="md-nav__link">
+  <a href="#the-op-set-r9999-implements" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The op set r9999 must implement to boot
+        The op set r9999 implements
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="The op set r9999 must implement to boot">
+    <nav class="md-nav" aria-label="The op set r9999 implements">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#deferrable-past-boot-zero-hits-in-a-full-boot" class="md-nav__link">
+  <a href="#previously-deferrable-ops-handled-via-soft-float-trap-not-omitted" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Deferrable past boot (zero hits in a full boot)
+        Previously "deferrable" ops — handled via soft-float trap, not omitted
       
     </span>
   </a>
@@ -1322,22 +1322,22 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#the-op-set-r9999-must-implement-to-boot" class="md-nav__link">
+  <a href="#the-op-set-r9999-implements" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The op set r9999 must implement to boot
+        The op set r9999 implements
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="The op set r9999 must implement to boot">
+    <nav class="md-nav" aria-label="The op set r9999 implements">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#deferrable-past-boot-zero-hits-in-a-full-boot" class="md-nav__link">
+  <a href="#previously-deferrable-ops-handled-via-soft-float-trap-not-omitted" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Deferrable past boot (zero hits in a full boot)
+        Previously "deferrable" ops — handled via soft-float trap, not omitted
       
     </span>
   </a>
@@ -1399,24 +1399,29 @@
 
 
 
-<h1 id="fpu-cop1-boot-requirements">FPU (COP1) — boot requirements<a class="headerlink" href="#fpu-cop1-boot-requirements" title="Permanent link">&para;</a></h1>
+<h1 id="fpu-cop1-implementation">FPU (COP1) — implementation<a class="headerlink" href="#fpu-cop1-implementation" title="Permanent link">&para;</a></h1>
 <blockquote>
-<p>r9999 must present a working <strong>COP1</strong> (FPU). A full IRIX 6.5.22 boot to multiuser issues <strong>~132K COP1
-ops</strong> <em>plus</em> <strong>~453K FP load/stores</strong> (FP data movement is the bulk of FP work — see below). Of the COP1
-ops ~61% are register/control moves, but the remainder is <strong>real FP arithmetic</strong> (from userland —
-init/rc/daemons), so a multiuser boot needs a <strong>functioning FP datapath</strong>, not just the regfile
-plumbing. <strong>MADD/MSUB (COP1X) never appear</strong> → optional. Every number here was measured by booting real IRIX in MAME (<code>indy_4610</code>, <code>-nodrc</code>
-interpreter) with a COP1-instruction histogram compiled into <code>mips3.cpp</code>. This pairs with the
+<p>r9999 <strong>presents a working COP1 (FPU)</strong>: a clustered/banked FP register file, the full move and
+FP load/store plumbing, a real arithmetic datapath (unified single/double add/sub + multiply,
+compare, and converts in hardware), FP branches, and the IEEE/FCSR exception model. It is validated
+<strong>booting an FPU Linux kernel to <code>/init</code></strong> with lazy-FPU (<code>Status.CU1</code>) and <strong>running a double-precision
+self-test on henry silicon</strong> (an <code>awk</code> arithmetic test: <code>22/7</code>, <code>3.5*2.0</code>, <code>sqrt(2)</code>, <code>exp(1)</code> — all
+correct). The histograms below come from booting real IRIX 6.5.22 in MAME (<code>indy_4610</code>, <code>-nodrc</code>
+interpreter) with a COP1-instruction histogram compiled into <code>mips3.cpp</code>; they remain accurate as the
+<strong>workload context</strong> — they show <em>what FP work the OS actually issues</em>, and r9999 covers all of it
+(the few ops not in the HW datapath — div/sqrt — trap to the OS soft-float emulator). This pairs with the
 <strong><code>Status.FR</code></strong> finding in <a href="../coherence-cache-tlb/#cp0-timekeeping-misc">Cache, coherence &amp; TLB</a>.</p>
 </blockquote>
 <h2 id="why-the-fpu-is-on-the-boot-path">Why the FPU is on the boot path<a class="headerlink" href="#why-the-fpu-is-on-the-boot-path" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong><code>Status.FR=1</code> is load-bearing.</strong> <code>DMTC1</code> (64-bit GPR→FPR move) is the single most-frequent COP1 op
-  (48,951 / 37%) — that's FR=1 context save/restore of the 32×64-bit register file. r9999's FP regfile
-  must implement FR=1 (32 independent 64-bit registers), with the <code>FR</code> bit switching regfile aliasing.</li>
-<li><strong>Early kernel = moves only; userland = real math.</strong> A 3 s (early-kernel) capture is ~100% MFC1/MTC1.
-  Once userland runs, genuine single/double arithmetic appears — so "boot to multiuser" cannot be done
-  with a move-only FPU stub.</li>
+<li><strong><code>Status.FR=1</code> is load-bearing — and implemented.</strong> <code>DMTC1</code> (64-bit GPR→FPR move) is the single
+  most-frequent COP1 op (48,951 / 37%) — that's FR=1 context save/restore of the 32×64-bit register file.
+  r9999's <code>fp_regfile.sv</code> is FR=1 (32 independent 64-bit registers); <code>Status.FR</code> is R/W (resets 1) and the
+  FR=0 (o32) case is handled by decode-force (odd-reg compute / doubleword ops → Reserved Instruction;
+  singleword <code>lwc1</code>/<code>mtc1</code>/<code>swc1</code>/<code>mfc1</code> half-merge/extract via the even reg).</li>
+<li><strong>Early kernel = moves only; userland = real math — both covered.</strong> A 3 s (early-kernel) capture is
+  ~100% MFC1/MTC1; once userland runs, genuine single/double arithmetic appears. r9999 runs both: the move
+  plumbing <em>and</em> a real FP datapath, so it boots past early kernel into userland FP without a stub.</li>
 </ul>
 <h2 id="boot-cop1-histogram-120-s-boot-131884-cop1-ops">Boot COP1 histogram (120 s boot → 131,884 COP1 ops)<a class="headerlink" href="#boot-cop1-histogram-120-s-boot-131884-cop1-ops" title="Permanent link">&para;</a></h2>
 <table>
@@ -1425,7 +1430,7 @@ interpreter) with a COP1-instruction histogram compiled into <code>mips3.cpp</co
 <th>Category</th>
 <th style="text-align: right;">Count</th>
 <th style="text-align: right;">%</th>
-<th>r9999 implication</th>
+<th>how r9999 handles it</th>
 </tr>
 </thead>
 <tbody>
@@ -1433,49 +1438,58 @@ interpreter) with a COP1-instruction histogram compiled into <code>mips3.cpp</co
 <td><strong>Moves / control</strong> — MTC1/MFC1/DMTC1/DMFC1/CFC1/CTC1</td>
 <td style="text-align: right;">80,306</td>
 <td style="text-align: right;">60.9%</td>
-<td>regfile + FCR31 plumbing, <strong>no datapath</strong></td>
+<td>regfile + FCR31 (FCR rename domain)</td>
 </tr>
 <tr>
 <td><strong>Single-precision</strong> (<code>fmt=S</code>) math + compare</td>
 <td style="text-align: right;">25,147</td>
 <td style="text-align: right;">19.1%</td>
-<td>FP datapath</td>
+<td>unified <code>fpu_add</code>/<code>fpu_mul</code>/<code>fpu_compare</code> (S)</td>
 </tr>
 <tr>
 <td><strong>Double-precision</strong> (<code>fmt=D</code>) math + compare</td>
 <td style="text-align: right;">15,347</td>
 <td style="text-align: right;">11.6%</td>
-<td>FP datapath</td>
+<td>same unified add/mul/compare (D)</td>
 </tr>
 <tr>
 <td><strong>BC1</strong> FP conditional branches</td>
 <td style="text-align: right;">9,839</td>
 <td style="text-align: right;">7.5%</td>
-<td>FCR31 condition code → branch resolution</td>
+<td>FCR cc bit → branch resolution</td>
 </tr>
 <tr>
 <td><strong>Int→FP converts</strong> (<code>fmt=W/L</code>)</td>
 <td style="text-align: right;">1,245</td>
 <td style="text-align: right;">0.9%</td>
-<td>CVT.D.W / CVT.S.W / CVT.D.L</td>
+<td><code>fpu_i2f</code> (CVT.D.W / CVT.S.W / CVT.D.L)</td>
 </tr>
 </tbody>
 </table>
-<p>Moves dominate, but ~31% (40,333 ops) is real FP work.</p>
-<h2 id="the-op-set-r9999-must-implement-to-boot">The op set r9999 must implement to boot<a class="headerlink" href="#the-op-set-r9999-must-implement-to-boot" title="Permanent link">&para;</a></h2>
-<p>Union of all nonzero op funcs observed (with the hottest counts):</p>
+<p>Moves dominate, but ~31% (40,333 ops) is real FP work — and r9999 has the datapath for it.</p>
+<h2 id="the-op-set-r9999-implements">The op set r9999 implements<a class="headerlink" href="#the-op-set-r9999-implements" title="Permanent link">&para;</a></h2>
+<p>Union of all nonzero op funcs observed (with the hottest counts) — <strong>all of these are covered</strong>, either
+by the hardware datapath or (div/sqrt) by the soft-float trap:</p>
 <ul>
-<li><strong>Arithmetic:</strong> <code>ADD.S</code> (12,974), <code>ADD.D</code> (702), <code>MUL.S</code> (2,757), <code>MUL.D</code> (439), <code>SUB.S/D</code>,
-  <strong><code>DIV.D</code> (128 — double divide is exercised)</strong>, <code>ABS.D</code>, <code>NEG.S</code>, <code>MOV.S</code> (287), <code>MOV.D</code> (10,083).</li>
-<li><strong>Convert / round:</strong> <code>CVT.D.S</code>, <code>CVT.S.D</code>, <code>CVT.D.W</code> (502), <code>CVT.D.L</code> (672), <code>CVT.S.W</code>,
-  <strong><code>TRUNC.W.D</code> (2,349)</strong>, <code>TRUNC.L.D</code> (538).</li>
-<li><strong>Compare:</strong> <code>C.LT.{S,D}</code> (C.LT.S = 6,819, the hottest compare), <code>C.LE.{S,D}</code> (C.LE.S = 2,070),
-  <code>C.EQ.{S,D}</code>.</li>
-<li><strong>Branch:</strong> <code>BC1{T,F}</code> (+ likely the <code>TL/FL</code> likely-variants).</li>
+<li><strong>Arithmetic (HW):</strong> <code>ADD.S</code> (12,974), <code>ADD.D</code> (702), <code>MUL.S</code> (2,757), <code>MUL.D</code> (439), <code>SUB.S/D</code>,
+  <code>ABS.D</code>, <code>NEG.S</code>, <code>MOV.S</code> (287), <code>MOV.D</code> (10,083). Add/sub and multiply are the unified single/double
+  <code>fpu_add</code> and <code>fpu_mul</code> units (fixed 2-cycle latency, <code>fmt</code> selects S/D, FCSR.RM rounding); abs/neg/mov
+  are single-cycle bit-twiddles.</li>
+<li><strong>Divide (soft-float):</strong> <strong><code>DIV.D</code> (128 — double divide is exercised)</strong> is <em>not</em> in the HW datapath —
+  r9999 raises the Unimplemented-Op (E) FP exception (see below) and the OS soft-float emulator computes it.</li>
+<li><strong>Convert / round (HW):</strong> <code>CVT.D.S</code>, <code>CVT.S.D</code>, <code>CVT.D.W</code> (502), <code>CVT.D.L</code> (672), <code>CVT.S.W</code>,
+  <strong><code>TRUNC.W.D</code> (2,349)</strong>, <code>TRUNC.L.D</code> (538) — single-cycle <code>fpu_f2i</code>/<code>fpu_i2f</code>/<code>fpu_f2f</code>.</li>
+<li><strong>Compare (HW):</strong> <code>C.LT.{S,D}</code> (C.LT.S = 6,819, the hottest compare), <code>C.LE.{S,D}</code> (C.LE.S = 2,070),
+  <code>C.EQ.{S,D}</code> — <code>fpu_compare</code> implements <strong>all 16 <code>C.cond</code> predicates</strong> and writes the FCR cc bit.</li>
+<li><strong>Branch (HW):</strong> <code>BC1{T,F}</code> plus the <code>BC1{TL,FL}</code> likely-variants, off the FCR cc bit.</li>
 </ul>
-<h3 id="deferrable-past-boot-zero-hits-in-a-full-boot">Deferrable past boot (zero hits in a full boot)<a class="headerlink" href="#deferrable-past-boot-zero-hits-in-a-full-boot" title="Permanent link">&para;</a></h3>
-<p><strong><code>SQRT.S/.D</code>, <code>DIV.S</code>, and <code>CEIL/FLOOR/ROUND.{W,L}</code></strong> never execute during boot. A minimal boot-capable
-FPU can omit square-root and single-precision divide and add them later for full userland coverage.</p>
+<h3 id="previously-deferrable-ops-handled-via-soft-float-trap-not-omitted">Previously "deferrable" ops — handled via soft-float trap, not omitted<a class="headerlink" href="#previously-deferrable-ops-handled-via-soft-float-trap-not-omitted" title="Permanent link">&para;</a></h3>
+<p><strong><code>SQRT.S/.D</code>, <code>DIV.S</code>, and <code>CEIL/FLOOR/ROUND.{W,L}</code></strong> had zero hits in a full IRIX boot, so an earlier
+plan deferred them. They are now <strong>all handled</strong>: the CEIL/FLOOR/ROUND converts are in the HW <code>fpu_f2i</code>
+datapath (rm-selectable W/L variants), and <strong>divide and square-root — plus any COP1 op the decoder does
+not recognize — raise the Unimplemented-Op (E) FP exception</strong> (<code>FCSR.Cause.E</code>, FP Exception <strong>ExcCode 15</strong>)
+so the <strong>OS soft-float emulator</strong> (linux-mips <code>arch/mips/math-emu</code>; the IRIX equivalent) runs them. The
+catch-all <code>FP_UNIMPL</code> uop means an unimplemented COP1 op is <strong>trap-and-emulate, never SIGILL</strong>.</p>
 <h2 id="fp-loadsstores-cop1x-maddmsub">FP loads/stores &amp; COP1X (MADD/MSUB)<a class="headerlink" href="#fp-loadsstores-cop1x-maddmsub" title="Permanent link">&para;</a></h2>
 <p>Counted separately (different primary opcodes). <strong>FP load/store traffic dwarfs the COP1 ops</strong> — 452,790
 load/stores vs 131,951 COP1 ops over the same boot, i.e. moving FP data in/out of the register file is
@@ -1516,12 +1530,16 @@ load/stores vs 131,951 COP1 ops over the same boot, i.e. moving FP data in/out o
 </tr>
 </tbody>
 </table>
-<p><strong><code>COP1X</code> (MADD/MSUB, opcode <code>0x13</code>) = 0</strong> — never executes (R4600 / MIPS III target). <strong>r9999 can omit
-COP1X entirely</strong> for boot, and for IRIX userland compiled to the MIPS III baseline.</p>
+<p><strong><code>COP1X</code> (MADD/MSUB, opcode <code>0x13</code>) = 0</strong> — never executes (R4600 / MIPS III target). r9999 does not
+implement COP1X; consistent with the MIPS III baseline, and any such op would fall through <code>FP_UNIMPL</code> to
+the soft-float trap anyway.</p>
 <p><strong>Combined picture.</strong> Of all <strong>~585K FP-related instructions</strong> on the boot path: <strong>~77% are load/stores</strong>
 (86% of them 64-bit), ~14% moves/control, ~7% arithmetic, ~2% branches. So the highest-volume,
-must-be-correct FP items for r9999 are the <strong>64-bit FP load/store datapath</strong> and the <strong>FR=1 64-bit register
-file</strong> — <em>not</em> the ALU. Arithmetic must work, but it is a small minority of the traffic.</p>
+must-be-correct FP items are the <strong>64-bit FP load/store datapath</strong> and the <strong>FR=1 64-bit register file</strong> —
+both implemented (<code>lwc1</code>/<code>swc1</code>/<code>ldc1</code>/<code>sdc1</code> with precise BD-slot faults; the banked <code>fp_regfile.sv</code> with
+a dedicated memory bank for FP loads). Arithmetic is a small minority of the traffic but is also fully
+built (unified add/mul, compare, converts), so r9999 is correct across the whole histogram, not just the
+hot path.</p>
 <h2 id="methodology">Methodology<a class="headerlink" href="#methodology" title="Permanent link">&para;</a></h2>
 <p><code>mips3.cpp</code> (the <code>indy_4610</code> maincpu, legacy <code>mips3</code> interpreter) carries file-static histograms dumped at
 <code>device_stop()</code>:</p>
@@ -1543,7 +1561,12 @@ file</strong> — <em>not</em> the ALU. Arithmetic must work, but it is a small 
 <li>MAME <code>indy_4610</code> booting IRIX 6.5.22 (the oracle), COP1/COP1X/FP-load-store histogram hooks in
   <code>~/code/mame/src/devices/cpu/mips/mips3.cpp</code> (uncommitted instrumentation).</li>
 <li>The <code>Status.FR</code> transition finding — <a href="../coherence-cache-tlb/">Cache, coherence &amp; TLB</a>.</li>
-<li>r9999 FPU RTL: <code>~/code/r9999/</code> (<code>exec.sv</code> FP regfile/FR handling; the FPU datapath).</li>
+<li>r9999 FPU RTL: <code>~/code/r9999/</code> — <code>fp_regfile.sv</code> (clustered/banked FP RF), <code>fpu_add.sv</code> / <code>fpu_mul.sv</code>
+  (unified single/double add-sub / multiply), <code>fpu_compare.sv</code> (all 16 predicates), <code>fpu_f2i.sv</code> /
+  <code>fpu_i2f.sv</code> / <code>fpu_f2f.sv</code> (converts), <code>uop.vh</code> (FP uop set incl. <code>FP_UNIMPL</code> / div / sqrt E-trap),
+  <code>exec.sv</code> (FR/CU1/FCSR + FP issue), <code>decode_mips.sv</code> (COP1 decode, FR=0 force, CU1 gate). Validated by
+  <code>tests/fpu/*</code> (co-sim clean + directed), an FPU Linux boot to <code>/init</code>, and a double self-test on henry
+  silicon; FP-complete synth WNS +0.235 ns @ 100 MHz.</li>
 </ul>
 
 
