@@ -1159,6 +1159,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#2026-06-24-scc-iocsv-control-write-fix-fp-complete-core-explore-pr-post-route-phys_opt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2026-06-24 -- SCC ioc.sv control-write fix (FP-complete core; Explore P&amp;R + post-route phys_opt)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#2026-06-20-aadb09f-tlb-pfn-narrowed-to-pa_width-12-bev-base-fix-va-range-adel" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1207,6 +1218,81 @@ The WNS path has long been the <strong>icache -&gt; ITLB -&gt; <code>pa_reg</cod
 fully-associative TLB CAM), and it is <strong>route-dominated</strong> (~63% route) -- so area
 reductions that shrink the TLB array tend to help WNS more than logic-level
 counting suggests. Newest block first.</p>
+<h2 id="2026-06-24-scc-iocsv-control-write-fix-fp-complete-core-explore-pr-post-route-phys_opt">2026-06-24 -- SCC ioc.sv control-write fix (FP-complete core; Explore P&amp;R + post-route phys_opt)<a class="headerlink" href="#2026-06-24-scc-iocsv-control-write-fix-fp-complete-core-explore-pr-post-route-phys_opt" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>metric</th>
+<th>value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>WNS @ 100 MHz</td>
+<td><strong>+0.235 ns</strong> (all met, 0 failing endpoints)</td>
+</tr>
+<tr>
+<td>Worst path</td>
+<td><code>cpu/icache/pd_data/r_ram_reg_bram_0</code> -&gt; <code>cpu/icache/itlb/pa_reg[35]</code></td>
+</tr>
+<tr>
+<td>Data path delay</td>
+<td>9.479 ns  (logic 3.408 ns / <strong>36.0%</strong>, route 6.071 ns / <strong>64.0%</strong>)</td>
+</tr>
+<tr>
+<td>Logic levels</td>
+<td>28  (CARRY8=2 LUT6=14 LUT5=7 LUT4=1 LUT3=1 LUT2=1 MUXF7=1 MUXF8=1)</td>
+</tr>
+<tr>
+<td>CLB LUTs</td>
+<td>59122 (83.79%)</td>
+</tr>
+<tr>
+<td>LUT as Logic</td>
+<td>57348 (81.28%)</td>
+</tr>
+<tr>
+<td>LUT as Memory (LUTRAM)</td>
+<td>1774 (6.16%)</td>
+</tr>
+<tr>
+<td>CLB Registers (FF)</td>
+<td>33789 (23.94%)</td>
+</tr>
+<tr>
+<td>Block RAM</td>
+<td>23</td>
+</tr>
+<tr>
+<td>DSP</td>
+<td>43</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Path shape</strong> (predecode BRAM -&gt; look-ahead PC -&gt; TLB CAM hit-compare -&gt; ITLB <code>pa_reg</code>):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a> RAMB18E2 DOUTADOUT (icache/pd_data)  +0.964  -&gt; r_jump_out / r_cache_pc / fetch-queue / PHT LUTs
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a> -&gt; r_cache_pc[51]_i_{3,2,1}          (next-PC select)
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a> -&gt; r_la_pc[35]_i_{7,6,3,2,1}         (look-ahead PC = mipsseg(n_cache_pc), combinational)
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a> -&gt; net dtlb/w_la_pc[19]  fo=50, route 0.841 ns   &lt;-- one VPN bit to all 48 CAM entries
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a> -&gt; dtlb hit_i_479 -&gt; CARRY8 hit chain (48-way FA match) -&gt; pa_reg PFN mux -&gt; itlb/pa_reg[35]/D
+</code></pre></div>
+<p><strong>Why this stays the worst path:</strong> the look-ahead PC feeding the CAM is the <strong>combinational</strong>
+wire <code>w_la_pc</code> (<code>l1i.sv:475/499</code>), computed <em>and</em> matched against the 48-way CAM in one cycle.
+The high-fanout net (<code>fo=50</code>) is one VPN bit reaching all 48 entries -- inherent to a fully-
+associative CAM. Vivado can't auto-fix it: register <strong>duplication</strong> only targets <em>flops</em>, and
+<code>w_la_pc</code> is a LUT cone (the flop <code>r_la_pc</code> feeds the <em>other</em>, next-cycle path); forced LUT
+replication can't help because an FA CAM's loads are irreducibly spread. The structural fixes
+are to <strong>register <code>w_la_pc</code> before the TLB</strong> (pipeline fetch-&gt;translate; makes it a replicable
+flop <em>and</em> cuts the path, at +1 fetch cycle) or the <strong>micro-TLB</strong> (small clustered cache in
+front of each JTLB CAM). See <a href="../peripherals/scc/">SCC implementation</a> for the IOC change.</p>
+<blockquote>
+<p><strong>Not apples-to-apples with the pre-FP blocks below:</strong> this is the <strong>FP-complete core</strong> (COP1
+FPU: LUT-as-logic ~50K -&gt; 57K, DSP 34 -&gt; 43 for the FP multiplier) plus the SCC <code>ioc.sv</code>
+control-write fix (timing-neutral -- a mux in the IOC, far from the TLB). The first
+default-strategy P&amp;R of this netlist came out at <strong>WNS -0.812</strong> -- the marginal CAM path
+losing the placement lottery on a tiny netlist perturbation -- and re-rolling with <strong>Explore
+place+route + post-route phys_opt</strong> recovered <strong>+0.235 ns</strong>. The design is at the timing margin.</p>
+</blockquote>
 <h2 id="2026-06-20-aadb09f-tlb-pfn-narrowed-to-pa_width-12-bev-base-fix-va-range-adel">2026-06-20 -- aadb09f (TLB PFN narrowed to PA_WIDTH-12; + BEV-base fix + VA-range AdEL)<a class="headerlink" href="#2026-06-20-aadb09f-tlb-pfn-narrowed-to-pa_width-12-bev-base-fix-va-range-adel" title="Permanent link">&para;</a></h2>
 <table>
 <thead>

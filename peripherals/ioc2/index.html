@@ -1759,6 +1759,12 @@ register, 1 = data). ✅ Confirmed against MAME <code>map(0x0c,0x0f) -&gt; z80sc
 </tr>
 </tbody>
 </table>
+<blockquote>
+<p><strong>Beyond polled output:</strong> this table is the <em>minimum to print</em>. For the register pointer machine,
+the TX datapath (shared console FIFO + the 512-cycle shift timer), and the <strong>Tx-buffer-empty
+interrupt</strong> path through INT3 → IP2 that an interrupt-driven driver (Linux <code>ip22zilog</code>) needs, see
+<a href="../scc/">SCC implementation &amp; Tx interrupt</a>.</p>
+</blockquote>
 <p>Minimal TX recipe (the whole console for Henry):
 1. <strong>Write <code>0x1FBD9834</code></strong> → take <code>data[7:0]</code>, append to the console output sink. That's the printed character.
 2. <strong>Read <code>0x1FBD9830</code></strong> → always return <strong><code>0x04</code></strong> so the driver's "wait for Tx empty" poll (<code>while(!(RR0&amp;4));</code>)

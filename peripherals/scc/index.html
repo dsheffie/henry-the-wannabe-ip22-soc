@@ -12,25 +12,23 @@
       
       
       
-        <link rel="next" href="architecture/">
-      
       
         
       
       
-      <link rel="icon" href="assets/images/favicon.png">
+      <link rel="icon" href="../../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
-        <title>Henry — the wannabe IP22 SoC - Henry — the wannabe IP22 SoC</title>
+        <title>SCC (Z8530) — serial console implementation & Tx interrupt - Henry — the wannabe IP22 SoC</title>
       
     
     
-      <link rel="stylesheet" href="assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
       
         
-        <link rel="stylesheet" href="assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
       
       
 
@@ -49,7 +47,7 @@
       
     
     
-    <script>__md_scope=new URL(".",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -74,7 +72,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#henry-the-wannabe-ip22-soc" class="md-skip">
+        <a href="#scc-z8530-henry-implementation-model" class="md-skip">
           Skip to content
         </a>
       
@@ -90,7 +88,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="." title="Henry — the wannabe IP22 SoC" class="md-header__button md-logo" aria-label="Henry — the wannabe IP22 SoC" data-md-component="logo">
+    <a href="../.." title="Henry — the wannabe IP22 SoC" class="md-header__button md-logo" aria-label="Henry — the wannabe IP22 SoC" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 4h12v1h3v2h-3v2h3v2h-3v2h3v2h-3v2h3v2h-3v1H6v-1H3v-2h3v-2H3v-2h3v-2H3V9h3V7H3V5h3zm5 11v3h1v-3zm2 0v3h1v-3zm2 0v3h1v-3z"/></svg>
@@ -110,7 +108,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Henry — the wannabe IP22 SoC
+              SCC (Z8530) — serial console implementation & Tx interrupt
             
           </span>
         </div>
@@ -214,7 +212,7 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="." title="Henry — the wannabe IP22 SoC" class="md-nav__button md-logo" aria-label="Henry — the wannabe IP22 SoC" data-md-component="logo">
+    <a href="../.." title="Henry — the wannabe IP22 SoC" class="md-nav__button md-logo" aria-label="Henry — the wannabe IP22 SoC" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 4h12v1h3v2h-3v2h3v2h-3v2h3v2h-3v2h3v2h-3v1H6v-1H3v-2h3v-2H3v-2h3v-2H3V9h3V7H3V5h3zm5 11v3h1v-3zm2 0v3h1v-3zm2 0v3h1v-3z"/></svg>
@@ -229,44 +227,10 @@
       
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Overview
-  
-
-    
-  </span>
-  
-  
-    
-  
-  
-    <span class="md-status md-status--draft"></span>
-  
-
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="." class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
         
   
   
@@ -289,70 +253,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#the-system-at-a-glance" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        The system at a glance
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#canonical-physical-address-map-ip22-henry" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Canonical physical address map (IP22 / Henry)
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#where-to-start" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Where to start
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#status" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Status
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -364,7 +264,7 @@
   
   
     <li class="md-nav__item">
-      <a href="architecture/" class="md-nav__link">
+      <a href="../../architecture/" class="md-nav__link">
         
   
   
@@ -398,7 +298,7 @@
   
   
     <li class="md-nav__item">
-      <a href="minimum-mmio-to-banner/" class="md-nav__link">
+      <a href="../../minimum-mmio-to-banner/" class="md-nav__link">
         
   
   
@@ -432,7 +332,7 @@
   
   
     <li class="md-nav__item">
-      <a href="cpu-integration/" class="md-nav__link">
+      <a href="../../cpu-integration/" class="md-nav__link">
         
   
   
@@ -466,7 +366,7 @@
   
   
     <li class="md-nav__item">
-      <a href="r9999-microarchitecture/" class="md-nav__link">
+      <a href="../../r9999-microarchitecture/" class="md-nav__link">
         
   
   
@@ -493,7 +393,7 @@
   
   
     <li class="md-nav__item">
-      <a href="firmware-arcs/" class="md-nav__link">
+      <a href="../../firmware-arcs/" class="md-nav__link">
         
   
   
@@ -527,7 +427,7 @@
   
   
     <li class="md-nav__item">
-      <a href="boot-and-console/" class="md-nav__link">
+      <a href="../../boot-and-console/" class="md-nav__link">
         
   
   
@@ -561,7 +461,7 @@
   
   
     <li class="md-nav__item">
-      <a href="coherence-cache-tlb/" class="md-nav__link">
+      <a href="../../coherence-cache-tlb/" class="md-nav__link">
         
   
   
@@ -595,7 +495,7 @@
   
   
     <li class="md-nav__item">
-      <a href="fpu-cop1/" class="md-nav__link">
+      <a href="../../fpu-cop1/" class="md-nav__link">
         
   
   
@@ -695,7 +595,7 @@
   
   
     <li class="md-nav__item">
-      <a href="peripherals/mc/" class="md-nav__link">
+      <a href="../mc/" class="md-nav__link">
         
   
   
@@ -730,7 +630,7 @@
   
   
     <li class="md-nav__item">
-      <a href="peripherals/ioc2/" class="md-nav__link">
+      <a href="../ioc2/" class="md-nav__link">
         
   
   
@@ -765,7 +665,7 @@
   
   
     <li class="md-nav__item">
-      <a href="peripherals/hpc3/" class="md-nav__link">
+      <a href="../hpc3/" class="md-nav__link">
         
   
   
@@ -800,7 +700,7 @@
   
   
     <li class="md-nav__item">
-      <a href="peripherals/gio64/" class="md-nav__link">
+      <a href="../gio64/" class="md-nav__link">
         
   
   
@@ -835,7 +735,7 @@
   
   
     <li class="md-nav__item">
-      <a href="peripherals/vdma/" class="md-nav__link">
+      <a href="../vdma/" class="md-nav__link">
         
   
   
@@ -870,7 +770,7 @@
   
   
     <li class="md-nav__item">
-      <a href="peripherals/dmux1/" class="md-nav__link">
+      <a href="../dmux1/" class="md-nav__link">
         
   
   
@@ -945,7 +845,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="graphics/" class="md-nav__link ">
+            <a href="../../graphics/" class="md-nav__link ">
               
   
   
@@ -996,7 +896,7 @@
   
   
     <li class="md-nav__item">
-      <a href="graphics/rex3/" class="md-nav__link">
+      <a href="../../graphics/rex3/" class="md-nav__link">
         
   
   
@@ -1031,7 +931,7 @@
   
   
     <li class="md-nav__item">
-      <a href="graphics/vc2/" class="md-nav__link">
+      <a href="../../graphics/vc2/" class="md-nav__link">
         
   
   
@@ -1066,7 +966,7 @@
   
   
     <li class="md-nav__item">
-      <a href="graphics/xmap9/" class="md-nav__link">
+      <a href="../../graphics/xmap9/" class="md-nav__link">
         
   
   
@@ -1101,7 +1001,7 @@
   
   
     <li class="md-nav__item">
-      <a href="graphics/rb2-ro1/" class="md-nav__link">
+      <a href="../../graphics/rb2-ro1/" class="md-nav__link">
         
   
   
@@ -1136,7 +1036,7 @@
   
   
     <li class="md-nav__item">
-      <a href="graphics/express-xz/" class="md-nav__link">
+      <a href="../../graphics/express-xz/" class="md-nav__link">
         
   
   
@@ -1178,7 +1078,7 @@
   
   
     <li class="md-nav__item">
-      <a href="irix-boot-flow/" class="md-nav__link">
+      <a href="../../irix-boot-flow/" class="md-nav__link">
         
   
   
@@ -1205,7 +1105,7 @@
   
   
     <li class="md-nav__item">
-      <a href="methodology/" class="md-nav__link">
+      <a href="../../methodology/" class="md-nav__link">
         
   
   
@@ -1259,10 +1159,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#the-system-at-a-glance" class="md-nav__link">
+  <a href="#1-register-access-the-pointer-machine" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The system at a glance
+        1. Register access — the pointer machine ✅
       
     </span>
   </a>
@@ -1270,10 +1170,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#canonical-physical-address-map-ip22-henry" class="md-nav__link">
+  <a href="#2-address-decode-16-byte-bus-line-channel-ctrldata" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Canonical physical address map (IP22 / Henry)
+        2. Address decode (16-byte bus line → channel / ctrl|data)
       
     </span>
   </a>
@@ -1281,10 +1181,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#where-to-start" class="md-nav__link">
+  <a href="#3-tx-datapath-output-is-decoupled-from-the-interrupt-timer" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Where to start
+        3. TX datapath — output is decoupled from the interrupt timer
       
     </span>
   </a>
@@ -1292,10 +1192,21 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#status" class="md-nav__link">
+  <a href="#4-interrupt-path-tx_ip-to-the-exception-vector" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Status
+        4. Interrupt path — tx_ip to the exception vector ✅
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-fixed-bug-control-write-data-byte-dropped-tx-interrupt-dead" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. ⚠️ Fixed bug: control-write data byte dropped → Tx interrupt dead
       
     </span>
   </a>
@@ -1319,146 +1230,108 @@
 
 
 
-<h1 id="henry-the-wannabe-ip22-soc">Henry — the wannabe IP22 SoC<a class="headerlink" href="#henry-the-wannabe-ip22-soc" title="Permanent link">&para;</a></h1>
-<p><strong>Henry</strong> is a from-scratch, FPGA/RTL <strong>System-on-Chip</strong> that impersonates the SGI <strong>Indy</strong> (board code
-<strong>IP22</strong>) closely enough to boot <strong>IRIX 6.5.22</strong>. It is built around the <strong><a href="https://github.com/dsheffie/r9999">r9999</a></strong>
-MIPS R4000-class core (included here as a git submodule) plus a set of re-implemented IP22 peripheral blocks.</p>
-<blockquote>
-<p><strong>Why "Henry"?</strong> The SGI <strong>Indy</strong> is named for <strong>Indiana Jones</strong> — whose real name is <strong>Henry</strong> (Walton Jones Jr.;
-"Indiana" was the dog). Henry is a machine that answers to a name that isn't quite its own: a <em>wannabe</em> IP22.</p>
-</blockquote>
-<p>This site is the <strong>platform specification and implementation reference</strong>: the address map, each peripheral block's
-register interface and "minimum to boot" subset, the ARCS firmware shim, the IRIX boot/console contract, and the
-cache/coherence/TLB rules the CPU must honor. Every claim is <strong>cross-validated against MAME</strong> booting the real Indy
-IRIX image — MAME is Henry's <strong>golden reference model</strong>, and the values captured from it are the block-level test
-vectors. Tags: ✅ = confirmed in MAME, ⚠️ = a correction to an earlier reverse-engineering finding.</p>
-<h2 id="the-system-at-a-glance">The system at a glance<a class="headerlink" href="#the-system-at-a-glance" title="Permanent link">&para;</a></h2>
-<pre class="mermaid"><code>flowchart TD
-    CPU["&lt;b&gt;r9999&lt;/b&gt; — MIPS R4000 core&lt;br/&gt;&lt;small&gt;L1i + L1d (incoherent) · L2 (coherent) · git submodule&lt;/small&gt;"]
-    CPU --&gt;|"sysad — 64-bit, big-endian"| MC["&lt;b&gt;MC&lt;/b&gt; — memory controller&lt;br/&gt;&lt;small&gt;RAM banks · GIO64 arbiter · (V)DMA&lt;/small&gt;"]
-    MC --&gt; RAM[("Main RAM&lt;br/&gt;0x08000000+")]
-    MC --&gt;|"GIO64 bus&lt;br/&gt;0x1f000000–0x1f9fffff"| GIO{{GIO64}}
-    GIO --&gt; GFX["graphics — slot 0"]
-    GIO --&gt; EXP["exp slot 0 / 1&lt;br/&gt;&lt;small&gt;bus-error when empty&lt;/small&gt;"]
-    MC --&gt;|local I/O bus| LIO{{local I/O}}
-    LIO --&gt; HPC3["&lt;b&gt;HPC3&lt;/b&gt;&lt;br/&gt;&lt;small&gt;SCSI×2 · Ethernet · PBUS DMA&lt;br/&gt;ds1386 RTC/NVRAM · EEPROM&lt;/small&gt;"]
-    LIO --&gt; IOC2["&lt;b&gt;IOC2&lt;/b&gt;&lt;br/&gt;&lt;small&gt;Z8530 serial console · INT3&lt;br/&gt;8254 timer · kbd · parallel&lt;/small&gt;"]
-    LIO --&gt; PROM["Boot PROM / ARCS shim"]</code></pre>
-<h2 id="canonical-physical-address-map-ip22-henry">Canonical physical address map (IP22 / Henry)<a class="headerlink" href="#canonical-physical-address-map-ip22-henry" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>Physical range</th>
-<th>Size</th>
-<th>Block</th>
-<th>Henry notes</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>0x00000000–0x0007ffff</code></td>
-<td>512 KB</td>
-<td><strong>RAM alias</strong></td>
-<td>aliases <code>0x08000000</code>; holds the exception vectors (<code>0x0</code>, <code>0x80</code>)</td>
-</tr>
-<tr>
-<td><code>0x08000000–0x17ffffff</code></td>
-<td>256 MB</td>
-<td><strong>Main RAM</strong> (MC banks)</td>
-<td>base of physical DRAM; sized via MC MEMCFG</td>
-</tr>
-<tr>
-<td><code>0x18000000–0x1effffff</code></td>
-<td>112 MB</td>
-<td>reserved</td>
-<td>bus-error</td>
-</tr>
-<tr>
-<td><code>0x1f000000–0x1f9fffff</code></td>
-<td>10 MB</td>
-<td><strong>GIO64 bus</strong></td>
-<td>graphics @<code>0x1f000000</code>; exp slots @<code>0x1f400000</code>/<code>0x1f600000</code>; bus-error empty slots</td>
-</tr>
-<tr>
-<td><code>0x1fa00000–0x1faffff</code></td>
-<td>1 MB</td>
-<td><strong>MC registers</strong></td>
-<td>⚠️ big-endian <code>+4/+c</code> register alias</td>
-</tr>
-<tr>
-<td><code>0x1fb80000–0x1fbfffff</code></td>
-<td>512 KB</td>
-<td><strong>HPC3</strong></td>
-<td>+ IOC2 @<code>0x1fbd9800</code> (serial console), ds1386 RTC/NVRAM @<code>0x1fbe0000</code></td>
-</tr>
-<tr>
-<td><code>0x1fc00000–0x1fffffff</code></td>
-<td>4 MB</td>
-<td><strong>Boot PROM</strong></td>
-<td>Henry plants the ARCS shim</td>
-</tr>
-<tr>
-<td><code>0x20000000–0x2fffffff</code></td>
-<td>256 MB</td>
-<td><strong>High system memory</strong></td>
-<td>kseg-mapped only → physical address space is <strong>30-bit</strong></td>
-</tr>
-</tbody>
-</table>
-<p>(See <a href="peripherals/mc/">Memory &amp; address map</a> for the MC/MEMCFG detail.)</p>
-<h2 id="where-to-start">Where to start<a class="headerlink" href="#where-to-start" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>If you want to…</th>
-<th>Read</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>understand the whole system</td>
-<td>this page + <a href="architecture/">Architecture</a></td>
-</tr>
-<tr>
-<td>wire r9999 in &amp; know what to implement</td>
-<td><a href="cpu-integration/">CPU integration</a></td>
-</tr>
-<tr>
-<td>get IRIX to print "IRIX is alive"</td>
-<td><a href="boot-and-console/">Boot &amp; console</a> + <a href="peripherals/ioc2/">IOC2</a></td>
-</tr>
-<tr>
-<td>drive an interrupt-driven serial console</td>
-<td><a href="peripherals/scc/">SCC implementation &amp; Tx interrupt</a></td>
-</tr>
-<tr>
-<td>build the firmware Henry presents</td>
-<td><a href="firmware-arcs/">Firmware / ARCS shim</a></td>
-</tr>
-<tr>
-<td>get cache/DMA/TLB right</td>
-<td><a href="coherence-cache-tlb/">Cache, coherence &amp; TLB</a></td>
-</tr>
-<tr>
-<td>implement a chip</td>
-<td>the <a href="peripherals/mc/">peripheral specs</a></td>
-</tr>
-<tr>
-<td>follow the IRIX boot, function by function</td>
-<td><a href="irix-boot-flow/">IRIX boot flow</a></td>
-</tr>
-<tr>
-<td>reproduce/extend the findings</td>
-<td><a href="methodology/">Methodology</a></td>
-</tr>
-</tbody>
-</table>
-<h2 id="status">Status<a class="headerlink" href="#status" title="Permanent link">&para;</a></h2>
-<p>First-pass foundation. Peripheral specs (MC, IOC2, HPC3, GIO64, VDMA) and the cross-cutting docs are drafted from
-the SGI IP22 chip documents + MAME validation. Not yet covered: <code>dmux1</code>, the Newport graphics set, audio (HAL2),
-and the actual RTL (<code>rtl/</code>) and co-simulation harness (<code>sim/</code>). The detailed working notes live in the
-<a href="https://github.com/dsheffie/r9999"><code>r9999/</code></a> submodule (<code>IRIX_CPU_REQUIREMENTS.md</code>, <code>IRIX_KERNEL_GAPS.md</code>,
-<code>IP22_CHIP_REGISTERS.md</code>, <code>MAME_QUESTIONS.md</code>).</p>
+<h1 id="scc-z8530-henry-implementation-model">SCC (Z8530) — Henry implementation model<a class="headerlink" href="#scc-z8530-henry-implementation-model" title="Permanent link">&para;</a></h1>
+<p>Companion to <a href="../ioc2/">IOC2</a>, which specs the <strong>register behavior</strong> (the MAME-validated
+"minimum to print"). This page documents <strong>how the SCC is built</strong> in <code>ioc.sv</code> — the register
+pointer machine, the TX datapath, and the <strong>Tx-buffer-empty interrupt</strong> path through INT3 to
+the CPU — i.e. what an interrupt-driven console driver (Linux <code>ip22zilog</code>) needs, beyond polled
+output.</p>
+<p>The SCC is an <strong>8530-style</strong> dual-channel UART. Naming is confusing but the addresses are not:
+the Z8530/IRIX call the console <strong>chanB</strong>, <code>ioc.sv</code> indexes it <strong>ch0</strong>, Linux enumerates it
+<strong>ttyS0</strong> — all the same port.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a> phys 0x1fbd9830 (kseg1 0xbfbd9830)  = console channel (ioc ch0 / chanB / ttyS0)
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a> phys 0x1fbd9838                      = second  channel (ioc ch1 / chanA / ttyS1)
+</code></pre></div>
+<h2 id="1-register-access-the-pointer-machine">1. Register access — the pointer machine ✅<a class="headerlink" href="#1-register-access-the-pointer-machine" title="Permanent link">&para;</a></h2>
+<p>Each channel has just <strong>two</strong> addresses: a CONTROL reg and a DATA reg. CONTROL multiplexes 16
+write regs (WR0..WR15) and 16 read regs (RR0..RR15) through a <strong>pointer</strong> set by writing WR0:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>  CONTROL  (0x..30)                       DATA  (0x..34)
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>  ─────────────────                       ──────────────
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>  write, ptr==0 → WR0: cmd[5:3]           write → push a TX byte
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>        (e.g. RES_TXP=0x28)               read  → pop  an RX byte
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>        + new ptr = byte[2:0]
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>  write, ptr!=0 → WR[ptr], ptr→0          RR0 = status (Tx-empty bit2, Rx-avail bit0)
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>  read          → RR[ptr], ptr→0          RR3 = chip-wide interrupt-pending (gated by TxIE)
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>  Enable the Tx-buffer-empty interrupt (WR1.TxIE, bit1):
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>     CONTROL &lt;= 0x01   ; WR0 &quot;point to register 1&quot;   ptr 0 → 1
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>     CONTROL &lt;= 0x02   ; WR1 = 0x02 (TxIE)            ptr 1 → 0   ← carries the data byte
+</code></pre></div>
+<h2 id="2-address-decode-16-byte-bus-line-channel-ctrldata">2. Address decode (16-byte bus line → channel / ctrl|data)<a class="headerlink" href="#2-address-decode-16-byte-bus-line-channel-ctrldata" title="Permanent link">&para;</a></h2>
+<p>henry delivers device accesses as a 16-byte line (<code>offs = addr[7:0]</code> base, byte <code>b</code> via <code>mask[b]</code>).
+<code>ioc.sv</code> classifies each masked byte:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>   ch       = (b &gt;&gt; 3) &amp; 1        // 0..7 = ch0, 8..15 = ch1
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>   is_data  = (b &gt;&gt; 2) &amp; 1        // 0..3 = CONTROL, 4..7 = DATA
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>   wbyte    = wdata[8*b +: 8]
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>   b :  0    1   2   3 │ 4   5   6   7 │ 8 …          15
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>        └─ ch0 CTRL ───┘ └─ ch0 DATA ─┘ └─ ch1 CTRL/DATA ┘
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>   0x..30 ─────────────── 0x..34 ─────── 0x..38 / 0x..3c
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>   (console CONTROL)     (console DATA)  (ttyS1)
+</code></pre></div>
+<h2 id="3-tx-datapath-output-is-decoupled-from-the-interrupt-timer">3. TX datapath — output is decoupled from the interrupt timer<a class="headerlink" href="#3-tx-datapath-output-is-decoupled-from-the-interrupt-timer" title="Permanent link">&para;</a></h2>
+<p>A DATA write does <strong>two independent things</strong>. The byte reaches the console FIFO <strong>immediately</strong>
+(so output works even with interrupts broken); the 512-cycle "shift" is a <em>separate</em> timer that
+only raises <code>tx_ip</code> for the interrupt model.</p>
+<pre class="mermaid"><code>flowchart LR
+    W["CPU: sb 'X', SCC_DATA (0x..34)"]
+    W --&gt;|combinational, on the write| V["scc_tx_valid=1&lt;br/&gt;scc_tx_byte='X'"]
+    V --&gt;|enq_scc = valid &amp; ~con_full| F["8-deep SoC console FIFO&lt;br/&gt;&lt;small&gt;shared with core CP0-$7 putchar; SCC has priority&lt;/small&gt;"]
+    CP["core CP0-$7 putchar&lt;br/&gt;(enq_core)"] --&gt; F
+    F --&gt; AXI["mips-axi drains over AXI → host stdout"]
+    F -. con_full .-&gt; RR0["RR0.bit2 (Tx-Buffer-Empty) cleared&lt;br/&gt;while (con_full | busy) — backpressure"]
+    W --&gt;|shift timer| B["busy=1, cnt=512"]
+    B --&gt;|512 core cycles| TXIP["busy=0, &lt;b&gt;tx_ip=1&lt;/b&gt;&lt;br/&gt;(the interrupt event)"]</code></pre>
+<ul>
+<li><code>SCC_RR0 = 0x44</code> (Tx-Buffer-Empty | All-Sent); <strong>bit2</strong> is what software polls.</li>
+<li><code>TX_DRAIN = 512</code> gates <code>tx_ip</code> only, <strong>not</strong> output.</li>
+<li>Polled TX (<code>while(!(RR0 &amp; 0x04)); DATA = c;</code>) never touches <code>tx_ip</code> — so polling works even
+  when the interrupt path is broken (this is exactly how the §5 bug stayed hidden).</li>
+</ul>
+<h2 id="4-interrupt-path-tx_ip-to-the-exception-vector">4. Interrupt path — <code>tx_ip</code> to the exception vector ✅<a class="headerlink" href="#4-interrupt-path-tx_ip-to-the-exception-vector" title="Permanent link">&para;</a></h2>
+<pre class="mermaid"><code>flowchart LR
+    TXIP["tx_ip"] --&gt; A1{"&amp;"}
+    TXIE["WR1.TxIE"] --&gt; A1
+    A1 --&gt; STI["scc_tx_int"]
+    RXA["scc_rx_avail"] --&gt; OR1{"|"}
+    STI --&gt; OR1
+    OR1 --&gt; MS["map_src[5]&lt;br/&gt;Serial DUART"]
+    MS --&gt; A2{"&amp; cmeimask0[5]&lt;br/&gt;&lt;small&gt;INT3 MAP MASK0 @0x..97&lt;/small&gt;"}
+    A2 --&gt; MI0["MAP_INT0 → istat0[7]"]
+    MI0 --&gt; A3{"&amp; imask0[7]&lt;br/&gt;&lt;small&gt;INT3 LOCAL0 MASK @0x..87&lt;/small&gt;"}
+    A3 --&gt; IP2["IP2 → Cause.IP2 (bit10)"]
+    IP2 --&gt; A4{"&amp; Status.IM2 &amp; IE &amp; ~EXL"}
+    A4 --&gt; VEC["vector 0x80000180&lt;br/&gt;&lt;small&gt;BEV=0; phys 0x180 backed by the System Memory Alias&lt;/small&gt;"]
+    VEC --&gt; H["handler: write next DATA (re-arms, clears tx_ip)&lt;br/&gt;or WR0=RES_TXP + mask WR1.TxIE when done"]</code></pre>
+<p>RR3 (read at ptr==3) exposes the <strong>gated</strong> per-channel int-pending bits: <code>CHATxIP=0x10</code>,
+<code>CHBTxIP=0x02</code> (gated by <code>WR1.TxIE</code>).</p>
+<h2 id="5-fixed-bug-control-write-data-byte-dropped-tx-interrupt-dead">5. ⚠️ Fixed bug: control-write data byte dropped → Tx interrupt dead<a class="headerlink" href="#5-fixed-bug-control-write-data-byte-dropped-tx-interrupt-dead" title="Permanent link">&para;</a></h2>
+<p><code>ioc.sv</code> classified each masked byte but captured <code>w_scc_wbyte</code> <strong>only on the data branch</strong>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="w">   </span><span class="n">w_scc_wbyte</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mh">8&#39;h0</span><span class="p">;</span><span class="w">                       </span><span class="c1">// default</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">   </span><span class="k">for</span><span class="w"> </span><span class="nl">b:</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">mask</span><span class="p">[</span><span class="n">b</span><span class="p">]</span><span class="o">:</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">     </span><span class="n">ch</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">b</span><span class="o">&gt;&gt;</span><span class="mi">3</span><span class="p">)</span><span class="o">&amp;</span><span class="mi">1</span><span class="p">;</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">     </span><span class="k">if</span><span class="w"> </span><span class="nl">is_data:</span><span class="w"> </span><span class="n">w_scc_data</span><span class="o">=</span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">w_scc_wbyte</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">wdata</span><span class="p">[</span><span class="mi">8</span><span class="o">*</span><span class="n">b</span><span class="o">+:</span><span class="mi">8</span><span class="p">];</span><span class="w">   </span><span class="c1">// ◄ captured</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">     </span><span class="k">else</span><span class="w">        </span><span class="n">w_scc_ctrl</span><span class="o">=</span><span class="mi">1</span><span class="p">;</span><span class="w">                                </span><span class="c1">// ◄ BUG: byte lost</span>
+</code></pre></div>
+<p>So <strong>every CONTROL write was processed with command byte = 0</strong>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>   CONTROL &lt;= 0x01   seen as 0 → ptr stays 0      (never points to WR1)
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>   CONTROL &lt;= 0x02   seen as 0 → WR0 = 0          (WR1.TxIE never set)
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>   CONTROL &lt;= 0x28   seen as 0 → not RES_TXP
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>   ⇒ scc_tx_int = (TxIE=0) &amp; tx_ip = 0  forever   ⇒  no Tx interrupt, ever
+</code></pre></div>
+<p>Symptoms: a bare-metal IRQ test could never route IP2 (<code>tx_ip</code> fired, but <code>scc_tx_int=0</code>); and
+Linux's interrupt-driven <code>ip22zilog</code> TX <strong>stalled</strong> — the slow, lumpy userspace console — because
+it could never enable Tx interrupts. Console <em>output</em> still worked (it rides DATA writes, which
+captured the byte), which is why this hid for so long. <code>interp_mips</code>'s <code>sgi_scc.cc</code> captured the
+byte correctly, so the ISS console was fast — the divergence was RTL-only.</p>
+<p>Fix — capture the byte for <strong>both</strong> branches:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="w">   </span><span class="k">for</span><span class="w"> </span><span class="nl">b:</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">mask</span><span class="p">[</span><span class="n">b</span><span class="p">]</span><span class="o">:</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">     </span><span class="n">ch</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">b</span><span class="o">&gt;&gt;</span><span class="mi">3</span><span class="p">)</span><span class="o">&amp;</span><span class="mi">1</span><span class="p">;</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">     </span><span class="n">w_scc_wbyte</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">wdata</span><span class="p">[</span><span class="mi">8</span><span class="o">*</span><span class="n">b</span><span class="o">+:</span><span class="mi">8</span><span class="p">];</span><span class="w">           </span><span class="c1">// always capture</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">     </span><span class="k">if</span><span class="w"> </span><span class="nl">is_data:</span><span class="w"> </span><span class="n">w_scc_data</span><span class="o">=</span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="n">w_scc_ctrl</span><span class="o">=</span><span class="mi">1</span><span class="p">;</span>
+</code></pre></div>
+<p>Found by a bare-metal throughput experiment (<code>r9999/tests/henry/contest.c</code>) that times 10000
+chars via CP0-$7, SCC-polled, and SCC-Tx-IRQ; the IRQ path exposed the dead interrupt.</p>
 
 
 
@@ -1517,10 +1390,10 @@ and the actual RTL (<code>rtl/</code>) and co-simulation harness (<code>sim/</co
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": ".", "features": ["navigation.sections", "navigation.top", "navigation.indexes", "navigation.tracking", "toc.follow", "content.code.copy"], "search": "assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.top", "navigation.indexes", "navigation.tracking", "toc.follow", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
       
     
   </body>
