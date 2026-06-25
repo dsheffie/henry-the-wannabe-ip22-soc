@@ -31,8 +31,8 @@ and `wait`). No action needed for any of:
   `break`, `syscall`.
 - **64-bit (MIPS III):** `ld/sd/lwu/ldl/ldr/sdl/sdr`, `daddu/daddiu/daddi/dsubu/dnegu`, the full
   `d*` shift family, `dmult/dmultu/ddiv/ddivu`.
-- **System / CP0:** `mtc0/mfc0/dmtc0/dmfc0`, `tlbr/tlbwi/tlbwr/tlbp`, `eret`, `cache` (today NOP — see
-  Gap 2), `sync`.
+- **System / CP0:** `mtc0/mfc0/dmtc0/dmfc0`, `tlbr/tlbwi/tlbwr/tlbp`, `eret`, `cache` (fully decoded +
+  flush-wired — see Gap 2), `sync`.
 - **Atomics:** `ll/sc/lld/scd`.
 
 The kernel runs **no FP arithmetic at all** (no `add.*/sub.*/mul.*/div.*/sqrt/abs/neg/c.*`), so an
@@ -89,7 +89,7 @@ See `r9999/FPU_PORT_STUDY.md`, `r9999/FPU_ROUNDING_EXCEPTIONS.md`.
 
 ---
 
-## Gap 2 — caches are incoherent → `cache`→NOP is a LATENT BUG  (see coherence doc)
+## Gap 2 — CLOSED: `cache` is fully decoded + flush-wired  (was a latent NOP bug)
 
 r9999 has separate **L1i + L1d** over an L2 that **is** transparent/coherent (hidden from the kernel
 via `Config.SC=1` → kernel sees "R4000PC", so all ~30 static secondary/L2 `cache_sel=2/3` sites are
@@ -101,19 +101,17 @@ copy. So the I-cache `cache` ops **must be honored, not NOP'd**.
 `cache` (op `0x2f`) is executed **5.2 M times** over a 120 s boot; four primary ops = 99.94%. Decode:
 `op = instr[20:16]`, `cache_sel = op[1:0]` (0=I,1=D,2=SD,3=SI), `operation = op[4:2]`.
 
-Decode / handling obligations:
+**Implemented in r9999** (`decode_mips.sv` op `0x2f` → `CACHE_OP`; `l1i.sv` / `l1d.sv`):
 
-- **Fully decode the op field** (do not blanket-NOP); **privilege-check** (`cache` is kernel/CU0-only
-  → user mode = Coprocessor-Unusable); compute EA = `base + signext(offset)`.
-- **I-cache ops (`0x10` Hit-Inval-I, `0x00` Index-Inval-I, and the I-side of any others): drive the
-  existing `l1i.sv` `flush_req`/`FLUSH_CACHE`.** The I-cache is never dirty, so a **whole-L1i flush is
-  a correct over-approximation of EVERY I-cache op** — simplest wiring: any I-cache `cache` op →
-  `flush_req`. **This is the one real obligation today** — a *wiring* task; the flush HW already
-  exists in `l1i.sv`.
-- **D-cache ops (`0x01`/`0x15`/`0x11`/`0x19`): NOP-safe while there is no incoherent DMA** (no snoop
-  logic in L1d; I/O is backdoored). **IF** incoherent DMA is ever added behind L1d, honor the
-  invalidate-vs-writeback distinction — esp. **`0x11` D-Hit-Invalidate must invalidate WITHOUT
-  writeback** (DMA-in); do not promote it to writeback-invalidate or you corrupt DMA'd data.
+- ✅ **Fully decoded** (no blanket-NOP) and **kernel-mode-gated** (`in_kernel_mode` → a user-mode
+  `cache` does not execute the op); serializing; EA = `base + signext(offset)` is computed into the
+  uop (`cache_is_d = insn[16]`, `cache_inval = insn[20:18]==3'b100`).
+- ✅ **I-cache ops → `l1i.sv` `flush_req`** — a **whole-L1i flush**, the correct over-approximation of
+  every I-cache op (the I-cache is never dirty). This is what makes runtime CPU patching / module
+  loads code-coherent.
+- ✅ **D-cache ops → `l1d.sv` `flush_cl_req`/`flush_cl_addr`** — a **per-line writeback** of the line
+  at the EA (pushing it to L2). **D-Hit-Invalidate** (`cache_inval`, op field `0b100`) drops the line
+  **WITHOUT** writeback (the DMA-in case), correctly distinguished from writeback ops.
 - **Index-Store-Tag (`0x08`/`0x09`) / Fill (`0x14`): NOP** — r9999's caches reset clean (no power-on
   tag scrub); cache size comes from `Config`, not the tag probe.
 
@@ -191,7 +189,7 @@ Cross-ref: `r9999/MAME_QUESTIONS.md` Q1 (full capture + single-step trace; calle
 | 64-bit MIPS-III (`d*`, `ld/sd`, `ldl`…`sdr`) | implemented | — |
 | System CP0 (`mtc0/mfc0/dmtc0/dmfc0`, `tlb*`, `eret`, `sync`, `syscall`, `break`) | implemented | — |
 | Atomics (`ll/sc/lld/scd`) | implemented | — |
-| **`cache` op decode + I-cache flush wiring** | decode missing (`cache`→NOP, **latent bug**) | **Gap 2** — decode full op field; any I-cache op → `l1i` `flush_req`; D-ops NOP-safe |
+| **`cache` op decode + I/D flush wiring** | **DONE** — was `cache`→NOP (latent bug) | **Gap 2 CLOSED** — full op-field decode, kernel-gated; I-ops → `l1i` `flush_req` (whole-L1i); D-ops → `l1d` per-line `flush_cl` (+ Hit-Invalidate, no-writeback) |
 | **FP regfile 32×64b + `Status.CU1/FR` (FR=1)** | **DONE** (`fp_regfile.sv`; FR R/W reset 1, CU1 R/W reset 0, FIR=R4000) | **Gap 1.1 — CLOSED** |
 | **FP moves** `mtc1/mfc1/dmtc1/dmfc1`, `cfc1/ctc1` | **DONE** (full exec) | **Gap 1.2 — CLOSED** |
 | **FP load/store** `lwc1/swc1/ldc1/sdc1` (precise BD-slot faults) | **DONE** (precise BD-slot faults) | **Gap 1.3 + 1.7 — CLOSED** |

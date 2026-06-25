@@ -77,7 +77,10 @@ Two independent coherence axes, both software-managed:
 ## The `cache` instruction — decode & routing
 
 r9999 must **fully decode `cache`** (opcode `0x2f`) and route by the op field — a blanket NOP is a
-latent bug. Field decode of the op register field `op = instr[20:16]`:
+latent bug. **Implemented** (`decode_mips.sv` → `CACHE_OP`, kernel-gated): I-cache ops drive a
+whole-L1i `flush_req`; D-cache ops do a per-line writeback (`l1d` `flush_cl` at the EA), with
+D-Hit-Invalidate dropping the line without writeback. Field decode of the op register field
+`op = instr[20:16]`:
 `cache_sel = op[1:0]` (0=I-primary, 1=D-primary, 2=SD secondary-data, 3=SI secondary-instr);
 `operation = op[4:2]`.
 
