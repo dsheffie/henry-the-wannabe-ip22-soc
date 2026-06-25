@@ -8,8 +8,9 @@ status: draft (MAME-validated)
 > r9999 presents **PRId = R4000 (imp `0x04`)** → IRIX takes the **R4000/R4400 baseline path**
 > (default UTLB/exception handlers, `*_r4000` clocks, Watch regs cleared; all r4600/r5000/RM/r10k
 > code is dead for us). The integer / 64-bit / system / atomic ISA r9999 already implements is
-> **COMPLETE** for booting the IRIX 6.5.22 kernel. The real remaining work is **(1) the FP
-> subsystem**, **(2) cache coherence wiring**, and **(3) a wired-TLB / `wirepda` spurious-fault bug**.
+> **COMPLETE** for booting the IRIX 6.5.22 kernel. The **FP subsystem is now DONE** (full COP1 —
+> regfile, moves, ld/st, and a real FP ALU; see Gap 1, CLOSED). The real remaining work is **(1)
+> cache coherence wiring** and **(2) a wired-TLB / `wirepda` spurious-fault bug**.
 > Everything here is validated against IRIX 6.5.22 driven in MAME (`indy_4610` = r4600be / mips3).
 > Henry is a pseudo-IP22 "wannabe Indy" SoC; r9999 is the CPU core (git submodule).
 
@@ -39,37 +40,52 @@ FP ALU is **not required to boot** — see Gap 1.
 
 ---
 
-## Gap 1 — FP subsystem  (boot needs the regfile + moves + 2 converts, NOT an FP ALU)
+## Gap 1 — FP subsystem  (CLOSED — full COP1, regfile + moves + ld/st + a real FP ALU)
 
-All FP activity in the kernel is **context save/restore** (the 32 FP regs + FCSR across context
-switch / signal delivery) plus exactly **two** long→float converts. Static FP counts: `swc1` 96,
-`sdc1` 81, `dmtc1/dmfc1` 65, `mtc1/mfc1` 64, `lwc1` 64, `ldc1` 49, `cfc1` 5, `ctc1` 4, `cvt.s.l` 1,
-`cvt.d.l` 1. r9999 today has the FPU **ripped out** (`fp_prf/fp_uq/is_fp = 0` in `exec.sv`; only
-vestigial MTC1/MFC1 decode with no execution).
+**Status: CLOSED.** The FP subsystem is **fully implemented** in r9999 (`main`): the FP regfile,
+all moves, FP load/store, `Status.FR`/`Status.CU1` with lazy-FPU CpU, FP-exception delivery, AND a
+**real FP ALU** — add/sub/mul/compare/converts in hardware, with div/sqrt + any undecoded COP1 op
+**E-trapped to the OS soft-float emulator**. This goes well past the boot-minimum (which was just
+the regfile + moves + the two long→float converts). For reference, the kernel's static FP working set
+is mostly **context save/restore** (the 32 FP regs + FCSR across context switch / signal delivery)
+plus exactly **two** long→float converts. Static FP counts: `swc1` 96, `sdc1` 81, `dmtc1/dmfc1` 65,
+`mtc1/mfc1` 64, `lwc1` 64, `ldc1` 49, `cfc1` 5, `ctc1` 4, `cvt.s.l` 1, `cvt.d.l` 1.
 
-Add, in this order (boot-first; no FP ALU):
+Implemented (all present in r9999 `main`):
 
-1. **FP register file (32 × 64-bit) + `Status.CU1` + `Status.FR`.** `FR=1` **is used** — `FR=0` for
-   kernel/idle, **`FR=1` once N32/N64 userland runs** (first seen mid-boot, ~19% of samples by
-   multiuser). The regfile must implement true `FR=1` (32 independent 64-bit registers) and have the
-   `Status.FR` bit switch the even/odd aliasing — not FR=0-only pairs.
-2. **FP moves:** `mtc1/mfc1/dmtc1/dmfc1`, `cfc1/ctc1` (FCR31 / FCR0=FIR). Replace the vestigial
-   decode with real execution.
-3. **FP load/store:** `lwc1/swc1/ldc1/sdc1`.
-4. **`cvt.s.l` / `cvt.d.l`** — the only two FP "math" ops the kernel executes.
-5. **CU1 → Coprocessor-Unusable (Cause ExcCode 11):** extend the existing CpU mechanism (already
-   present for CP0) to gate on `~Status.CU1`, so lazy-FP enable/disable works (reuse the `CPU` uop).
-6. **FP Exception (Cause ExcCode 15) delivery** — the `fp_intr` handler path.
+1. **FP register file (32 × 64-bit) + `Status.CU1` + `Status.FR`.** Clustered/banked
+   `fp_regfile.sv`. `Status.FR` is R/W and **resets to 1** (FR=1 = 32 independent 64-bit regs for
+   n32/n64); FR=0/o32 even/odd pairing is forced via decode (`fr` gates the odd-reg / half-select
+   path). `Status.CU1` is R/W and **resets to 0** (lazy-FPU). `FIR` (FCR0) reads back the
+   R4000-family FPU id.
+2. **FP moves:** `mtc1/mfc1/dmtc1/dmfc1`, `cfc1/ctc1` (FCR31 / FCR0=FIR) — full execution, not
+   vestigial decode.
+3. **FP load/store:** `lwc1/swc1/ldc1/sdc1`, with precise delay-slot faults (item 7).
+4. **Converts:** the kernel's `cvt.s.l` / `cvt.d.l` plus the **full** convert set — `CVT.S.D`/`D.S`,
+   `CVT.{W,L}.{S,D}` (incl. `ROUND`/`TRUNC`/`CEIL`/`FLOOR`), `CVT.{S,D}.{W,L}` — via a single-cycle
+   f2i/i2f/f2f path (`fpu_f2i.sv`/`fpu_i2f.sv`/`fpu_f2f.sv`).
+5. **CU1 → Coprocessor-Unusable (Cause ExcCode 11):** a COP1 op with `Status.CU1=0` raises CpU
+   (`Cause.CE=1`), so lazy-FP enable/disable works.
+6. **FP Exception (Cause ExcCode 15) delivery** — `FCSR.Cause.E`; the `fp_intr` handler path.
 7. **PRECISE exceptions on delay-slot FP loads/stores.** When an FP load/store **in a branch delay
    slot faults**, the kernel's `emulate_branch`/`emulate_{lwc1,ldc1,swc1,sdc1}` decodes the branch,
    emulates the memory op, and resumes. This is **NOT an FP-arithmetic emulator** — it is a precise
    BD-slot fixup, and it **requires r9999 to deliver the correct EPC + `Cause.BD`** (the
-   `WAIT_FOR_SERIALIZE_IN_FAULTED_DELAY_SLOT` corner). Get this contract right or the fixup spins.
+   `WAIT_FOR_SERIALIZE_IN_FAULTED_DELAY_SLOT` corner). r9999 delivers it.
 
-**Not needed to boot:** the FP adder/multiplier/divider/compare. User FP can be **E-punted** to
-IRIX's softfloat via the Unimplemented (E) trap (`_cvtd_s`, `_cvts_d`, … softfloat converters exist
-in the kernel). Add a real FP ALU **later**, for userland, validated vs softfloat (see
-`r9999/FPU_PORT_STUDY.md`, `FPU_ROUNDING_EXCEPTIONS.md`).
+**Real FP ALU (also done):** a unified single/double `fpu_add` (add+sub) + `fpu_mul` (mul), 2-cycle,
+honoring `FCSR.RM`; a unified `fpu_compare` (all 16 `C.cond`); `abs/neg/mov`; plus the converts
+above. **DIV/SQRT and any undecoded COP1 op** raise **Unimplemented-Op (E)** → FP Exception
+(ExcCode 15, `FCSR.Cause.E`) → the **OS soft-float emulator** (linux-mips `math-emu`); the catch-all
+`FP_UNIMPL` is **trap-and-emulate, not SIGILL**. Denormal operands/results always trap to E; IEEE
+flags go to `FCSR.Cause` on a trap or accumulate in the sticky `FCSR.Flags` otherwise. FP branches
+`BC1T/F/TL/FL` are implemented. The "E-punt" to soft-float (planned only for div/sqrt) is the
+**shipped** strategy, not a deferral.
+
+**Validation:** `tests/fpu/*` co-sim clean + directed; the FPU Linux kernel boots to `/init`
+(lazy-FPU, no "orphaned FPU"); an `awk` double-precision self-test runs correctly on Henry **silicon**
+(including `sqrt` via soft-float); the FP-complete synth meets timing (**WNS +0.235 ns @ 100 MHz**).
+See `r9999/FPU_PORT_STUDY.md`, `r9999/FPU_ROUNDING_EXCEPTIONS.md`.
 
 ---
 
@@ -176,19 +192,19 @@ Cross-ref: `r9999/MAME_QUESTIONS.md` Q1 (full capture + single-step trace; calle
 | System CP0 (`mtc0/mfc0/dmtc0/dmfc0`, `tlb*`, `eret`, `sync`, `syscall`, `break`) | implemented | — |
 | Atomics (`ll/sc/lld/scd`) | implemented | — |
 | **`cache` op decode + I-cache flush wiring** | decode missing (`cache`→NOP, **latent bug**) | **Gap 2** — decode full op field; any I-cache op → `l1i` `flush_req`; D-ops NOP-safe |
-| **FP regfile 32×64b + `Status.CU1/FR` (FR=1)** | absent (FPU ripped out) | **Gap 1.1** — add, with FR aliasing switch |
-| **FP moves** `mtc1/mfc1/dmtc1/dmfc1`, `cfc1/ctc1` | vestigial decode, no exec | **Gap 1.2** — add full exec |
-| **FP load/store** `lwc1/swc1/ldc1/sdc1` (precise BD-slot faults) | absent | **Gap 1.3 + 1.7** |
-| **`cvt.s.l` / `cvt.d.l`** | absent | **Gap 1.4** (2 converts only) |
-| **CU1 → CpU (Cause 11)** | CpU mechanism exists (CP0) | **Gap 1.5** — extend to `~CU1` |
-| **FP Exception (Cause 15)** | absent | **Gap 1.6** — add delivery |
-| **Precise EPC + `Cause.BD` on delay-slot FP mem ops** | verify | **Gap 1.7** — required for `emulate_*` |
+| **FP regfile 32×64b + `Status.CU1/FR` (FR=1)** | **DONE** (`fp_regfile.sv`; FR R/W reset 1, CU1 R/W reset 0, FIR=R4000) | **Gap 1.1 — CLOSED** |
+| **FP moves** `mtc1/mfc1/dmtc1/dmfc1`, `cfc1/ctc1` | **DONE** (full exec) | **Gap 1.2 — CLOSED** |
+| **FP load/store** `lwc1/swc1/ldc1/sdc1` (precise BD-slot faults) | **DONE** (precise BD-slot faults) | **Gap 1.3 + 1.7 — CLOSED** |
+| **`cvt.s.l` / `cvt.d.l`** | **DONE** (full convert set, not just these 2) | **Gap 1.4 — CLOSED** |
+| **CU1 → CpU (Cause 11)** | **DONE** (COP1 with CU1=0 → CpU, `Cause.CE=1`) | **Gap 1.5 — CLOSED** |
+| **FP Exception (Cause 15)** | **DONE** (`FCSR.Cause.E` delivery) | **Gap 1.6 — CLOSED** |
+| **Precise EPC + `Cause.BD` on delay-slot FP mem ops** | **DONE** | **Gap 1.7 — CLOSED** |
 | **Wired-slot protection / `wirepda` high-kseg3 VA** | **spurious fault** | **Gap 3** — clamp Random `[Wired..47]`; fix kseg3 + global/ASID; add directed test |
 | Count/Compare timer | required | ensure functional |
 | WatchLo/WatchHi | **DONE (`272360d`)** | — |
 | `wait` | not decoded | NOP for insurance (PRId-gated out anyway) |
 | PageMask holds value (4 KB boot) | verify | must not be RAZ/WI |
-| FP ALU (add/sub/mul/div/sqrt/cmp) | absent | **NOT boot-critical** — userland only; E-punt to softfloat |
+| FP ALU (add/sub/mul/cmp/cvt) | **DONE** (`fpu_add`/`fpu_mul`/`fpu_compare` + converts in HW) | — (div/sqrt + undecoded COP1 → E-trap to soft-float, the shipped strategy) |
 
 > Boot-environment note (separate from CPU ISA): a sash-less direct `/unix` boot also needs the ARCS
 > shim — SPB @ phys `0x1000` (sig "ARCS"), a 35-entry romvec with a working `GetEnvironmentVariable`,

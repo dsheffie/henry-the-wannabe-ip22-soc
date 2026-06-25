@@ -30,6 +30,7 @@ flowchart TD
         ROB["<b>Reorder buffer</b> · 32 entries<br/>even/odd banked · retire 2 / cycle"]
         ISCH["<b>Integer scheduler</b> · 8 entries<br/>age-matrix oldest-ready · 1 ALU / cycle"]
         MQS["<b>Memory queues</b><br/>UQ 8 · Mem-UQ 4 · store-data 4 · MQ 4"]
+        FQS["<b>FP queue</b> · 8 entries<br/>+ registered FP read stage"]
     end
 
     subgraph PRF["Physical register files"]
@@ -43,6 +44,7 @@ flowchart TD
         MUL["<b>Multiplier</b><br/>3-cycle → HILO"]
         DIV["<b>Divider</b><br/>~65-cycle → HILO"]
         LSU["<b>Load / Store</b><br/>AGU integrated"]
+        FPU["<b>COP1 FPU</b><br/>S/D add · mul (2-cyc)<br/>compare · convert · abs/neg/mov<br/>div/sqrt → soft-float (E-trap)"]
     end
 
     ITLB["<b>I-TLB</b><br/>48-entry FA CAM"]
@@ -54,15 +56,19 @@ flowchart TD
     MAP --> ROB
     MAP --> ISCH
     MAP --> MQS
+    MAP --> FQS
     ISCH --> ALU
     ISCH --> MUL
     ISCH --> DIV
     MQS --> LSU
+    FQS --> FPU
     IPRF -.->|read| ALU
     IPRF -.->|read| LSU
     FPRF -.->|read| LSU
+    FPRF -.->|read| FPU
     HILO -.-> MUL
     HILO -.-> DIV
+    FPU --> ROB
     ALU --> ROB
     LSU --> L1D
     LSU --> DTLB
@@ -79,7 +85,7 @@ flowchart TD
 
 **Decode / rename (2-wide).** `decode_mips` cracks up to two instructions into uops; a **4-entry decode queue** buffers them for the allocator, which renames through three maps — **integer**, **FP**, and **HILO** RATs with free lists — onto the physical register files. *(`decode_mips.sv`, `core.sv`)*
 
-**Out-of-order issue.** Renamed uops allocate into a **32-entry reorder buffer** (split even/odd so two consecutive entries write different banks → 2 allocate and 2 retire per cycle). Integer ALU ops wait in an **8-entry scheduler** that picks the **oldest ready** entry via an age matrix; memory ops flow through dedicated queues (**UQ 8**, **Mem-UQ 4**, **store-data 4**, **MQ 4**). Issue is **1 ALU op + 1 memory op per cycle**. *(`core.sv`, `exec.sv`, `fair_sched.sv`)*
+**Out-of-order issue.** Renamed uops allocate into a **32-entry reorder buffer** (split even/odd so two consecutive entries write different banks → 2 allocate and 2 retire per cycle). Integer ALU ops wait in an **8-entry scheduler** that picks the **oldest ready** entry via an age matrix; memory ops flow through dedicated queues (**UQ 8**, **Mem-UQ 4**, **store-data 4**, **MQ 4**), and FP-compute ops flow through a separate **8-entry FP queue** with a registered FP read stage feeding the COP1 FPU. Issue is **1 ALU op + 1 memory op per cycle**. *(`core.sv`, `exec.sv`, `fair_sched.sv`)*
 
 **Misprediction / exception recovery — no RAT checkpoints.** r9999 keeps two rename maps per register class: the speculative **allocation RAT** and a **retirement RAT** that follows the committed architectural map. On a branch mispredict or exception it does **not** roll back to a per-branch snapshot. Instead the machine **drains** (state `DRAIN`): younger uops are squashed and it waits for the offending op to reach the head of the 32-entry ROB — at which point the *retirement* RAT already holds the correct map. It then copies **retirement RAT → allocation RAT** in a single cycle (state `RAT`: `r_alloc_rat <= r_retire_rat`, and likewise for FP/HILO) and restarts fetch. No checkpoint storage, no finite-checkpoint allocation stall, and the *same* path handles both mispredictions and exceptions. *(`core.sv` — `DRAIN → RAT → ACTIVE` state machine, `t_rat_copy`)*
 
@@ -88,9 +94,11 @@ flowchart TD
 
     **Henry Wong's thesis** gives the matching quantitative corroboration — *A Superscalar Out-of-Order x86 Soft Processor for FPGA*, U. Toronto 2017, in the repo as `Wong_Henry_T_201711_PhD_thesis.pdf` (Ch. 7, Register Renaming). Two advantages over checkpoints: **one mechanism covers both branch mispredictions and exceptions**, and there's **no cap on outstanding branches** (checkpoints are finite — the R10000 stalls when it runs out). The drawback — recovery isn't instantaneous; the bad branch must commit first — he measures at only **~2.3 % of cycles (≈ 4 clocks per pipeline flush)**, and that's an *upper bound* (the core is usually still retiring useful older work). It stays small because branches **resolve in program order** (mispredicts detected near commit) and a **long front end** delays corrected-path instructions until after the drain.
 
-**Register files (clustered).** The integer PRF is a **clustered (banked) register file** (`rf4r2w`, 4 read / 2 write): it's split into **two single-write-port banks** selected by the high bit of the physical-register number — a **non-memory bank** written by ALU/move results (write port 0) and a **memory bank** written by load results (write port 1). That's the whole reason the physical-register count is large: **2 banks × 64 = 128**, not a deep rename window. It's the FPGA-friendly way to get two write ports per cycle out of plain single-write-port block RAMs (a Henry-Wong-style clustered RF) instead of paying for a true multi-write-port file. The **FP PRF** is banked the same way (non-memory = `mtc1`/moves, memory = FP loads), and a small **4 × 128-bit HILO PRF** holds multiply/divide results. The effective rename window is still bounded by the **32-entry ROB**. *(`rf4r2w.sv` — "Clustered (banked) register file"; `exec.sv`)*
+**Register files (clustered).** The integer PRF is a **clustered (banked) register file** (`rf4r2w`, 4 read / 2 write): it's split into **two single-write-port banks** selected by the high bit of the physical-register number — a **non-memory bank** written by ALU/move results (write port 0) and a **memory bank** written by load results (write port 1). That's the whole reason the physical-register count is large: **2 banks × 64 = 128**, not a deep rename window. It's the FPGA-friendly way to get two write ports per cycle out of plain single-write-port block RAMs (a Henry-Wong-style clustered RF) instead of paying for a true multi-write-port file. The **FP PRF** (`fp_regfile.sv`) is banked the same way (non-memory bank = `mtc1`/moves **and FP-arithmetic results**, memory bank = FP loads, selected by the physical-reg MSB, with a registered read stage), the **FCR** (FP control regs) has its own rename domain, and a small **4 × 128-bit HILO PRF** holds multiply/divide results. The effective rename window is still bounded by the **32-entry ROB**. *(`rf4r2w.sv` — "Clustered (banked) register file"; `exec.sv`)*
 
-**Execution units.** One **integer ALU** (1-cycle), a **3-cycle pipelined multiplier** and an **iterative ~65-cycle divider** (both writing the HILO PRF), and a **load/store unit** with address generation folded in (no separate AGU stage) feeding the L1 D-cache. **There is no FP arithmetic yet** — the FP path implements `mfc1/mtc1`-style moves and FP loads/stores only; the core still reports an R4000-family FPU id (`FIR`) so software probes succeed. *(`exec.sv`, `mul.sv`, `divider.sv`)*
+**Execution units.** One **integer ALU** (1-cycle), a **3-cycle pipelined multiplier** and an **iterative ~65-cycle divider** (both writing the HILO PRF), and a **load/store unit** with address generation folded in (no separate AGU stage) feeding the L1 D-cache. The **COP1 FPU** is real hardware: a unified single/double **`fpu_add`** (add+sub) and **`fpu_mul`** (mul) — one unit each, the format bit selects S/D, **fixed 2-cycle latency**, FCSR.RM rounding — plus a unified **`fpu_compare`** (all 16 `C.cond` predicates, writes the FCR condition-code bit), single-cycle **abs/neg/mov**, and a single-cycle **convert path** (`fpu_f2f`/`fpu_f2i`/`fpu_i2f`: `CVT.S.D`/`CVT.D.S`, `CVT.{W,L}.{S,D}` with ROUND/TRUNC/CEIL/FLOOR, and `CVT.{S,D}.{W,L}`). **DIV and SQRT have no datapath** — the FPU raises the **Unimplemented-Op (E)** bit so they trap as an **FP Exception** (`ExcCode 15`, `FCSR.Cause.E`) and the OS soft-float emulator runs them; a catch-all `FP_UNIMPL` uop does the same for any COP1 op not decoded in hardware (trap-and-emulate rather than `SIGILL`). The core reports an R4000-family FPU id (`FIR`). *(`exec.sv`, `fpu.sv`, `fpu_add.sv`, `fpu_mul.sv`, `fpu_compare.sv`, `fpu_f2f.sv`, `fpu_f2i.sv`, `fpu_i2f.sv`, `mul.sv`, `divider.sv`)*
+
+**FP exceptions and control.** `Status.CU1` (R/W, resets 0) gates the FPU for **lazy context switch** — a COP1 op with `CU1=0` raises **Coprocessor-Unusable** (`Cause.CE=1`). `Status.FR` (R/W, resets 1) selects the register mode: **FR=1** (`n32`/`n64`, 32×64-bit) is the full path; **FR=0** (`o32`) is handled by decode-force — odd-register compute and doubleword ops become **Reserved Instruction**, while single-word `lwc1`/`swc1`/`mtc1`/`mfc1` do a half merge/extract through the even register. The IEEE flags `{V,Z,O,U,I}` (and a denorm-operand/result → E flag, which **always** traps) are carried ROB-side-band with each result: on a trap they set `FCSR.Cause`, otherwise they OR into the sticky `FCSR.Flags` at retire. FP moves (`mtc1`/`mfc1`, `dmtc1`/`dmfc1`, `cfc1`/`ctc1` with `FCR0=FIR`, `FCR31=FCSR`) and FP load/store (`lwc1`/`swc1`, `ldc1`/`sdc1`) round out the path; FP branches `BC1T`/`BC1F`/`BC1TL`/`BC1FL` read the FCR condition-code bit and resolve in the integer pipe. *(`decode_mips.sv`, `exec.sv`, `fpu.sv`, `uop.vh`)*
 
 **Memory & translation.** L1 D-cache is 4 KB direct-mapped (16 B lines); L1I and L1D arbitrate for a shared **on-die 16 KB direct-mapped L2**, which fronts the **system interface** out to the Henry SoC / memory controller (AXI on the FPGA), with **36-bit physical addresses**. Translation presents the R4x00 **48-entry fully-associative TLB** (dual-page even/odd, 4 KB pages, 8-bit ASID, global bit) — but it is **not** a single shared joint TLB. r9999 **duplicates the CAM per L1 cache** — an **I-TLB** in `l1i` and a **D-TLB** (`dtlb`) in `l1d` — so instruction fetch and load/store translate **in parallel** without contending for one structure, and keeps them coherent by **broadcasting every `tlbwi`/`tlbwr` to both CAMs** (`core_l1d_l1i.sv`). Because a content-addressed CAM can't be read by index, a separate **48-entry RAM shadow** (`r_shadow_tlb` in `exec.sv`) holds the entries so the index-addressed instructions — `tlbr` in particular — can read them back. No micro-TLB. *(`l1i.sv`, `l1d.sv`, `tlb.sv`, `exec.sv`, `core_l1d_l1i.sv`)*
 
@@ -104,12 +112,12 @@ flowchart TD
 | Physical registers | 64 int + 64 FP (true multiport RF) | **128 int + 128 FP** (clustered: 2 banks × 64) + 4 HILO |
 | In-flight window | 32 (active list) | **32 (ROB)** |
 | Mispredict / exception recovery | per-branch **RAT checkpoints** (finite → caps outstanding branches) | **copy committed RAT after drain** — no checkpoints; one path for mispredict + exception |
-| Issue queues | 3 × 16 (address / integer / FP) | 8-entry integer scheduler + memory queues; **no FP queue** |
-| Functional units | 2 ALU + addr-calc + FP add + FP mul | **1 ALU + mul + div + load/store**; no FP arithmetic |
+| Issue queues | 3 × 16 (address / integer / FP) | 8-entry integer scheduler + memory queues + **FP issue/read stage** |
+| Functional units | 2 ALU + addr-calc + FP add + FP mul | **1 ALU + mul + div + load/store + COP1 FPU** (unified S/D add + mul + compare + convert; abs/neg/mov) |
 | L1 I / D | 32 KB 2-way each | **4 KB direct-mapped each** |
 | L2 | off-chip, 512 KB–16 MB, dedicated controller | **on-die 16 KB direct-mapped** |
 | TLB | 64-entry, single shared | **48-entry FA CAM, duplicated per L1** (I-TLB + D-TLB) + RAM shadow; R4x00-style software model |
-| Register width / FPU | 64-bit · full pipelined FPU | 64-bit · **no FPU yet** (moves + ld/st only) |
+| Register width / FPU | 64-bit · full pipelined FPU | 64-bit · **COP1 FPU**: unified S/D add + mul + compare + full convert set (2-cyc arith) + moves/ld-st/branches; **div/sqrt punted to soft-float** via an Unimplemented-Op (E) trap — a Henry/FPGA simplification vs the R10000's fully pipelined FP divide/sqrt |
 
 ## Why it diverges from the R10000
 
@@ -117,7 +125,7 @@ flowchart TD
 - **It's built for an FPGA.** 2-wide instead of 4, **direct-mapped** caches, and a modest on-die L2 keep LUT/BRAM/timing in budget on the Ultra96-v2 (Zynq UltraScale+). Conversely the **gshare PHT is much larger** than the R10000's BHT — block RAM is cheap on FPGA, so prediction accuracy is bought with BRAM rather than logic.
 - **The big physical-register counts are a clustered RF, not a deep window.** 128 INT / 128 FP physical registers = **2 banks × 64**. Each register file is split into two single-write-port banks (non-memory results vs memory/load results), selected by the preg-number MSB, so the core gets two write ports per cycle from cheap single-write-port FPGA RAMs instead of a true multi-write-port file. The architectural rename window is still gated by the **32-entry ROB** — the count is an implementation artifact of the banking, not extra in-flight capacity.
 - **No RAT checkpoints — even though it's a PRF machine.** RAT checkpointing is a PRF-machine technique, so the R10000-style scheme was available to r9999 — but it instead drains to the ROB head and restores the map from the retirement RAT, the data-in-ROB-style (P6/Nehalem) recovery chosen from experience and corroborated by Wong (Ch. 7). See the rename-recovery note above.
-- **No hardware FPU yet.** The FP register file and the move / load-store path are in place; FP arithmetic is future work, and the core reports an R4000-family FPU id so software probes succeed.
+- **The COP1 FPU keeps the common ops in hardware and punts the rare ones.** Unified single/double `fpu_add`/`fpu_mul` (2-cycle), a unified `fpu_compare`, single-cycle abs/neg/mov, and the full single-cycle convert path are real datapath; **div and sqrt have no hardware** — they (and any COP1 op not decoded in HW) raise the **Unimplemented-Op (E)** bit and trap to the OS soft-float emulator as an FP Exception. That's a deliberate area/timing split for the FPGA — the rare, expensive iterative ops cost LUTs and timing the common path doesn't — versus the R10000's fully pipelined FP divide/sqrt. `Status.CU1` gives lazy-FPU context switching and `Status.FR` selects n32/n64 (FR=1) vs o32 (FR=0, decode-forced); the core reports an R4000-family FPU id so software probes succeed. The FPU is why LUT-as-logic on the Ultra96-v2 rose ~50K→57K (81%) and DSP 34→43, while timing still closes (**WNS +0.235 ns @ 100 MHz**). Validation: `tests/fpu/*` co-sim clean, the FPU-enabled IP22 Linux kernel boots to `/init` under lazy-FPU, and an `awk` double-precision self-test runs correctly on Henry **silicon** (incl. `sqrt(2)` via the soft-float E-trap and `exp(1)` via libm).
 
 !!! note "Known FPGA bottleneck"
 The **fully-associative 48-entry TLB CAMs** — one per L1 cache, so every fetch *and* every load/store does a 48-way parallel CAM match — are the current critical path on the Ultra96-v2 build (negative WNS at 100 MHz). The 48-entry size is fixed by the architecture; the fix is a hardware **micro-TLB** in front of each CAM — a small fast L1 translation cache that removes the big CAM from the common-case path.
