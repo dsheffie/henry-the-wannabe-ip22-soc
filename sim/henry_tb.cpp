@@ -66,6 +66,59 @@ void record_restart(int) {}
 void record_retirement(long long,long long,long long,long long,long long,int,int,int,int) {}
 void report_exec(int,int,int,int,int,int,int,int,int,int,int) {}
 
+// ===========================================================================
+//  Checkpoint resume: load a full-state checkpoint (from interp_mips
+//  --checkpoint-at) into g_mem + a global state, and seed the RTL register
+//  files / TLB / control regs at reset via these DPI functions (loadgpr etc.),
+//  then resume the core at the checkpoint PC. Binary layout MUST match
+//  interp_mips/saveState.cc.
+// ===========================================================================
+struct cp_tlb { uint64_t entry_hi, entry_lo0, entry_lo1; uint32_t page_mask, _pad; } __attribute__((packed));
+struct cp_header {
+  uint64_t magic; int64_t pc; int64_t gpr[32]; int64_t hi; int64_t lo;
+  uint32_t cpr0[32]; uint64_t cpr0_64[32]; uint64_t cpr1[32]; uint32_t fcr1[5];
+  cp_tlb tlb[48]; uint64_t icnt; uint32_t num_pages;
+} __attribute__((packed));
+struct cp_page { uint32_t va; uint8_t data[4096]; } __attribute__((packed));
+static const uint64_t CKPT_MAGIC = 0x6d697073f5f5d005ULL;
+
+static cp_header g_ckpt;
+static bool g_have_ckpt = false;
+
+// fwd: fpga_map is defined above; pages are physical -> map to g_mem offset.
+static void load_checkpoint(const char *path) {
+  FILE *f = fopen(path, "rb");
+  if(!f) { fprintf(stderr, "cannot open checkpoint %s\n", path); exit(1); }
+  if(fread(&g_ckpt, 1, sizeof(g_ckpt), f) != sizeof(g_ckpt) || g_ckpt.magic != CKPT_MAGIC) {
+    fprintf(stderr, "bad checkpoint %s\n", path); exit(1);
+  }
+  for(uint32_t i = 0; i < g_ckpt.num_pages; i++) {
+    cp_page p;
+    if(fread(&p, 1, sizeof(p), f) != sizeof(p)) { fprintf(stderr, "short checkpoint\n"); exit(1); }
+    bool bad = false; uint32_t off = fpga_map(p.va, &bad);
+    if(!bad) memcpy(g_mem + off, p.data, 4096);
+  }
+  fclose(f);
+  g_have_ckpt = true;
+  fprintf(stderr, "[ckpt] loaded %s: pc=%08x, %u pages, icnt=%llu\n",
+          path, (uint32_t)g_ckpt.pc, g_ckpt.num_pages, (unsigned long long)g_ckpt.icnt);
+}
+
+// DPI seeds consumed by rf4r2w / fp_regfile (and, once added, exec/tlb) at reset.
+extern "C" long long loadgpr(int regid)  { return g_have_ckpt ? g_ckpt.gpr[regid & 31] : 0; }
+extern "C" long long loadfpr(int regid)  { return g_have_ckpt ? (long long)g_ckpt.cpr1[regid & 31] : 0; }
+extern "C" int       have_checkpoint()   { return g_have_ckpt ? 1 : 0; }
+extern "C" int       loadcp0(int reg)    { return g_have_ckpt ? (int)g_ckpt.cpr0[reg & 31] : 0; }
+extern "C" long long loadcp0_64(int reg) { return g_have_ckpt ? (long long)g_ckpt.cpr0_64[reg & 31] : 0; }
+extern "C" long long loadhilo(int half)  { return g_have_ckpt ? (half ? g_ckpt.hi : g_ckpt.lo) : 0; }
+extern "C" int       loadfcsr()          { return g_have_ckpt ? (int)g_ckpt.fcr1[4] : 0; } /* FCR31 = fcr1[4] */
+extern "C" long long loadtlb(int entry, int field) {  /* 0=hi 1=lo0 2=lo1 3=pagemask */
+  if(!g_have_ckpt) return 0;
+  const cp_tlb &t = g_ckpt.tlb[entry % 48];
+  switch(field & 3) { case 0: return (long long)t.entry_hi;  case 1: return (long long)t.entry_lo0;
+                      case 2: return (long long)t.entry_lo1; default: return (long long)t.page_mask; }
+}
+
 static inline uint32_t be32(const uint8_t *p) {
   return (uint32_t(p[0])<<24)|(uint32_t(p[1])<<16)|(uint32_t(p[2])<<8)|uint32_t(p[3]);
 }
@@ -209,7 +262,7 @@ static uint32_t install_arcs_handoff(uint32_t kentry) {
 }
 
 int main(int argc, char **argv) {
-  std::string kernel, arcs;
+  std::string kernel, arcs, ckpt_file;
   uint64_t max_cyc = 120000000ull;
   uint32_t start_pc = 0;   // fake-BIOS: start in the arcs boot stub (skip C++ handoff)
   std::vector<uint64_t> dump_pas;
@@ -229,16 +282,26 @@ int main(int argc, char **argv) {
     else if(a == "--dump" && i+1 < argc)   dump_pas.push_back(strtoull(argv[++i], nullptr, 0));
     else if(a == "--trace" && i+1 < argc)  trace_file = argv[++i];
     else if(a == "--rx" && i+1 < argc)     rx_str = argv[++i];
+    else if(a == "--checkpoint" && i+1 < argc) ckpt_file = argv[++i];
   }
   std::vector<uint8_t> rx_bytes(rx_str.begin(), rx_str.end());
-  if(kernel.empty()) { fprintf(stderr, "usage: %s --kernel <elf> [--arcs <blob>] [--maxcyc N]\n", argv[0]); return 1; }
+  if(kernel.empty() && ckpt_file.empty()) { fprintf(stderr, "usage: %s {--kernel <elf> | --checkpoint <file>} [--arcs <blob>] [--maxcyc N]\n", argv[0]); return 1; }
 
   g_mem = (uint8_t*)mmap(nullptr, MEM_SIZE, PROT_READ|PROT_WRITE,
                          MAP_PRIVATE|MAP_ANONYMOUS|MAP_NORESERVE, -1, 0);
   if(g_mem == MAP_FAILED) { perror("mmap ram"); return 1; }
 
-  uint32_t entry = load_elf_be32(kernel.c_str());
-  uint32_t kentry = entry;                  // real kernel entry (trace starts here)
+  uint32_t entry;
+  uint32_t kentry;
+  if(!ckpt_file.empty()) {
+    // checkpoint resume: the checkpoint carries ALL memory (kernel + page tables
+    // + user) and the resume PC. No ELF/FSBL load; the RTL seeds its regs/TLB/CP0
+    // from g_ckpt via DPI at reset. Skips the (hours-long) boot entirely.
+    load_checkpoint(ckpt_file.c_str());
+    entry = kentry = (uint32_t)g_ckpt.pc;
+  } else {
+  entry = load_elf_be32(kernel.c_str());
+  kentry = entry;                  // real kernel entry (trace starts here)
   if(!arcs.empty()) {
     load_blob(arcs.c_str(), arcs_addr);    // FSBL @0x1fc00000, or stub-style @0x1000 (--arcs-addr)
     // FSBL path only: patch the kernel-entry slot @ phys 0x1fc00008 with the real
@@ -251,6 +314,11 @@ int main(int argc, char **argv) {
     if(start_pc) { entry = start_pc; printf("fake-bios: start pc = %08x\n", start_pc); }
     else         entry = install_arcs_handoff(entry); // sash-style argv/envp handoff -> stub -> kernel
   }
+  }  // end else (non-checkpoint load)
+
+  // checkpoint PC is a full 64-bit VA (n64 user code @ 0x1_xxxxxxxx); don't truncate.
+  uint64_t resume_pc64 = ckpt_file.empty() ? (uint64_t)(int64_t)(int32_t)entry
+                                           : (uint64_t)g_ckpt.pc;
 
   // retired-PC trace (for the MAME co-sim diff): one 32-bit vPC per line, in
   // retire order incl. delay slots, starting at the kernel entry (skip the stub).
@@ -275,12 +343,12 @@ int main(int argc, char **argv) {
   for(int i = 0; i < 4; i++) tick();
 
   // ---- launch the core at the kernel entry (mirrors r9999 top.cc) ----
-  tb->resume_pc = (uint64_t)(int64_t)(int32_t)entry;
+  tb->resume_pc = resume_pc64;
   tb->reset = 0; tick();
   while(!tb->ready_for_resume) tick();
   tb->resume = 1; tick();
   tb->resume = 0; tick();
-  tb->resume = 1; tb->resume_pc = (uint64_t)(int64_t)(int32_t)entry; tick();
+  tb->resume = 1; tb->resume_pc = resume_pc64; tick();
   tb->resume = 0; tick();
 
   // ---- run ----
