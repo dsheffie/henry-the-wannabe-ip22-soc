@@ -1,0 +1,1838 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A from-scratch SoC that impersonates the SGI Indy (IP22) well enough to boot IRIX, built around the r9999 MIPS core.">
+      
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Scsi disk theory of operation - Henry — the wannabe IP22 SoC</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="amber">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#ip22-scsi-disk-path-theory-of-operation-wd33c93a-hpc3-scsi-dma-disk" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Henry — the wannabe IP22 SoC" class="md-header__button md-logo" aria-label="Henry — the wannabe IP22 SoC" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 4h12v1h3v2h-3v2h3v2h-3v2h3v2h-3v2h3v2h-3v1H6v-1H3v-2h3v-2H3v-2h3v-2H3V9h3V7H3V5h3zm5 11v3h1v-3zm2 0v3h1v-3zm2 0v3h1v-3z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Henry — the wannabe IP22 SoC
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Scsi disk theory of operation
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="amber"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="teal" data-md-color-accent="amber"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Henry — the wannabe IP22 SoC" class="md-nav__button md-logo" aria-label="Henry — the wannabe IP22 SoC" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 4h12v1h3v2h-3v2h3v2h-3v2h3v2h-3v2h3v2h-3v1H6v-1H3v-2h3v-2H3v-2h3v-2H3V9h3V7H3V5h3zm5 11v3h1v-3zm2 0v3h1v-3zm2 0v3h1v-3z"/></svg>
+
+    </a>
+    Henry — the wannabe IP22 SoC
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../minimum-mmio-to-banner/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Minimum MMIO to boot banner
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (functional-sim validated, MAME-corroborated)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cpu-integration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CPU integration (r9999)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (MAME-validated)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../r9999-microarchitecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    r9999 microarchitecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../firmware-arcs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Firmware (ARCS shim)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (MAME-validated)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../boot-and-console/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Boot & console
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (MAME-validated)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../coherence-cache-tlb/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cache, coherence & TLB
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (MAME-validated)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fpu-cop1/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FPU (COP1)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--implemented (MAME-validated workload)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Peripherals
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Peripherals
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MC (memory controller)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (MAME-validated)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ioc2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IOC2 (serial console)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (MAME-validated)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hpc3/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    HPC3 (SCSI/enet/DMA, RTC)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (MAME + live-IRIX-trace validated)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gio64/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GIO64 (bus)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (MAME-validated)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../vdma/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VDMA (virtual DMA)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft / future-work (MAME-reference)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dmux1/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DMUX (data mux)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../graphics/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Graphics
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft / future-work"></span>
+  
+
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_11" id="__nav_11_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Graphics
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../graphics/rex3/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    REX3 (raster engine)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft / future-work"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../graphics/vc2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VC2 (video timing/cursor)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft / future-work"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../graphics/xmap9/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    XMAP9 (colormap)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft / future-work"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../graphics/rb2-ro1/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RB2 & RO1 (framebuffer/output)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft / future-work"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../graphics/express-xz/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Express / XZ (hardware geometry)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft / future-work"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../irix-boot-flow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IRIX boot flow (annotated)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../methodology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Methodology (MAME oracle)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--stable"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#0-the-three-actors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0. The three actors
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#01-the-basics-how-a-disk-read-write-works-in-irix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.1 The basics — how a disk read / write works in IRIX
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="0.1 The basics — how a disk read / write works in IRIX">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-disk-read" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A disk READ
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-disk-write" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A disk WRITE
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-two-chips-dma-the-thing-the-rtl-must-preserve" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why two chips + DMA (the thing the RTL must preserve)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#1-register-interfaces" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Register interfaces
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. Register interfaces">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#11-wd33c93a-two-byte-ports-indirect-register-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.1 WD33C93A — two byte ports, indirect register file
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#12-hpc3-scsi-dma-channel-registers-32-bit-byte-swapped-on-the-bus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2 HPC3 SCSI DMA channel registers (32-bit, byte-swapped on the bus)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-the-hpc3-dma-descriptor-chain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. The HPC3 DMA descriptor &amp; chain
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-hpc3-dma-descriptor-walk-fsm-scsi_run_dma" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. HPC3 DMA descriptor-walk FSM (scsi_run_dma)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-wd33c93-command-flow-select-and-transfer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. WD33C93 command flow — Select-And-Transfer
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-data-phase-fsm-completion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Data-phase FSM &amp; completion
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-chunked-transfers-pause-resume" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Chunked transfers (pause / resume)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-interrupt-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Interrupt path
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-disk-backend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Disk backend
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-end-to-end-one-disk-read" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. End-to-end: one disk READ
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-henry-rtl-port-the-arm-host-serviced-hybrid" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. Henry RTL port — the ARM-host-serviced hybrid
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sources" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sources
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<!--
+  scsi_disk_theory_of_operation.md
+  Theory of operation for the IP22 SCSI disk path (WD33C93A + HPC3 SCSI DMA +
+  disk backend), traced EXACTLY from the validated interp_mips model:
+      interp_mips/sgi_scsi.cc / sgi_scsi.hh   (fused WD33C93A + single disk target)
+      interp_mips/sgi_hpc.cc  / sgi_hpc.hh    (HPC3 SCSI DMA channel + IOC2/INT2)
+  That model boots IRIX 6.5 to a mounted root device (validated against a live
+  IRIX/MAME boot trace).  This is the spec the henry RTL port follows, ending with
+  the ARM-host-serviced hybrid the FPGA will actually use.
+-->
+
+<h1 id="ip22-scsi-disk-path-theory-of-operation-wd33c93a-hpc3-scsi-dma-disk">IP22 SCSI Disk Path — Theory of Operation (WD33C93A + HPC3 SCSI DMA + disk)<a class="headerlink" href="#ip22-scsi-disk-path-theory-of-operation-wd33c93a-hpc3-scsi-dma-disk" title="Permanent link">&para;</a></h1>
+<h2 id="0-the-three-actors">0. The three actors<a class="headerlink" href="#0-the-three-actors" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>   IRIX/Linux sgiwd93 driver (guest CPU, PIO + descriptor build)
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>        |  PIO byte ops to WD33C93 (SASR/SCMD)        |  32-bit MMIO to HPC3 DMA regs
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>        v                                             v
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>   +----------------------+   DRQ/byte port   +---------------------------+
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>   |  WD33C93A controller | &lt;---------------&gt; |  HPC3 SCSI DMA channel    | &lt;--&gt; DRAM
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>   |  (+ fused 1 disk     |  dma_r()/dma_w()  |  (descriptor-walk master) |
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>   |   target)            |                   +---------------------------+
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>   +----------------------+
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>        |  INTRQ -&gt; IOC2 local0 bit1 (SCSI0) -&gt; CPU IP2
+</code></pre></div>
+<ul>
+<li><strong>Guest driver</strong> programs the WD33C93 (Own ID / Control / a CDB / Select-And-Transfer) AND builds an HPC3 DMA descriptor chain in DRAM, arms the DMA channel, then waits for the completion interrupt. A <strong>CDB (Command Descriptor Block)</strong> is the SCSI command itself — a 6/10/12-byte packet of { opcode, LBA, transfer length, control }; e.g. a 10-byte <code>READ(10)</code> = opcode <code>0x28</code>, a 4-byte big-endian LBA at bytes 2–5, and a 2-byte block count at bytes 7–8.</li>
+<li><strong>WD33C93A</strong> decodes the SCSI command, runs a <em>data phase</em> (PH_DATA_IN/OUT), and raises <strong>INTRQ</strong> at completion. In interp_mips it is <em>fused</em> with a single disk target — there is no SCSI bus / arbitration / REQ-ACK; one <code>Select-And-Transfer</code> decodes the CDB and runs the whole transaction.</li>
+<li><strong>HPC3 SCSI DMA channel</strong> is the <em>memory master</em>: it walks a <code>{BP,BC,DP}</code> descriptor chain and moves each byte between DRAM and the WD33C93 byte port on every DRQ. The WD33C93 is NOT the bus master (<code>dma_mode = CTRL_BURST</code>, demand DMA).</li>
+</ul>
+<p>All addresses are within the <strong>HPC3 #0 window, base PA <code>0x1fb80000</code></strong>; offsets below are <code>pa - 0x1fb80000</code>.</p>
+<hr />
+<h2 id="01-the-basics-how-a-disk-read-write-works-in-irix">0.1 The basics — how a disk read / write works in IRIX<a class="headerlink" href="#01-the-basics-how-a-disk-read-write-works-in-irix" title="Permanent link">&para;</a></h2>
+<p>Start here. The device detail in §1+ only makes sense once you have the OS-level story. Nothing here is IP22-specific magic — it's the standard "filesystem → buffer cache → SCSI driver → controller + DMA → interrupt" flow, with the IP22 twist that the <strong>controller (WD33C93) and the DMA engine (HPC3) are two separate chips</strong> the driver programs in tandem.</p>
+<h3 id="a-disk-read">A disk READ<a class="headerlink" href="#a-disk-read" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>Filesystem miss.</strong> An xfs/efs read needs a block that isn't in the buffer cache, so the kernel allocates a <code>buf</code> (with a <strong>physical</strong> data buffer in DRAM) and calls the disk's strategy routine. This becomes one SCSI command: <strong><code>READ(10)</code> { LBA, block-count }</strong> to a target id / LUN, delivering into that physical buffer.</li>
+<li><strong>The IP22 WD33C93 driver</strong> (IRIX <code>wd95</code> / Linux <code>sgiwd93</code> — they drive the identical hardware identically) does, via PIO to SASR/SCMD:</li>
+<li><em>(once, at init)</em> Own ID = host id <strong>7</strong> + FS clock (20 MHz); Control = DMA mode <strong><code>CTRL_BURST</code></strong> (demand DMA — the WD33C93 raises DRQ, the HPC3 masters memory).</li>
+<li>select the target: write <strong>Dest ID</strong> (reg 0x15) and <strong>Target/LUN</strong> (reg 0x0f).</li>
+<li><strong>stream the 10-byte CDB</strong> into reg 0x03+ (SCMD auto-increments SASR, so it's one burst).</li>
+<li>program the 24-bit <strong>Transfer Count</strong> (regs 0x12–0x14) = bytes to move.</li>
+<li><strong>The driver programs the HPC3 DMA channel</strong> (separate 32-bit MMIO regs): build a <code>{BP=buffer-phys, BC=count|flags(XIE/EOX), DP=next}</code> <strong>descriptor chain in DRAM</strong>, write <strong>nbdp</strong> (0x10004) = chain head, write <strong>ctrl</strong> (0x11004) = <strong>ACTIVE</strong> (DIR=0 for read).</li>
+<li><strong>Kick it:</strong> write the WD33C93 <strong>Command</strong> reg (0x18) = <strong>Select-And-Transfer (0x08)</strong>.</li>
+<li><strong>Hardware runs autonomously:</strong> WD33C93 enters the data-in phase and asserts DRQ; the HPC3 DMA walks the descriptor chain and copies the bytes into <code>BP</code>; at the end the WD33C93 raises <strong>INTRQ</strong> (→ IOC2 local0 SCSI0 → CPU <strong>IP2</strong>).</li>
+<li><strong>Driver ISR:</strong> read <strong>SCSI Status</strong> (reg 0x17 — this <em>clears</em> INTRQ), read <strong>target status</strong> (reg 0x0f: 0x00 GOOD / 0x02 CHECK CONDITION), check the <strong>Transfer Count residual</strong> (0 = full transfer). On GOOD + zero residual it marks the <code>buf</code> done (<code>b_done</code>); the data is already in DRAM at <code>BP</code>, so the filesystem just returns it.</li>
+</ol>
+<h3 id="a-disk-write">A disk WRITE<a class="headerlink" href="#a-disk-write" title="Permanent link">&para;</a></h3>
+<p>Identical, except: the CDB is <strong><code>WRITE(10)</code></strong>, the DMA <code>ctrl</code> has <strong>DIR=1</strong> (mem→device), so the HPC3 DMA pumps the guest's buffer <code>BP</code> <strong>out</strong> to the controller, which lands it on the medium. Completion handshake (INTRQ → read status → check 0x0f / residual) is the same.</p>
+<h3 id="why-two-chips-dma-the-thing-the-rtl-must-preserve">Why two chips + DMA (the thing the RTL must preserve)<a class="headerlink" href="#why-two-chips-dma-the-thing-the-rtl-must-preserve" title="Permanent link">&para;</a></h3>
+<p>The driver's correctness checks at step 6 — <strong>reg 0x0f = target status</strong> and <strong>Transfer Count = 0</strong> — are exactly what the hybrid RTL must reproduce (see §5, §10): IRIX reads 0x0f to distinguish GOOD from CHECK, and a non-zero residual reads as a <em>short transfer</em> (<code>b_error</code> → <code>ENOEXEC</code>, root mount fails). Everything else below is how the WD33C93 + HPC3 actually produce that sequence.</p>
+<hr />
+<h2 id="1-register-interfaces">1. Register interfaces<a class="headerlink" href="#1-register-interfaces" title="Permanent link">&para;</a></h2>
+<h3 id="11-wd33c93a-two-byte-ports-indirect-register-file">1.1 WD33C93A — two byte ports, indirect register file<a class="headerlink" href="#11-wd33c93a-two-byte-ports-indirect-register-file" title="Permanent link">&para;</a></h3>
+<p>The chip exposes only <strong>two</strong> byte ports (byte lane +3 of a 4-byte stride):</p>
+<table>
+<thead>
+<tr>
+<th>Port</th>
+<th>HPC3 offset</th>
+<th>abs PA</th>
+<th>function</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SASR</td>
+<td><code>0x40003</code></td>
+<td><code>0x1fbc0003</code></td>
+<td>indirect <strong>register-select pointer</strong></td>
+</tr>
+<tr>
+<td>SCMD</td>
+<td><code>0x40007</code></td>
+<td><code>0x1fbc0007</code></td>
+<td><strong>data port</strong> for the selected register (auto-increments SASR)</td>
+</tr>
+</tbody>
+</table>
+<p>Decode (sgi_hpc.cc): HD0 = <code>0x40000..0x47fff</code>, HD1 = <code>0x48000..0x4ffff</code>; <code>port = ((offs-0x40000) &gt;&gt; 2) &amp; 1</code> (0=SASR, 1=SCMD). <strong>Byte accesses are NOT byte-swapped</strong> (unlike the 32-bit DMA regs). <em>(0x44003/0x44007 in older notes is wrong — it came from a MAME log string.)</em></p>
+<p>Indirect register file <code>regs[0x00..0x1f]</code> (the ones that matter):</p>
+<table>
+<thead>
+<tr>
+<th>idx</th>
+<th>name</th>
+<th>role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0x00</td>
+<td>Own ID</td>
+<td>host SCSI ID (7) + FS clock divisor</td>
+</tr>
+<tr>
+<td>0x01</td>
+<td>Control</td>
+<td>DMA mode select (<code>CTRL_BURST</code>)</td>
+</tr>
+<tr>
+<td>0x03</td>
+<td><strong>CDB[0]</strong></td>
+<td>first CDB byte = SCSI opcode (CDB occupies 0x03..)</td>
+</tr>
+<tr>
+<td>0x0f</td>
+<td><strong>Target/LUN</strong></td>
+<td>guest writes target LUN here; <strong>at completion the WD33C93 OVERWRITES it with the target STATUS byte</strong> (GOOD/CHECK)</td>
+</tr>
+<tr>
+<td>0x10</td>
+<td><strong>Command Phase</strong></td>
+<td>progress code; <code>0x60</code> = command complete, <code>0x46</code> = xfer-count exhausted</td>
+</tr>
+<tr>
+<td>0x12..0x14</td>
+<td><strong>Transfer Count</strong> (24-bit)</td>
+<td>counts down as bytes move; <strong>0 at completion</strong></td>
+</tr>
+<tr>
+<td>0x15</td>
+<td>Dest ID</td>
+<td>target SCSI id</td>
+</tr>
+<tr>
+<td>0x16</td>
+<td>Source ID</td>
+<td></td>
+</tr>
+<tr>
+<td>0x17</td>
+<td><strong>SCSI Status</strong></td>
+<td>completion code; <strong>reading it clears INTRQ</strong></td>
+</tr>
+<tr>
+<td>0x18</td>
+<td><strong>Command</strong></td>
+<td>writing here EXECUTES a WD33C93 command</td>
+</tr>
+<tr>
+<td>0x19</td>
+<td>Data</td>
+<td>PIO data port (DMA uses dma_r/dma_w instead)</td>
+</tr>
+<tr>
+<td>0x1f</td>
+<td>Aux Status</td>
+<td>read via the <strong>SASR port</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Aux Status bits</strong> (returned by a <em>read of the SASR port</em>): <code>INT=0x80</code> (INTRQ pending), <code>LCI=0x40</code>, <code>BSY=0x20</code>, <code>CIP=0x10</code> (command in progress), <code>DBR=0x01</code> (data buffer ready = DRQ).</p>
+<p><strong>PIO semantics</strong> (sgi_scsi.cc <code>pio_w</code>/<code>pio_r</code>):
+- write SASR → <code>sasr = v &amp; 0x1f</code>.
+- write SCMD → if <code>sasr==0x18</code> (Command): store + <strong>execute</strong> <code>exec_command(v &amp; 0x7f)</code>; else <code>regs[sasr]=v</code> then <code>sasr=(sasr+1)&amp;0x1f</code> (<strong>auto-increment</strong>, so the driver streams the CDB in one burst).
+- read SASR → live <strong>Aux Status</strong> (<code>INT</code> if intrq, <code>DBR</code> if drq).
+- read SCMD → <code>regs[sasr]</code>, then auto-increment; <strong>reading reg 0x17 (SCSI Status) clears INTRQ</strong> (<code>intrq=false</code>, Aux <code>~INT</code>).</p>
+<p><strong>WD33C93 commands</strong> (low 7 bits of reg 0x18): <code>RESET=0x00</code>, <strong><code>SEL_ATN_XFER=0x08</code></strong>, <strong><code>SEL_XFER=0x09</code></strong> (the workhorse — Select-And-Transfer), <code>XFER_INFO=0x20</code> (data phase already armed).</p>
+<h3 id="12-hpc3-scsi-dma-channel-registers-32-bit-byte-swapped-on-the-bus">1.2 HPC3 SCSI DMA channel registers (32-bit, byte-swapped on the bus)<a class="headerlink" href="#12-hpc3-scsi-dma-channel-registers-32-bit-byte-swapped-on-the-bus" title="Permanent link">&para;</a></h3>
+<p>Two channels: HD0 at <code>0x10000..0x11fff</code>, HD1 selected by <code>offs &amp; 0x2000</code>. <strong>The BE store/load path byte-swaps these 32-bit registers</strong> (<code>__builtin_bswap32</code> on read and write).</p>
+<table>
+<thead>
+<tr>
+<th>offset</th>
+<th>reg</th>
+<th>access</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0x10000</code></td>
+<td><strong>cbp</strong></td>
+<td>RO</td>
+<td>current buffer pointer (live BP, advances during XFER)</td>
+</tr>
+<tr>
+<td><code>0x10004</code></td>
+<td><strong>nbdp</strong></td>
+<td>RW</td>
+<td>next-descriptor pointer (chain head / walk cursor)</td>
+</tr>
+<tr>
+<td><code>0x11000</code></td>
+<td><strong>bc</strong></td>
+<td>RW</td>
+<td>byte-count word: <code>count[13:0]</code> + flags</td>
+</tr>
+<tr>
+<td><code>0x11004</code></td>
+<td><strong>ctrl</strong></td>
+<td>RW</td>
+<td>channel control (arm/flush/dir); <strong>read returns ctrl and clears the per-channel IRQ bit</strong> (sets bit0 if <code>intstat</code> had <code>0x100&lt;&lt;ch</code>)</td>
+</tr>
+<tr>
+<td><code>0x11010</code></td>
+<td>dmacfg</td>
+<td>RW</td>
+<td>DMA config</td>
+</tr>
+<tr>
+<td><code>0x11014</code></td>
+<td>piocfg</td>
+<td>RW</td>
+<td>PIO config</td>
+</tr>
+</tbody>
+</table>
+<p><strong><code>ctrl</code> bits</strong>: <code>ACTIVE=0x10</code> (arm), <code>DIR=0x04</code> (1 = mem→device = WRITE), <code>FLUSH=0x08</code> (abort/stop), <code>AMASK=0x20</code> (write-protect ACTIVE), <code>CRESET=0x40</code> (reset the WD33C93), <code>IRQ=0x01</code> (read-only, set if the channel IRQ fired).</p>
+<hr />
+<h2 id="2-the-hpc3-dma-descriptor-chain">2. The HPC3 DMA descriptor &amp; chain<a class="headerlink" href="#2-the-hpc3-dma-descriptor-chain" title="Permanent link">&para;</a></h2>
+<p>A descriptor is <strong>3 big-endian words at <code>nbdp</code></strong> (<code>rd_be32</code>, guest BE byte order in DRAM):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>  desc+0 : BP   buffer pointer  (physical DRAM address of the data buffer)
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>  desc+4 : BC   byte-count word = flags | count
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>  desc+8 : DP   next-descriptor pointer (physical)
+</code></pre></div>
+<p><code>count = BC &amp; 0x3fff</code> (14-bit, ≤16 KB per descriptor). Flags in <code>BC</code>:
+- <code>EOX = 0x80000000</code> — End Of Xfer (last descriptor; deactivate after).
+- <code>XIE = 0x20000000</code> — interrupt-enable for this descriptor's completion.</p>
+<p>The chain is <strong>pure-physical, walked via <code>DP</code></strong> until a descriptor with <code>EOX</code> set. (Scatter-gather: one SCSI command's data can span several buffers.)</p>
+<hr />
+<h2 id="3-hpc3-dma-descriptor-walk-fsm-scsi_run_dma">3. HPC3 DMA descriptor-walk FSM (<code>scsi_run_dma</code>)<a class="headerlink" href="#3-hpc3-dma-descriptor-walk-fsm-scsi_run_dma" title="Permanent link">&para;</a></h2>
+<p>State per channel: <code>CH_IDLE / CH_FETCH / CH_XFER / CH_DESC_DONE</code>. Pumped while <code>active &amp;&amp; progress</code> (runs to a stall point each time it is poked):</p>
+<ol>
+<li><strong>Arm</strong> — a <code>ctrl</code> write with <code>ACTIVE</code> set and <code>!was_active</code>: latch <code>to_device = ctrl &amp; DIR</code>, set <code>state = CH_FETCH</code>, then run the FSM. (<code>FLUSH</code> → deactivate+IDLE; <code>CRESET</code> → reset the WD33C93.)</li>
+<li><strong>CH_FETCH</strong> — <code>scsi_fetch_chain</code>: load <code>{cbp,bc,nbdp}</code> from the descriptor at <code>nbdp</code>, <code>count = bc &amp; 0x3fff</code>. → <code>CH_XFER</code>.</li>
+<li><strong>CH_XFER</strong> — byte pump:
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>while (count != 0 &amp;&amp; scsi-&gt;drq_pending()) {
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    p = DRAM[cbp];
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    if (to_device) scsi-&gt;dma_w(*p);   // mem -&gt; device (WRITE)
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    else           *p = scsi-&gt;dma_r(); // device -&gt; mem (READ)
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    cbp++; count--;
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>}
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>if (count == 0) -&gt; CH_DESC_DONE;
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>// else: DRQ dropped mid-descriptor -&gt; return, wait for the next DRQ
+</code></pre></div>
+   The pump is gated by <strong>DRQ</strong> (the device's data-available/needed flag), so it naturally stalls when the device side isn't ready.</li>
+<li><strong>CH_DESC_DONE</strong> —</li>
+<li><code>XIE</code> → <code>intstat |= (0x100 &lt;&lt; ch)</code> (this is the per-channel HPC3 IRQ, surfaced in <code>ctrl</code> bit0 / cleared on <code>ctrl</code> read).</li>
+<li><code>EOX</code> → if the device still has an <strong>undrained residual</strong> (<code>scsi-&gt;residual()&gt;0</code>), call <code>scsi-&gt;pause_transfer()</code> (chunked transfer, §6); then <code>active=false</code>, <code>ctrl &amp;= ~ACTIVE</code>, <code>state=CH_IDLE</code>.</li>
+<li>else → <code>state = CH_FETCH</code> (advance to the next descriptor).</li>
+</ol>
+<p>The FSM is also poked from the WD33C93 path: a <strong>Command-register write that asserts DRQ</strong> calls <code>scsi_run_dma(0)</code> if channel 0 is armed (so the data phase drains immediately).</p>
+<hr />
+<h2 id="4-wd33c93-command-flow-select-and-transfer">4. WD33C93 command flow — Select-And-Transfer<a class="headerlink" href="#4-wd33c93-command-flow-select-and-transfer" title="Permanent link">&para;</a></h2>
+<p>Writing reg 0x18 with <code>0x08</code>/<code>0x09</code> calls <code>select_and_transfer()</code>:</p>
+<ol>
+<li>Set Aux <code>CIP|BSY</code>. (Unless this is a <strong>resume</strong>, §6.)</li>
+<li><code>op = regs[0x03]</code> (CDB[0]); <code>lun = regs[0x0f] &amp; 7</code> (captured before completion overwrites 0x0f).</li>
+<li><code>tgt_status = 0x00</code> (GOOD) unless set to CHECK below.</li>
+<li><strong>LUN gate</strong>: only LUN 0 exists. For <code>lun!=0</code> and <code>op!=REQUEST SENSE</code>, set sense = ILLEGAL REQUEST / ASC 0x25 (LUN NOT SUPPORTED), <code>tgt_status=0x02</code> (CHECK), <code>finish()</code> with no data. (REQUEST SENSE itself must still succeed so the probe can read the sense.)</li>
+<li><strong>CDB decode</strong> (the implemented command set, sufficient for IRIX root mount + probe):</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>op</th>
+<th>command</th>
+<th>action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0x00</td>
+<td>TEST UNIT READY</td>
+<td><code>finish()</code> (no data)</td>
+</tr>
+<tr>
+<td>0x1b</td>
+<td>START STOP UNIT</td>
+<td><code>finish()</code></td>
+</tr>
+<tr>
+<td>0x12</td>
+<td>INQUIRY</td>
+<td>data-in 36 B: direct-access disk, SCSI-2, "SGI / interp_mips disk / 1.0"; honor <code>cdb[4]</code> alloc len</td>
+</tr>
+<tr>
+<td>0x03</td>
+<td>REQUEST SENSE</td>
+<td>data-in fixed-format sense (<code>alloc=cdb[4]</code>)</td>
+</tr>
+<tr>
+<td>0x25</td>
+<td>READ CAPACITY(10)</td>
+<td>data-in 8 B: last-LBA (BE) + block size 512 (BE)</td>
+</tr>
+<tr>
+<td>0x1a</td>
+<td>MODE SENSE(6)</td>
+<td>data-in 4 B header (<code>alloc=cdb[4]</code>)</td>
+</tr>
+<tr>
+<td>0x15</td>
+<td>MODE SELECT(6)</td>
+<td>data-out <code>cdb[4]</code> bytes (consume + succeed)</td>
+</tr>
+<tr>
+<td>0x28</td>
+<td><strong>READ(10)</strong></td>
+<td><code>lba = cdb[2..5]</code> BE, <code>len = cdb[7..8]</code> BE blocks; read <code>len*512</code> from disk into <code>buf</code>; → PH_DATA_IN</td>
+</tr>
+<tr>
+<td>0x2a</td>
+<td><strong>WRITE(10)</strong></td>
+<td>same LBA/len; <code>wr_lba=lba</code>; → PH_DATA_OUT (drained to COW on finish)</td>
+</tr>
+<tr>
+<td>else</td>
+<td>—</td>
+<td><code>finish()</code> success/no-data (lenient)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="5-data-phase-fsm-completion">5. Data-phase FSM &amp; completion<a class="headerlink" href="#5-data-phase-fsm-completion" title="Permanent link">&para;</a></h2>
+<p><code>phase ∈ {PH_IDLE, PH_DATA_IN, PH_DATA_OUT}</code>, with <code>buf</code> + cursor <code>pos</code>, and <code>drq</code>.</p>
+<ul>
+<li><strong>begin_data_in(p,n)</strong>: <code>buf=p[0..n)</code>, <code>pos=0</code>; <code>n==0</code> → <code>finish()</code>; else <code>PH_DATA_IN</code>, <code>drq=true</code>.</li>
+<li><strong>begin_data_out(n)</strong>: <code>buf=zeros(n)</code>; <code>n==0</code> → <code>finish()</code>; else <code>PH_DATA_OUT</code>, <code>drq=true</code>.</li>
+<li><strong>dma_r()</strong> (device→mem, READ): return <code>buf[pos++]</code>; when <code>pos==buf.size()</code> → <code>finish()</code>.</li>
+<li><strong>dma_w(v)</strong> (mem→device, WRITE): <code>buf[pos++]=v</code>; when full → <code>finish()</code>.</li>
+<li><strong>residual()</strong> = <code>buf.size()-pos</code> while in a data phase (used by the DMA EOX check).</li>
+</ul>
+<p><strong>finish()</strong> → drain WRITE side-effects (if <code>PH_DATA_OUT &amp;&amp; CDB==WRITE(10)</code>, <code>block_write</code> each 512 B block to the COW overlay), <code>phase=PH_IDLE</code>, <code>drq=false</code>, then <strong>complete(0x16)</strong>.</p>
+<p><strong>complete(scsi_status)</strong> — the IRIX-critical completion contract:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>regs[0x17] = scsi_status;       // SCSI Status = ST_SELECT_TRANSFER_SUCCESS (0x16)
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>regs[0x0f] = tgt_status;        // Target/LUN &lt;- target STATUS byte (GOOD 0x00 / CHECK 0x02)
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>regs[0x10] = 0x60;              // Command Phase = command complete
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>regs[0x12]=regs[0x13]=regs[0x14]=0;   // Transfer Count counted down to 0 (ZERO residual)
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>Aux &amp;= ~(CIP|BSY); Aux |= INT;  // command done, INTRQ asserted
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>intrq = true; irq_poke;
+</code></pre></div>
+Two of these are hard-won and <strong>must be reproduced</strong> or IRIX mis-reads the result:
+- <strong>reg 0x0f = target status</strong> — IRIX reads 0x0f to tell GOOD from CHECK CONDITION; if left as the programmed LUN it mistakes lun≥2 for CHECK and loops INQUIRY/REQUEST-SENSE.
+- <strong>transfer count = 0</strong> — a non-zero leftover reads as a <em>short transfer</em>; <code>sgiwd93</code> sets <code>b_error</code>, and <code>xfs_read_file</code>/chunkread bails (<code>b_error → ENOEXEC</code>).</p>
+<hr />
+<h2 id="6-chunked-transfers-pause-resume">6. Chunked transfers (pause / resume)<a class="headerlink" href="#6-chunked-transfers-pause-resume" title="Permanent link">&para;</a></h2>
+<p>IRIX often programs the WD33C93 transfer count (and the DMA chain) for <strong>fewer bytes than the SCSI command's full length</strong>, then resumes for the rest. The model handles this:</p>
+<ul>
+<li><strong>Pause</strong> (<code>pause_transfer</code>, called from CH_DESC_DONE/EOX when <code>residual()&gt;0</code>): <code>drq=false</code>, <code>SCSI Status = 0x48</code> (data-out) / <code>0x49</code> (data-in), <code>Command Phase = 0x46</code> (count exhausted), <code>xfer count = 0</code>, Aux <code>INT</code>, <code>intrq</code>. <code>buf</code>+<code>pos</code> are <strong>preserved</strong>.</li>
+<li><strong>Resume</strong>: IRIX reprograms the DMA channel for the remaining bytes and re-issues <code>SEL_ATN_XFER</code>. <code>select_and_transfer()</code> detects an in-flight data phase with <code>0 &lt; pos &lt; buf.size()</code> → re-asserts <code>CIP|BSY</code>, <code>drq=true</code>, and returns <strong>without re-decoding the CDB</strong>; the HPC3 DMA pump after the command write moves the rest from <code>pos</code>.</li>
+</ul>
+<hr />
+<h2 id="7-interrupt-path">7. Interrupt path<a class="headerlink" href="#7-interrupt-path" title="Permanent link">&para;</a></h2>
+<ul>
+<li>WD33C93 <strong>INTRQ</strong> → IOC2 <strong>local0 bit <code>0x02</code> (SCSI0)</strong>, computed <em>live</em> from <code>scsi-&gt;intrq_pending()</code> (level-sensitive). <code>local0 &amp; local0_mask</code> ≠ 0 → CPU <strong>IP2</strong>. Cleared when IRIX <strong>reads SCSI Status (reg 0x17)</strong>.</li>
+<li>HPC3 per-descriptor <strong>XIE</strong> → <code>intstat |= 0x100&lt;&lt;ch</code>, surfaced as <code>ctrl</code> bit0 and cleared on a <code>ctrl</code> read.</li>
+<li>(The SCC serial INT reaches IP2 via the mappable cascade <code>vmeistat bit5 → (cmeimask0) → local0 LIO2 bit7</code>; separate path, same local0 register.)</li>
+</ul>
+<hr />
+<h2 id="8-disk-backend">8. Disk backend<a class="headerlink" href="#8-disk-backend" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Raw image opened read-only; <code>nblocks = size/512</code>.</li>
+<li><code>block_read(lba)</code>: <strong>COW overlay wins</strong>; else <code>pread(fd, 512, lba*512)</code>; out-of-range → zero-fill.</li>
+<li><code>block_write(lba)</code>: writes go <strong>only</strong> to an in-memory overlay (<code>unordered_map&lt;lba, 512B&gt;</code>) — the backing image is never modified.</li>
+<li>Optional <strong>delta sidecar</strong> (<code>IMDELTA1</code> magic + <code>{lba, 512B}</code> records) persists the overlay across runs.</li>
+</ul>
+<hr />
+<h2 id="9-end-to-end-one-disk-read">9. End-to-end: one disk READ<a class="headerlink" href="#9-end-to-end-one-disk-read" title="Permanent link">&para;</a></h2>
+<p><div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>1. driver: WD33C93 PIO -&gt; Own ID/Control, stream CDB (READ(10) lba,len) into regs[0x03..],
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>           set Dest ID, write Command=SEL_ATN_XFER(0x08).
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>2. driver: build {BP=buf, BC=count, DP=...|EOX} descriptor(s) in DRAM,
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>           write nbdp, write ctrl=ACTIVE (DIR=0 for read).
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>3. WD33C93 select_and_transfer: decode READ(10) -&gt; read len*512 from disk into buf -&gt; PH_DATA_IN, DRQ=1.
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>4. HPC3 DMA armed: CH_FETCH {BP,BC,DP} -&gt; CH_XFER: pump buf -&gt; DRAM[BP] byte/byte while DRQ &amp; count.
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>5. buf drained -&gt; finish() -&gt; complete(0x16): status, reg0x0f=GOOD, count=0, INTRQ.
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>   DMA: count==0 -&gt; CH_DESC_DONE -&gt; EOX -&gt; deactivate (XIE -&gt; channel IRQ).
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>6. IP2 -&gt; driver reads SCSI Status (clears INTRQ), reads reg0x0f (GOOD), count==0 (full xfer).
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>   Data is in DRAM[BP]. Done.
+</code></pre></div>
+WRITE(10) is the mirror: PH_DATA_OUT, DMA pumps DRAM→device, <code>finish()</code> drains <code>buf</code>→COW.</p>
+<hr />
+<h2 id="10-henry-rtl-port-the-arm-host-serviced-hybrid">10. Henry RTL port — the ARM-host-serviced hybrid<a class="headerlink" href="#10-henry-rtl-port-the-arm-host-serviced-hybrid" title="Permanent link">&para;</a></h2>
+<p>The FPGA has <strong>no SCSI bus and no disk image in RTL</strong>, and IRIX's driver can't be modified. The plan keeps <strong>everything in §1–§7 identical</strong> (so the stock driver is satisfied) and changes only <strong>where the data-phase bytes come from</strong>:</p>
+<ul>
+<li><strong>WD33C93 = control shim in RTL.</strong> Implement the register file, the SASR/SCMD PIO semantics, <code>Select-And-Transfer</code> decode, the data-phase FSM, the §5 completion contract (reg 0x0f, count→0, Command Phase 0x60, INTRQ → IOC2 local0 bit1 → IP2), and §6 pause/resume. It moves <strong>zero</strong> bytes over a bus.</li>
+<li><strong>HPC3 SCSI DMA = stand-alone mem→mem A↔B copier in RTL.</strong> The §3 descriptor walk is real (so HPC3 state stays honest for IRIX), but the device side of CH_XFER is replaced by a <strong>DRAM staging buffer A</strong> instead of <code>dma_r/dma_w</code>: READ pumps <strong>A → BP</strong>, WRITE pumps <strong>BP → A</strong>. The copy goes through the new henry DRAM arbiter (CPU vs DMA).</li>
+<li><strong>ARM (PS) = the disk.</strong> On a Select-And-Transfer, the shim raises a doorbell with the parsed <code>{op, lba, len}</code>; the ARM (<code>~/axilite-mips</code>, which mmaps the same PS-DRAM) does <code>pread</code>/<code>pwrite</code> of the disk image into/out of staging <strong>A</strong>. READ: ARM fills A <em>before</em> the DMA copies A→BP and the shim completes; WRITE: shim/DMA fills A from BP, ARM drains A→disk after.</li>
+</ul>
+<p>Net: the RTL never touches a data byte from a disk; the ARM moves blocks via mmap; the WD33C93+HPC3 present a byte-for-byte faithful control/completion sequence so IRIX boots unmodified.</p>
+<hr />
+<h2 id="sources">Sources<a class="headerlink" href="#sources" title="Permanent link">&para;</a></h2>
+<ul>
+<li><code>interp_mips/sgi_scsi.cc</code> / <code>sgi_scsi.hh</code> — fused WD33C93A + disk target (the §1.1, §4, §5, §6, §8 behavior).</li>
+<li><code>interp_mips/sgi_hpc.cc</code> / <code>sgi_hpc.hh</code> — HPC3 SCSI DMA channel + IOC2/INT2 (§1.2, §2, §3, §7).</li>
+<li>Validated against a live IRIX 6.5 boot (MAME <code>wd33c9x.cpp</code>/<code>hpc3.cpp</code> as the oracle).</li>
+<li>Companion: <code>hpc3.md</code> (HPC3 block spec), <code>ioc2.md</code> (INT2/local0 → IP mux). RTL plan: the henry DRAM arbiter (<code>henry_soc.sv</code>).</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.top", "navigation.indexes", "navigation.tracking", "toc.follow", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
