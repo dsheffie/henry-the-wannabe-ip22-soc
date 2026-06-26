@@ -179,11 +179,61 @@ module henry_soc
    // are backed by real DRAM. Remap mem-bound low addresses (set bit 27); device
    // addresses are all >= 0x1f000000 so they are unaffected.
    wire w_sysmem_alias       = (c_req_addr[`PA_WIDTH-1:19] == '0);
-   assign mem_req_valid      = c_req_valid & ~w_is_dev;
-   assign mem_req_addr       = w_sysmem_alias ? {c_req_addr[`PA_WIDTH-1:28], 1'b1, c_req_addr[26:0]} : c_req_addr;
-   assign mem_req_store_data = c_req_store_data;
-   assign mem_req_opcode     = c_req_opcode;
-   assign mem_req_mask       = c_req_mask;
+   // =====================================================================
+   //  DRAM arbiter: multiplex the CPU's DRAM requests and the HPC3 DMA engine
+   //  onto the single external memory port.  One outstanding; CPU priority (DMA
+   //  is bursty/background).  The external AXI master requires mem_req_valid to
+   //  DROP to 0 between requests before it accepts the next, so after every
+   //  response we force a TURN cycle with valid low.  NOTE: the henry_tb DRAM
+   //  model only checks one-outstanding (reply_cyc==-1), so it would NOT catch a
+   //  missing turnaround -- this is an FPGA-only requirement; do not remove.
+   //  With the DMA port tied off below, this is exactly the old CPU pass-through
+   //  plus the (always-present-anyway, via the L1D gap) valid-drop turnaround.
+   // =====================================================================
+   wire w_cpu_dram_req = c_req_valid & ~w_is_dev;
+
+   // HPC3 DMA master -- tied off until the DMA engine drives it (next step).
+   wire                 w_dma_req_valid      = 1'b0;
+   wire [`PA_WIDTH-1:0] w_dma_req_addr       = '0;
+   wire [127:0]         w_dma_req_store_data = '0;
+   wire [4:0]           w_dma_req_opcode     = 5'd4;
+   wire [15:0]          w_dma_req_mask       = '0;
+
+   localparam ARB_IDLE = 2'd0, ARB_BUSY = 2'd1, ARB_TURN = 2'd2;
+   logic [1:0] r_arb_state;
+   logic       r_mem_owner;                 // owner of the outstanding req: 0=CPU, 1=DMA
+   wire        w_any_req   = w_cpu_dram_req | w_dma_req_valid;
+   wire        w_pick_dma  = ~w_cpu_dram_req & w_dma_req_valid;     // CPU priority
+   wire        w_owner_dma = (r_arb_state == ARB_IDLE) ? w_pick_dma : r_mem_owner;
+
+   always_ff @(posedge clk) begin
+      if(reset) begin
+         r_arb_state <= ARB_IDLE;
+         r_mem_owner <= 1'b0;
+      end
+      else begin
+         unique case(r_arb_state)
+           ARB_IDLE: if(w_any_req) begin r_arb_state <= ARB_BUSY; r_mem_owner <= w_pick_dma; end
+           ARB_BUSY: if(mem_rsp_valid) r_arb_state <= ARB_TURN;
+           ARB_TURN:                   r_arb_state <= ARB_IDLE;   // 1 cycle valid-low: AXI sees the drop
+           default:                    r_arb_state <= ARB_IDLE;
+         endcase
+      end
+   end
+
+   // valid high while presenting (IDLE & a request) or in flight (BUSY); low in TURN.
+   assign mem_req_valid      = ((r_arb_state == ARB_IDLE) & w_any_req) | (r_arb_state == ARB_BUSY);
+   assign mem_req_addr       = w_owner_dma ? w_dma_req_addr
+                               : (w_sysmem_alias ? {c_req_addr[`PA_WIDTH-1:28], 1'b1, c_req_addr[26:0]}
+                                                 : c_req_addr);
+   assign mem_req_store_data = w_owner_dma ? w_dma_req_store_data : c_req_store_data;
+   assign mem_req_opcode     = w_owner_dma ? w_dma_req_opcode     : c_req_opcode;
+   assign mem_req_mask       = w_owner_dma ? w_dma_req_mask       : c_req_mask;
+
+   // Response is delivered in BUSY; steer it to the latched owner.  (The DMA
+   // engine will consume w_mem_rsp_dma once it is wired up.)
+   wire w_mem_rsp_cpu = (r_arb_state == ARB_BUSY) & ~r_mem_owner & mem_rsp_valid;
+   wire w_mem_rsp_dma = (r_arb_state == ARB_BUSY) &  r_mem_owner & mem_rsp_valid;
 
    // =====================================================================
    //  Device request FSM: one outstanding at a time (matches the core bus).
@@ -274,8 +324,8 @@ module henry_soc
    //  Response mux: device response vs. external (pass-through) response.
    // =====================================================================
    wire w_dev_rsp = r_dev_busy & (r_dev_cnt == '0);
-   assign c_rsp_valid     = w_dev_rsp | mem_rsp_valid;
-   assign c_rsp_bad       = w_dev_rsp ? 1'b0 : mem_rsp_bad;
+   assign c_rsp_valid     = w_dev_rsp | w_mem_rsp_cpu;
+   assign c_rsp_bad       = w_dev_rsp ? 1'b0 : (w_mem_rsp_cpu & mem_rsp_bad);
    assign c_rsp_load_data = w_dev_rsp ? r_dev_rdata : mem_rsp_load_data;
 
    // =====================================================================

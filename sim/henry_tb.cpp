@@ -354,6 +354,11 @@ int main(int argc, char **argv) {
   // ---- run ----
   bool halted = false;
   int64_t reply_cyc = -1;
+  // Real AXI master requires mem_req_valid to DROP to 0 between requests before
+  // it accepts the next -- so only accept on a 0->1 edge of mem_req_valid, not
+  // merely when idle.  (Catches a missing arbiter turnaround that the old
+  // reply_cyc==-1-only check silently let pass.)
+  int prev_mem_req_valid = 0;
   uint64_t req_addr = 0; uint32_t req_op = 0; uint16_t req_mask = 0;
   uint32_t req_sd[4] = {0,0,0,0};
   bool req_bad = false, req_is_halt = false;
@@ -413,7 +418,7 @@ int main(int argc, char **argv) {
     // ---- memory bus servicing (mem_rsp sampled on the NEXT posedge) ----
     tb->mem_rsp_valid = 0;
     tb->mem_rsp_bad   = 0;
-    if(tb->mem_req_valid && reply_cyc == -1) {
+    if(tb->mem_req_valid && !prev_mem_req_valid && reply_cyc == -1) {  // accept on 0->1 edge only
       uint32_t phys = (uint32_t)tb->mem_req_addr & 0x1fffffffu;  // 29-bit phys to the AXI master
       req_is_halt = (phys == HALT_PA);
       if(FPGA_ADDRESS_MAP) {
@@ -459,6 +464,7 @@ int main(int argc, char **argv) {
       tb->mem_rsp_valid = 1;
       reply_cyc = -1;
     }
+    prev_mem_req_valid = tb->mem_req_valid;  // for the next-cycle 0->1 edge check
 
     tb->clk = 0;
     tb->eval();                              // negedge
