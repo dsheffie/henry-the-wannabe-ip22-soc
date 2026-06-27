@@ -171,6 +171,13 @@ module ioc
    wire [7:0] w_rr0_b = ((con_full | r_scc_busy[0]) ? (SCC_RR0 & 8'hfb) : SCC_RR0) | (rx_avail ? 8'h01 : 8'h00);
    wire [7:0] w_rr0_a = ((con_full | r_scc_busy[1]) ? (SCC_RR0 & 8'hfb) : SCC_RR0) | (rx_avail ? 8'h01 : 8'h00);
 
+   // RR1 (Rx error/status) per channel: report a CLEAN receive -- D4 parity / D5
+   // overrun / D6 framing all clear (else IRIX's du ISR reads RR1, sees a bogus
+   // framing error, and DROPS the console char -> post-login hang). D0 = All Sent
+   // reflects Tx idle. (Mirrors the interp_mips sgi_scc.cc RR1 fix.)
+   wire [7:0] w_rr1_b = r_scc_busy[0] ? 8'h00 : 8'h01;
+   wire [7:0] w_rr1_a = r_scc_busy[1] ? 8'h00 : 8'h01;
+
    always_ff @(posedge clk) begin
       if(reset) begin
          for(i = 0; i < 2; i = i + 1) begin
@@ -219,6 +226,7 @@ module ioc
            if(mask[b] & (((b>>2)&1) == 0))
              rdata[8*b +: 8] = (r_scc_ptr[(b>>3)&1] == 4'd3) ? w_rr3
                              : (r_scc_ptr[(b>>3)&1] == 4'd0) ? (((b>>3)&1) ? w_rr0_a : w_rr0_b)
+                             : (r_scc_ptr[(b>>3)&1] == 4'd1) ? (((b>>3)&1) ? w_rr1_a : w_rr1_b)
                              : 8'h0;
          if(mask[7])
            rdata[63:56] = w_rx_front;   // chanA DATA = byte 7
