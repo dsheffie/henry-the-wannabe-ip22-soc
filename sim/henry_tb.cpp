@@ -19,6 +19,7 @@
 #include <string>
 #include <vector>
 #include <sys/mman.h>
+#include "scsi_service.h"   // host-side SCSI disk service (henry_scsi.h contract)
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -51,6 +52,19 @@ static inline uint32_t fpga_map(uint32_t cpuaddr, bool *bad) {
 }
 
 static uint8_t *g_mem = nullptr;
+
+// ---- SCSI disk service (scsi_shim.sv mailbox; active only with `ENABLE_SCSI_SHIM + --disk) ----
+// Poll the doorbell (scsi_req_seq change), walk the descriptor chain in g_mem, do
+// the disk I/O, post the completion. The accessor applies the SAME FPGA address
+// map as the AXI master so descriptor BP/nbdp (guest physical) index g_mem right.
+static scsi_disk g_scsi_disk;
+static uint32_t  g_last_scsi_req_seq = 0;
+static uint8_t *scsi_mem(void * /*ctx*/, uint32_t phys, uint32_t len) {
+  bool bad = false;
+  uint32_t off = FPGA_ADDRESS_MAP ? fpga_map(phys, &bad) : (uint32_t)(phys & MEM_MASK);
+  if(bad || (uint64_t)off + len > MEM_SIZE) return nullptr;
+  return g_mem + off;
+}
 
 // ---- core instrumentation/co-sim DPI hooks: stubbed (RTL-only run) ----
 // Declared extern "C" via Vhenry_soc__Dpi.h above, so these definitions get C
@@ -282,6 +296,7 @@ int main(int argc, char **argv) {
     else if(a == "--dump" && i+1 < argc)   dump_pas.push_back(strtoull(argv[++i], nullptr, 0));
     else if(a == "--trace" && i+1 < argc)  trace_file = argv[++i];
     else if(a == "--rx" && i+1 < argc)     rx_str = argv[++i];
+    else if(a == "--disk" && i+1 < argc)   g_scsi_disk.open_image(argv[++i]);
     else if(a == "--checkpoint" && i+1 < argc) ckpt_file = argv[++i];
   }
   std::vector<uint8_t> rx_bytes(rx_str.begin(), rx_str.end());
@@ -390,6 +405,54 @@ int main(int argc, char **argv) {
     if(drain) putchar(drain_ch);
 
     if(tb->retire_valid) { retired++; last_pc = tb->retire_pc; }
+
+    // calibration probe: _cpuclkper100ticks ends at 0x88019648 (subu v0,v1,v0).
+    if(tb->retire_valid && (uint32_t)tb->retire_pc == 0x88019648u)
+      fprintf(stderr, "[calib] cyc=%llu reg%u=%d (0x%x)\n", (unsigned long long)cyc,
+              (unsigned)tb->retire_reg_ptr, (int)tb->retire_reg_data, (unsigned)tb->retire_reg_data);
+    if(tb->retire_two_valid && (uint32_t)tb->retire_two_pc == 0x88019648u)
+      fprintf(stderr, "[calib2] cyc=%llu reg%u=%d (0x%x)\n", (unsigned long long)cyc,
+              (unsigned)tb->retire_reg_two_ptr, (int)tb->retire_reg_two_data, (unsigned)tb->retire_reg_two_data);
+
+    // ---- SCSI shim doorbell: service one Select-And-Transfer ----
+    // Inert unless `ENABLE_SCSI_SHIM (else scsi_req_seq is tied 0) and --disk given.
+    if(g_scsi_disk.ok() && tb->scsi_req_seq != g_last_scsi_req_seq) {
+      scsi_req_t req;
+      req.seq      = tb->scsi_req_seq;
+      req.channel  = CH_SCSI0;
+      req.nbdp     = tb->scsi_req_nbdp;
+      req.xfer_len = tb->scsi_req_xfer_len;
+      for(int i = 0; i < 4; i++) ((uint32_t*)req.cdb)[i] = tb->scsi_req_cdb[i]; // 128b -> 16 CDB bytes
+      req.dest      = (uint8_t)tb->scsi_req_dest;
+      req.lun       = (uint8_t)tb->scsi_req_lun;
+      req.to_device = (uint8_t)tb->scsi_req_to_device;
+      scsi_rsp_t rsp;
+      scsi_service_run(&req, &rsp, scsi_mem, nullptr, &g_scsi_disk);
+      if(getenv("SCSIDBG"))
+        fprintf(stderr, "[scsi] cyc=%llu CDB %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x "
+                "dest=%u lun=%u nbdp=%08x len=%u -> st=%02x tgt=%02x resid=%u\n",
+                (unsigned long long)cyc, req.cdb[0],req.cdb[1],req.cdb[2],req.cdb[3],req.cdb[4],
+                req.cdb[5],req.cdb[6],req.cdb[7],req.cdb[8],req.cdb[9], req.dest, req.lun,
+                req.nbdp, req.xfer_len, rsp.scsi_status, rsp.tgt_status, rsp.residual);
+      tb->scsi_rsp_seq         = rsp.seq;
+      tb->scsi_rsp_residual    = rsp.residual;
+      tb->scsi_rsp_scsi_status = rsp.scsi_status;
+      tb->scsi_rsp_tgt_status  = rsp.tgt_status;
+      // verify the INQUIRY data actually landed at the descriptor's BP (t1/L0)
+      if(getenv("SCSIDBG") && req.cdb[0]==0x12 && (req.dest&7)==1 && req.lun==0) {
+        uint8_t *d = scsi_mem(nullptr, req.nbdp, 12);
+        if(d) {
+          uint32_t bp = ((uint32_t)d[0]<<24)|((uint32_t)d[1]<<16)|((uint32_t)d[2]<<8)|d[3];
+          uint32_t bc = ((uint32_t)d[4]<<24)|((uint32_t)d[5]<<16)|((uint32_t)d[6]<<8)|d[7];
+          uint8_t *b = scsi_mem(nullptr, bp, 36);
+          fprintf(stderr, "[inqdump] nbdp=%08x bp=%08x bc=%08x : ", req.nbdp, bp, bc);
+          if(b) { for(int k=0;k<8;k++) fprintf(stderr,"%02x ",b[k]);
+                  fprintf(stderr,"| vendor='%.8s' prod='%.16s'\n", (char*)b+8, (char*)b+16); }
+          else fprintf(stderr, "(bp 0x%08x unmapped)\n", bp);
+        } else fprintf(stderr, "[inqdump] nbdp=%08x unmapped\n", req.nbdp);
+      }
+      g_last_scsi_req_seq      = tb->scsi_req_seq;
+    }
     // 64-bit-address-bug probe: log every a0 (reg 4) writeback near the fault
     if(cyc > 35850000ull && cyc < 35870000ull) {
       if(tb->retire_valid && tb->retire_reg_ptr == 4)  // reg 4 = a0
