@@ -16,7 +16,7 @@
 // lone CPU master).  Default ON so the dma_memcpy isolation test stays exercised.
 // -----------------------------------------------------------------------------
 `include "machine.vh"
-`define ENABLE_HPC3_DMA 1     // comment out to drop the mem-to-mem DMA engine
+//`define ENABLE_HPC3_DMA 1
 
 module hpc3
    (input  logic         clk,

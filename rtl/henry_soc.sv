@@ -25,7 +25,7 @@
 // WD33C93 + HPC3 SCSI control shim (scsi_shim.sv) for the host-served disk path.
 // MUTUALLY EXCLUSIVE with hpc3.sv `ENABLE_HPC3_DMA -- both claim the HPC3 DMA
 // channel window @0x10000.  Uncomment here AND comment ENABLE_HPC3_DMA in hpc3.sv.
-//`define ENABLE_SCSI_SHIM 1
+`define ENABLE_SCSI_SHIM 1
 
 module henry_soc
   #(// MC MEMCFG0 (bank0 cfg) as STORED: BE lw -> bswap.  0x00002023 -> 0x23200000
