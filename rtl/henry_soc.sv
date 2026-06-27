@@ -22,6 +22,11 @@
 // -----------------------------------------------------------------------------
 `include "machine.vh"
 
+// WD33C93 + HPC3 SCSI control shim (scsi_shim.sv) for the host-served disk path.
+// MUTUALLY EXCLUSIVE with hpc3.sv `ENABLE_HPC3_DMA -- both claim the HPC3 DMA
+// channel window @0x10000.  Uncomment here AND comment ENABLE_HPC3_DMA in hpc3.sv.
+//`define ENABLE_SCSI_SHIM 1
+
 module henry_soc
   #(// MC MEMCFG0 (bank0 cfg) as STORED: BE lw -> bswap.  0x00002023 -> 0x23200000
     // = 16 MB @ 0x08000000 (IRIX).  For 128 MB use 0x0000203f (-> 0x3f200000).
@@ -85,7 +90,21 @@ module henry_soc
    output logic [`LG_ROB_ENTRIES:0] inflight,
    input  logic [11:0]           dbg_trace_index,
    output logic [31:0]           dbg_trace_data,
-   output logic [8:0]            dbg_trace_wptr
+   output logic [8:0]            dbg_trace_wptr,
+   // ---- SCSI shim mailbox (scsi_shim.sv): request out / completion in ----
+   // FPGA: map to AXI-lite slv_regs; sim: henry_tb reads req_* / drives rsp_*.
+   // (Tied off unless `ENABLE_SCSI_SHIM.)
+   output logic [31:0]           scsi_req_seq,
+   output logic [31:0]           scsi_req_nbdp,
+   output logic [31:0]           scsi_req_xfer_len,
+   output logic [127:0]          scsi_req_cdb,
+   output logic [7:0]            scsi_req_dest,
+   output logic [7:0]            scsi_req_lun,
+   output logic                  scsi_req_to_device,
+   input  logic [31:0]           scsi_rsp_seq,
+   input  logic [31:0]           scsi_rsp_residual,
+   input  logic [7:0]            scsi_rsp_scsi_status,
+   input  logic [7:0]            scsi_rsp_tgt_status
    );
 
    localparam int unsigned DEV_LAT = 2;   // device response latency (cycles)
@@ -262,6 +281,36 @@ module henry_soc
       .dma_rsp_valid(w_mem_rsp_dma),
       .dma_rsp_load_data(mem_rsp_load_data));
 
+   // ---- SCSI control shim (WD33C93 + HPC3 SCSI DMA channel); host-served disk ----
+   // Shares the HPC3 window sel; its rdata ORs into w_rd_hpc3 (disjoint offsets).
+   // INTRQ -> IOC2 local0 bit1 (SCSI0) -> IP2.
+`ifdef ENABLE_SCSI_SHIM
+   wire [127:0] w_rd_scsi;
+   wire         w_scsi_intrq;
+   scsi_shim u_scsi
+     (.clk(clk), .reset(reset),
+      .sel(w_dev_accept & w_is_hpc3), .is_store(~w_is_load),
+      .offs(c_req_addr[18:0]), .mask(c_req_mask), .wdata(c_req_store_data),
+      .rdata(w_rd_scsi),
+      .scsi_req_seq(scsi_req_seq), .scsi_req_nbdp(scsi_req_nbdp),
+      .scsi_req_xfer_len(scsi_req_xfer_len), .scsi_req_cdb(scsi_req_cdb),
+      .scsi_req_dest(scsi_req_dest), .scsi_req_lun(scsi_req_lun),
+      .scsi_req_to_device(scsi_req_to_device),
+      .scsi_rsp_seq(scsi_rsp_seq), .scsi_rsp_residual(scsi_rsp_residual),
+      .scsi_rsp_scsi_status(scsi_rsp_scsi_status), .scsi_rsp_tgt_status(scsi_rsp_tgt_status),
+      .scsi_intrq(w_scsi_intrq));
+`else
+   wire [127:0] w_rd_scsi     = 128'd0;
+   wire         w_scsi_intrq  = 1'b0;
+   assign scsi_req_seq        = 32'd0;
+   assign scsi_req_nbdp       = 32'd0;
+   assign scsi_req_xfer_len   = 32'd0;
+   assign scsi_req_cdb        = 128'd0;
+   assign scsi_req_dest       = 8'd0;
+   assign scsi_req_lun        = 8'd0;
+   assign scsi_req_to_device  = 1'b0;
+`endif
+
    ioc u_ioc
      (.clk(clk), .reset(reset),
       .sel(w_dev_accept & w_is_ioc), .is_store(~w_is_load),
@@ -284,7 +333,7 @@ module henry_soc
       .sel(w_dev_accept & w_is_ioc), .is_store(~w_is_load),
       .offs(c_req_addr[7:0]), .mask(c_req_mask), .wdata(c_req_store_data),
       .rdata(w_rd_int3),
-      .local0_src(7'd0), .local1_src(8'd0),
+      .local0_src({5'd0, w_scsi_intrq, 1'b0}), .local1_src(8'd0),  // local0[1] = SCSI0
       .map_src({2'd0, w_scc_rx_avail | w_scc_tx_int, 5'd0}),  // bit5 = Serial DUART (SCC Rx|Tx)
       .buserr(3'd0),
       .timer0_irq(w_ioc_timer0), .timer1_irq(1'b0),
@@ -292,7 +341,7 @@ module henry_soc
       .ip5(w_int3_ip5), .ip6(w_int3_ip6));
 
    wire [127:0] w_rd_ioc = w_rd_iocdev | w_rd_int3;
-   wire [127:0] w_dev_sel_rdata = w_is_mc ? w_rd_mc : (w_is_ioc ? w_rd_ioc : w_rd_hpc3);
+   wire [127:0] w_dev_sel_rdata = w_is_mc ? w_rd_mc : (w_is_ioc ? w_rd_ioc : (w_rd_hpc3 | w_rd_scsi));
 
    always_ff @(posedge clk) begin
       if(reset) begin

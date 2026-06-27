@@ -52,7 +52,15 @@ module ioc
    // the down-count at 1 MHz: divide the 100 MHz core clock by 100. A wrong rate
    // (the old /8 = 12.5 MHz) corrupts the calibration -> Linux timekeeping_advance
    // runs away on a bogus frequency; /84 (1.193 MHz) booted but skewed timing ~19%.
+`ifdef VERILATOR
+   // SIM ONLY: a tiny divider shrinks the CPU-clock calibration (_cpuclkper100ticks)
+   // so IRIX's us_delay busy-waits collapse -- otherwise RTL sim is far too slow to
+   // run through them (the interp_mips FASTDELAY=1 analog). Synth keeps the real
+   // 1 MHz PIT (timekeeping accuracy). Booting/console/SCSI don't need precise us.
+   localparam int PIT_DIV = 2;
+`else
    localparam int PIT_DIV = 100;               // core-clock / PIT-rate (1 MHz @ 100 MHz)
+`endif
    wire        w_pit          = (offs == 8'hb0);
    wire        w_pit_tcword_wr= sel &  is_store & w_pit & mask[15];
    wire        w_pit_tcnt2_wr = sel &  is_store & w_pit & mask[11];
