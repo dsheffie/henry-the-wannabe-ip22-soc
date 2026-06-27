@@ -216,6 +216,8 @@ IRIX often programs the WD33C93 transfer count (and the DMA chain) for **fewer b
 - **Pause** (`pause_transfer`, called from CH_DESC_DONE/EOX when `residual()>0`): `drq=false`, `SCSI Status = 0x48` (data-out) / `0x49` (data-in), `Command Phase = 0x46` (count exhausted), `xfer count = 0`, Aux `INT`, `intrq`. `buf`+`pos` are **preserved**.
 - **Resume**: IRIX reprograms the DMA channel for the remaining bytes and re-issues `SEL_ATN_XFER`. `select_and_transfer()` detects an in-flight data phase with `0 < pos < buf.size()` → re-asserts `CIP|BSY`, `drq=true`, and returns **without re-decoding the CDB**; the HPC3 DMA pump after the command write moves the rest from `pos`.
 
+**Observed (one boot, §11):** 49 pause/resume events; IRIX caps a chain at **≈252 KB (504 blocks)**, so any SCSI transfer > 252 KB splits at 504-block boundaries — the **effective maximum single DMA is ≈ 252 KB**. This path is rare (49 of 7,654 commands) but mandatory for the > 128 KB tail.
+
 ---
 
 ## 7. Interrupt path
@@ -263,10 +265,55 @@ The FPGA has **no SCSI bus and no disk image in RTL**, and IRIX's driver can't b
 
 Net: the RTL never touches a data byte from a disk; the ARM moves blocks via mmap; the WD33C93+HPC3 present a byte-for-byte faithful control/completion sequence so IRIX boots unmodified.
 
+**Sizing (from the §11 boot profile):** the path is small-transfer dominated — median **4 KB**, 90%+ ≤ 32 KB — so the staging buffer **A** and the ARM doorbell must make the 4 KB case cheap (it's >half of all transfers). The tail runs to ~256–512 KB SCSI commands, but the HPC3 chunks a single DMA at **≈252 KB** (≤16 KB per descriptor, §2). Two viable sizings for A: one **chunk** (≤252 KB → ARM serviced once per Select-And-Transfer) or one **descriptor** (≤16 KB → smaller buffer, more doorbells). Either way the absent-target IDs (2–7) must still draw a selection-timeout, and the LUN gate must CHECK-CONDITION LUN≠0 (§11).
+
+---
+
+## 11. Boot workload profile (empirical)
+
+Measured over one IRIX 6.5.22 boot — PROM power-on → root mount → rc-scripts → `root` login → `csh` prompt (`IRIS 1#`) — captured with `SCSIDBG=1` against the interp_mips model on the clean image. This is the workload the RTL shim must satisfy and be sized for. Reproduction recipe + regeneration scripts: `interp_mips/IRIX_SCSI_PROFILE.md`.
+
+**Command mix — 7,654 commands + 18 selection-timeouts:**
+
+| count | op | command | share |
+|------:|:--:|---------|------:|
+| 5,486 | 0x28 | READ(10)          | 71.7% |
+| 2,108 | 0x2a | WRITE(10)         | 27.5% |
+|    26 | 0x12 | INQUIRY           |       |
+|    13 | 0x00 | TEST UNIT READY   |       |
+|    12 | 0x25 | READ CAPACITY(10) |       |
+|     7 | 0x03 | REQUEST SENSE     |       |
+|     2 | 0x1a | MODE SENSE(6)     |       |
+
+~99.2% is filesystem I/O; ~60 commands are discovery/control. **Every opcode seen is already in the §4 decode table** — the implemented command set is complete for an unmodified boot to a shell (no 6-byte READ/WRITE, no MODE SELECT or START/STOP observed on this image, though §4 handles them).
+
+**Target / LUN:**
+- All real I/O is **target 1, LUN 0** — 7,640 commands.
+- IRIX's LUN scan probes t1 LUN 1–7 (INQUIRY + REQUEST SENSE, 2 each); each gets one CHECK CONDITION (LUN-not-supported) and stops — validates the §4 LUN gate.
+- Absent **targets 2–7** draw **3 selection-timeouts each** (18 total); target 0 unprobed, target 7 = host-adapter ID. → the shim must answer a selection-timeout for absent IDs.
+
+**Transfer sizes** (`cdb[7:8]` blocks × 512):
+
+| | READ(10) | WRITE(10) |
+|--|--|--|
+| transfers | 5,486 | 2,108 |
+| total bytes | 73.3 MB | 27.7 MB |
+| median | 8 blk / 4 KB | 8 blk / 4 KB |
+| mean | ~14 KB | ~14 KB |
+| max | 1024 blk / 256 KB | 800 blk / 400 KB |
+| dominant | 56% @ 4 KB, 36% @ 8–32 KB | 70% @ 4 KB, 17% @ 8–32 KB |
+
+4 KB = the XFS filesystem block/page; 32 KB = XFS readahead / log clustering. Small-transfer dominated (median 4 KB, 90%+ ≤ 32 KB) with a hundred-KB tail. READ:WRITE byte ratio ≈ 73 MB : 28 MB (writes are rc-script churn on `/var`, logs, `/tmp`, and the XFS journal).
+
+**Chunked DMA (§6):** 49 pause/resume events. A single HPC3 descriptor chain is capped, so SCSI transfers larger than the cap split at descriptor boundaries. Observed chunk granularity at pause: **252 KB (504 blk = 0x3F000) ×43** and 504 KB ×6 → **effective max single DMA ≈ 252 KB**. Transfers that got chunked: 256 KB ×28, 512 KB ×10, 400 KB ×7 (+ a few odd sizes). Open question (worth confirming): whether the 252 KB cap is the HPC3 descriptor-count limit or an XFS max-contiguous-I/O setting.
+
+> Scope: one boot of the clean 6.5.22 image (warm — kernel reconfigure already done), root/no-password login through the `tset` handshake to the `csh` prompt. Writes go to a COW overlay; the base image stays read-only.
+
 ---
 
 ## Sources
 - `interp_mips/sgi_scsi.cc` / `sgi_scsi.hh` — fused WD33C93A + disk target (the §1.1, §4, §5, §6, §8 behavior).
 - `interp_mips/sgi_hpc.cc` / `sgi_hpc.hh` — HPC3 SCSI DMA channel + IOC2/INT2 (§1.2, §2, §3, §7).
 - Validated against a live IRIX 6.5 boot (MAME `wd33c9x.cpp`/`hpc3.cpp` as the oracle).
+- `interp_mips/IRIX_SCSI_PROFILE.md` — the §11 boot workload profile (command mix, target/LUN, transfer-size distribution, chunked-DMA cap) + reproduction/regeneration scripts.
 - Companion: `hpc3.md` (HPC3 block spec), `ioc2.md` (INT2/local0 → IP mux). RTL plan: the henry DRAM arbiter (`henry_soc.sv`).
