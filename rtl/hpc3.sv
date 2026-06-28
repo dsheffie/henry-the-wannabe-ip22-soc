@@ -39,6 +39,14 @@ module hpc3
    logic [31:0] r_intstat, r_misc;
    wire  [31:0] w_dma_status;       // CTRL (0x1000c) read value from the DMA engine (0 if gated off)
 
+   // PBUS DMA/PIO channel config + SCSI0 channel config.  IRIX's pbus init writes
+   // these and READS THEM BACK to validate (else "pbus configuration failed for
+   // channel N"); the values don't affect the host-served disk path, so we just
+   // store and return them to satisfy the probe.  (Matches interp_mips sgi_hpc.cc.)
+   logic [31:0] r_pbus_dma [0:7];   // 0x5c000 block: 8 PBUS DMA channels (stride 0x200)
+   logic [31:0] r_pbus_pio [0:15];  // 0x5d000 block: PBUS PIO channels (stride 0x100)
+   logic [31:0] r_scsi_dmacfg, r_scsi_piocfg;  // 0x11010 / 0x11014 SCSI0 channel cfg
+
    // ds1386 RTC / battery-backed clock @0x60000 (byte-per-word x4: internal reg i
    // at offset 0x60000 + i*4, value in the low byte = [31:24] after the BE swap,
    // same lane convention as the IOC2 SYSID). A FIXED, valid BCD wall-clock
@@ -50,7 +58,11 @@ module hpc3
       logic [31:0] x;
       begin
          x = 32'd0;
-         case(o)
+         if(o[18:12] == 7'h5c)       x = r_pbus_dma[o[11:9]];   // PBUS DMA cfg readback
+         else if(o[18:12] == 7'h5d)  x = r_pbus_pio[o[11:8]];   // PBUS PIO cfg readback
+         else if(o == 19'h11010)     x = r_scsi_dmacfg;         // SCSI0 DMA cfg readback
+         else if(o == 19'h11014)     x = r_scsi_piocfg;         // SCSI0 PIO cfg readback
+         else case(o)
            19'h30000: x = r_intstat;
            19'h30004: x = r_misc;
            19'h1000c: x = w_dma_status; // mem-to-mem DMA status: bit0=BUSY bit1=DONE
@@ -81,16 +93,36 @@ module hpc3
       if(reset) begin
          r_intstat <= 32'd0;
          r_misc    <= 32'd0;
+         for(i = 0; i < 8;  i = i + 1) r_pbus_dma[i] <= 32'd0;
+         for(i = 0; i < 16; i = i + 1) r_pbus_pio[i] <= 32'd0;
+         r_scsi_dmacfg <= 32'd0;
+         r_scsi_piocfg <= 32'd0;
       end
       else if(sel & is_store) begin
+         // PBUS DMA/PIO config + SCSI0 cfg: store so the readback validates.
+         if((offs[18:12] == 7'h5c) & (mask[3:0] == 4'hf)) r_pbus_dma[offs[11:9]] <= wdata[31:0];
+         if((offs[18:12] == 7'h5d) & (mask[3:0] == 4'hf)) r_pbus_pio[offs[11:8]] <= wdata[31:0];
+         if((offs == 19'h11010)    & (mask[3:0] == 4'hf)) r_scsi_dmacfg <= wdata[31:0];
+         if((offs == 19'h11010)    & (mask[7:4] == 4'hf)) r_scsi_piocfg <= wdata[63:32];
+         // intstat/misc + remaining windows (write-absorb)
          for(i = 0; i < 4; i = i + 1)
            if(mask[4*i +: 4] == 4'hf)
              case(offs + 19'(4*i))
                19'h30004: r_misc <= wdata[32*i +: 32] & 32'h3;
-               default:   /* pbus/enet/scsi/pio windows: write-absorb */ ;
+               default:   /* enet/scsi/pio data windows: write-absorb */ ;
              endcase
       end
    end
+
+`ifdef VERILATOR
+   // TEMP: trace HPC3-window accesses in the PBUS config regions to see what IRIX's
+   // pbus-config probe reads/writes (0x00000-0x0ffff dma chan, 0x10000-0x13fff scsi
+   // chan+cfg, 0x58000-0x5dfff pio data + dma/pio config).
+   always_ff @(posedge clk)
+     if(sel & (offs[18:12] != 7'h30) & (offs[18:12] != 7'h40) & (offs[18:12] != 7'h60))
+       $display("[hpc3acc] offs=%05x st=%b mask=%04x w0=%08x w1=%08x",
+                offs, is_store, mask, wdata[31:0], wdata[63:32]);
+`endif
 
    // ---- mem-to-mem DMA copy engine (gated; see dma_memcpy.sv) ----------------
 `ifdef ENABLE_HPC3_DMA

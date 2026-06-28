@@ -41,8 +41,29 @@ module scsi_shim
     input  logic [31:0]  scsi_rsp_residual,  // bytes NOT moved; 0 = full xfer
     input  logic [7:0]   scsi_rsp_scsi_status, // -> reg 0x17
     input  logic [7:0]   scsi_rsp_tgt_status,  // -> reg 0x0f (GOOD/CHECK)
+    // ---- scsi_dma engine (lower-level data mover; gated/connected by henry_soc) ----
+    // The WD33C93 phase SM pulses dma_go at the DATA phase, so the engine's
+    // descriptor read goes through the arbiter AFTER the driver's post-command
+    // flush -- read-after-write ordered by construction (no host-service backdoor).
+    output logic         dma_go,             // 1-cycle pulse at the SCSI data phase
+    output logic [31:0]  dma_nbdp,           // descriptor-chain head (phys)
+    output logic         dma_to_device,      // DIR: 1 = WRITE (mem->disk)
+    input  logic         dma_done,           // engine finished the chain
     // ---- interrupt ----
     output logic         scsi_intrq);        // -> IOC2 local0 bit1 (SCSI0)
+
+   // ---- WD33C93 phase progression: SEL_ATN_XFER -> select/command -> DATA -----
+   // Coarse model of the SCSI bus phases.  The DATA phase opens PH_SEL_DELAY
+   // cycles after the command (the select/message/command bus time), which is
+   // when the real HPC3 reads the descriptor -- by then the driver's post-command
+   // dma_cache_wback has been issued, and the engine's read (an ordered DRAM
+   // agent) serializes after it at the single DRAM port.  The delay only has to
+   // clear the driver's flush ISSUE, not the writeback drain (the arbiter orders
+   // the rest); it is modeling real bus latency, not papering over a race.
+   localparam [1:0]  PH_IDLE=2'd0, PH_DELAY=2'd1, PH_GO=2'd2, PH_BUSY=2'd3;
+   localparam [15:0] PH_SEL_DELAY = 16'd8192;   // select/cmd bus time; clears the driver's flush issue
+   logic [1:0]  r_ph, n_ph;
+   logic [15:0] r_ph_cnt, n_ph_cnt;
 
    // WD33C93 indirect register indices (the ones modeled)
    localparam [4:0] WD_OWN_ID=5'h00, WD_CONTROL=5'h01, WD_TARGET_LUN=5'h0f,
@@ -95,7 +116,10 @@ module scsi_shim
                        (((w_scmd_wval & 7'h7f) == CMD_SEL_ATN_XFER) |
                         ((w_scmd_wval & 7'h7f) == CMD_SEL_XFER));
    wire w_cmd_reset  = w_scmd_wr & (r_sasr == WD_COMMAND) & ((w_scmd_wval & 7'h7f) == CMD_RESET);
-   wire w_complete   = (r_req_seq != r_done_seq) & (scsi_rsp_seq == r_req_seq);
+   // Completion waits for the phase SM to return to PH_IDLE -- i.e. the scsi_dma
+   // engine has finished moving the data (or the selection-timeout skip) -- so the
+   // driver never sees command-complete before the ordered DMA has landed.
+   wire w_complete   = (r_req_seq != r_done_seq) & (scsi_rsp_seq == r_req_seq) & (r_ph == PH_IDLE);
 
    always_ff @(posedge clk) begin
       if(reset) begin
@@ -165,6 +189,11 @@ module scsi_shim
          if(w_cmd_reset)  $display("[shim] CMD RESET  -> status=00 intrq=1");
          if(w_cmd_seltx)  $display("[shim] CMD SELTX  cdb0=%02x dest=%02x", r_cdb[7:0], r_dest_id);
          if(w_sasr_rd)    $display("[shim] SASR_RD aux=%02x (intrq=%b)", w_aux, r_intrq);
+         if(w_nbdp_wr) $display("[hpc3] NBDP <= %08x", bswap32(wdata[63:32]));
+         if(w_cbp_wr)  $display("[hpc3] CBP  <= %08x", bswap32(wdata[31:0]));
+         if(w_bc_wr)   $display("[hpc3] BC   <= %08x", bswap32(wdata[31:0]));
+         if(w_ctrl_wr) $display("[hpc3] CTRL <= %08x (ACTIVE=%b)", bswap32(wdata[63:32]) & 32'hff,
+                                (bswap32(wdata[63:32]) & 32'h10) != 0);
 `endif
          // ---- HPC3 SCSI DMA channel registers (byte-swapped) ----
          if(w_cbp_wr)  r_cbp  <= bswap32(wdata[31:0]);
@@ -230,4 +259,31 @@ module scsi_shim
    assign scsi_req_lun       = r_req_lun;
    assign scsi_req_to_device = r_req_dir;
    assign scsi_intrq         = r_intrq;
+
+   // ---- phase SM: SEL_ATN_XFER -> select/cmd delay -> pulse dma_go at DATA ----
+   always_comb begin
+      n_ph     = r_ph;
+      n_ph_cnt = r_ph_cnt;
+      dma_go        = 1'b0;
+      dma_nbdp      = r_nbdp;
+      dma_to_device = r_ctrl[2];          // HPC3 ctrl DIR (1 = WRITE: mem->disk)
+      case(r_ph)
+        PH_IDLE:
+          if(w_cmd_seltx) begin n_ph = PH_DELAY; n_ph_cnt = PH_SEL_DELAY; end
+        PH_DELAY: begin
+           n_ph_cnt = r_ph_cnt - 16'd1;
+           if(r_ph_cnt == 16'd0) n_ph = PH_GO;
+        end
+        PH_GO:
+          if(r_ctrl[4]) begin dma_go = 1'b1; n_ph = PH_BUSY; end  // ACTIVE armed -> run engine
+          else          n_ph = PH_IDLE;                           // no DMA (selection timeout)
+        PH_BUSY:
+          if(dma_done) n_ph = PH_IDLE;
+        default: n_ph = PH_IDLE;
+      endcase
+   end
+
+   always_ff @(posedge clk)
+     if(reset) begin r_ph <= PH_IDLE; r_ph_cnt <= 16'd0; end
+     else      begin r_ph <= n_ph;    r_ph_cnt <= n_ph_cnt; end
 endmodule // scsi_shim

@@ -26,6 +26,11 @@
 // MUTUALLY EXCLUSIVE with hpc3.sv `ENABLE_HPC3_DMA -- both claim the HPC3 DMA
 // channel window @0x10000.  Uncomment here AND comment ENABLE_HPC3_DMA in hpc3.sv.
 `define ENABLE_SCSI_SHIM 1
+// Lower-level SCSI: the scsi_dma engine (a real ordered DRAM master) walks the
+// descriptor chain + moves data, replacing the host-service "offload the whole
+// transaction" backdoor.  Occupies arbiter master 1 (mutually exclusive with the
+// mem-to-mem hpc3 DMA).  Requires ENABLE_SCSI_SHIM.
+`define ENABLE_SCSI_DMA 1
 
 module henry_soc
   #(// MC MEMCFG0 (bank0 cfg) as STORED: BE lw -> bswap.  0x00002023 -> 0x23200000
@@ -104,7 +109,14 @@ module henry_soc
    input  logic [31:0]           scsi_rsp_seq,
    input  logic [31:0]           scsi_rsp_residual,
    input  logic [7:0]            scsi_rsp_scsi_status,
-   input  logic [7:0]            scsi_rsp_tgt_status
+   input  logic [7:0]            scsi_rsp_tgt_status,
+   // ---- scsi_dma engine disk side: 16B beat stream to the disk media (sim TB / FPGA ARM)
+   //      The engine is the ordered DRAM agent; the TB/ARM only sources/sinks bytes.
+   output logic                  scsi_disk_rd_en,    // READ : engine consumes a beat
+   input  logic [127:0]          scsi_disk_rd_data,  // READ : disk -> mem beat
+   output logic                  scsi_disk_wr_en,    // WRITE: engine produces a beat
+   output logic [127:0]          scsi_disk_wr_data,  // WRITE: mem -> disk beat
+   output logic                  scsi_dma_done       // engine finished the chain (TB sync)
    );
 
    localparam int unsigned DEV_LAT = 2;   // device response latency (cycles)
@@ -133,6 +145,30 @@ module henry_soc
    wire w_is_hpc3 = (c_req_addr[31:19] == 13'h3f7) & ~w_is_ioc;   // 0x1fb80000>>19
    wire w_is_dev  = w_is_mc | w_is_hpc3 | w_is_ioc;
    wire w_is_load = (c_req_opcode == 5'd4);
+
+`ifdef VERILATOR
+   // TEMP: trace the GLOBAL ORDER of the core's external stores (c_req is
+   // one-outstanding, program order): descriptor cache-writeback (->DRAM @0x0841d)
+   // vs uncached HPC3/SCSI command MMIO (->device).  Answers: does the descriptor
+   // flush reach the memory interface BEFORE the device sees the command?
+   reg r_crev_dbg;
+   always_ff @(posedge clk) begin
+      r_crev_dbg <= c_req_valid;
+      if(c_req_valid & ~r_crev_dbg & (c_req_opcode == 5'd7) &
+         ((c_req_addr[31:12] == 20'h0841d) | w_is_hpc3))
+        $display("[creq] op7 addr=%08x %s d0=%08x d1=%08x", c_req_addr[31:0],
+                 w_is_hpc3 ? "DEV " : "DESC", c_req_store_data[31:0], c_req_store_data[63:32]);
+   end
+   // TEMP: DRAM-level traffic for the INQUIRY buffer line (engine write via master 1,
+   // CPU refill read via master 0) -- op7=store(engine) op4=load(CPU refill).
+   reg r_mrev_dbg;
+   always_ff @(posedge clk) begin
+      r_mrev_dbg <= mem_req_valid;
+      if(mem_req_valid & ~r_mrev_dbg & (mem_req_addr[35:8] == 28'h0083dcb))
+        $display("[dram] op=%0d addr=%09x d0=%08x", mem_req_opcode, mem_req_addr,
+                 mem_req_store_data[31:0]);
+   end
+`endif
 
    // =====================================================================
    //  r9999 core
@@ -215,6 +251,29 @@ module henry_soc
    wire [4:0]           w_dma_req_opcode;
    wire [15:0]          w_dma_req_mask;
 
+   // shim phase SM -> engine control (data-phase trigger)
+   wire        w_sdma_go, w_sdma_to_dev;
+   wire [31:0] w_sdma_nbdp;
+   // arbiter master 1 select: SCSI DMA engine (ENABLE_SCSI_DMA) vs mem-to-mem hpc3.
+   wire                 w_eng_req_valid, w_eng_done;
+   wire [`PA_WIDTH-1:0] w_eng_req_addr;
+   wire [127:0]         w_eng_req_store_data;
+   wire [4:0]           w_eng_req_opcode;
+   wire [15:0]          w_eng_req_mask;
+`ifdef ENABLE_SCSI_DMA
+   wire                 w_m1_req_valid      = w_eng_req_valid;
+   wire [`PA_WIDTH-1:0] w_m1_req_addr       = w_eng_req_addr;
+   wire [127:0]         w_m1_req_store_data = w_eng_req_store_data;
+   wire [4:0]           w_m1_req_opcode     = w_eng_req_opcode;
+   wire [15:0]          w_m1_req_mask       = w_eng_req_mask;
+`else
+   wire                 w_m1_req_valid      = w_dma_req_valid;
+   wire [`PA_WIDTH-1:0] w_m1_req_addr       = w_dma_req_addr;
+   wire [127:0]         w_m1_req_store_data = w_dma_req_store_data;
+   wire [4:0]           w_m1_req_opcode     = w_dma_req_opcode;
+   wire [15:0]          w_m1_req_mask       = w_dma_req_mask;
+`endif
+
    // CPU master address: apply the IP22 System Memory Alias before arbitration.
    wire [`PA_WIDTH-1:0] w_cpu_req_addr = w_sysmem_alias
                           ? {c_req_addr[`PA_WIDTH-1:28], 1'b1, c_req_addr[26:0]}
@@ -227,11 +286,11 @@ module henry_soc
    wire [1:0] w_arb_rsp_valid;
    mem_arbiter #(.N(2), .NSLOT(4), .LG_N(1), .SLOT_MAP(4'b1000)) u_arb
      (.clk(clk), .reset(reset),
-      .m_req_valid     ({w_dma_req_valid,      w_cpu_dram_req}),
-      .m_req_addr      ({w_dma_req_addr,       w_cpu_req_addr}),
-      .m_req_store_data({w_dma_req_store_data, c_req_store_data}),
-      .m_req_opcode    ({w_dma_req_opcode,     c_req_opcode}),
-      .m_req_mask      ({w_dma_req_mask,       c_req_mask}),
+      .m_req_valid     ({w_m1_req_valid,      w_cpu_dram_req}),
+      .m_req_addr      ({w_m1_req_addr,       w_cpu_req_addr}),
+      .m_req_store_data({w_m1_req_store_data, c_req_store_data}),
+      .m_req_opcode    ({w_m1_req_opcode,     c_req_opcode}),
+      .m_req_mask      ({w_m1_req_mask,       c_req_mask}),
       .m_rsp_valid     (w_arb_rsp_valid),
       .m_rsp_load_data (),                // CPU/DMA read mem_rsp_load_data directly
       .m_rsp_bad       (),
@@ -298,6 +357,10 @@ module henry_soc
       .scsi_req_to_device(scsi_req_to_device),
       .scsi_rsp_seq(scsi_rsp_seq), .scsi_rsp_residual(scsi_rsp_residual),
       .scsi_rsp_scsi_status(scsi_rsp_scsi_status), .scsi_rsp_tgt_status(scsi_rsp_tgt_status),
+      // scsi_dma engine control (phase 2b wires these to the scsi_dma instance +
+      // arbiter master 1; for now the engine is not yet instantiated -> done tied 0)
+      .dma_go(w_sdma_go), .dma_nbdp(w_sdma_nbdp), .dma_to_device(w_sdma_to_dev),
+      .dma_done(w_eng_done),
       .scsi_intrq(w_scsi_intrq));
 `else
    wire [127:0] w_rd_scsi     = 128'd0;
@@ -309,6 +372,28 @@ module henry_soc
    assign scsi_req_dest       = 8'd0;
    assign scsi_req_lun        = 8'd0;
    assign scsi_req_to_device  = 1'b0;
+   assign w_sdma_go = 1'b0; assign w_sdma_nbdp = 32'd0; assign w_sdma_to_dev = 1'b0;
+`endif
+
+   // ---- SCSI DMA engine: the ordered DRAM agent that walks the descriptor chain
+   //      and moves data; disk side streams 16B beats to the TB/ARM disk media. ----
+`ifdef ENABLE_SCSI_DMA
+   scsi_dma u_scsi_dma
+     (.clk(clk), .reset(reset),
+      .go(w_sdma_go), .nbdp(w_sdma_nbdp), .to_device(w_sdma_to_dev),
+      .busy(), .done(w_eng_done), .irq(),
+      .dma_req_valid(w_eng_req_valid), .dma_req_addr(w_eng_req_addr),
+      .dma_req_opcode(w_eng_req_opcode), .dma_req_store_data(w_eng_req_store_data),
+      .dma_req_mask(w_eng_req_mask),
+      .dma_rsp_valid(w_mem_rsp_dma), .dma_rsp_load_data(mem_rsp_load_data),
+      .disk_rd_en(scsi_disk_rd_en), .disk_rd_data(scsi_disk_rd_data),
+      .disk_wr_en(scsi_disk_wr_en), .disk_wr_data(scsi_disk_wr_data));
+   assign scsi_dma_done = w_eng_done;
+`else
+   assign w_eng_req_valid = 1'b0, w_eng_req_addr = '0, w_eng_req_store_data = '0,
+          w_eng_req_opcode = 5'd0, w_eng_req_mask = 16'd0, w_eng_done = 1'b0;
+   assign scsi_disk_rd_en = 1'b0, scsi_disk_wr_en = 1'b0, scsi_disk_wr_data = '0,
+          scsi_dma_done = 1'b0;
 `endif
 
    ioc u_ioc

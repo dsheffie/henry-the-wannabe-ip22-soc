@@ -85,26 +85,31 @@ static inline uint32_t scsi_move(scsi_mem_fn mem, void *ctx, uint32_t nbdp,
 }
 
 /* ---- service one Select-And-Transfer ---- */
+// Lower-level model: produce the SCSI response payload (data-in) or size the
+// data-out, and the status -- but DO NOT touch DRAM.  The scsi_dma RTL engine
+// (a real ordered DRAM master) moves the bytes between this buffer and memory;
+// the caller serves `buf` as 16B beats on the engine's disk-side port.  For
+// data-out (WRITE/MODE SELECT) the caller fills `buf` from the captured beats and
+// then commits it (block_write at wr_lba).
 static inline void scsi_service_run(const scsi_req_t *req, scsi_rsp_t *rsp,
-                                    scsi_mem_fn mem, void *ctx, scsi_disk *disk) {
+                                    scsi_disk *disk, std::vector<uint8_t> &buf,
+                                    bool &to_dev, uint64_t &wr_lba) {
     rsp->seq         = req->seq;
     rsp->residual    = 0;
     rsp->scsi_status = ST_SELECT_TRANSFER_SUCCESS;
     rsp->tgt_status  = TGT_GOOD;
+    buf.clear(); to_dev = false; wr_lba = 0;
 
     const uint8_t *cdb = req->cdb;
     uint8_t op  = cdb[0];
     uint8_t dest = req->dest & 7, lun = req->lun & 7;
+    fprintf(stderr, "[scsi] CDB %02x %02x %02x %02x %02x %02x dest=%u lun=%u\n",
+            cdb[0],cdb[1],cdb[2],cdb[3],cdb[4],cdb[5], dest, lun);
 
     /* selection timeout: only the disk target responds */
     if(dest != SCSI_DISK_TARGET) { rsp->scsi_status = ST_SELECTION_TIMEOUT; return; }
     /* LUN gate: only LUN 0 exists (REQUEST SENSE on other LUNs still answers) */
     if(lun != 0 && op != SCSI_REQUEST_SENSE) { rsp->tgt_status = TGT_CHECK_CONDITION; return; }
-
-    /* build the data-in payload (or size the data-out), then move it via the chain */
-    std::vector<uint8_t> buf;
-    bool to_dev = false;          /* data-out (WRITE/MODE SELECT) */
-    uint64_t wr_lba = 0;
 
     switch(op) {
     case SCSI_TEST_UNIT_READY:
@@ -159,17 +164,7 @@ static inline void scsi_service_run(const scsi_req_t *req, scsi_rsp_t *rsp,
     default:
         break;                    /* lenient: success / no data */
     }
-
-    if(!buf.empty()) {
-        uint32_t moved = scsi_move(mem, ctx, req->nbdp, buf.data(),
-                                   (uint32_t)buf.size(), to_dev);
-        rsp->residual = (uint32_t)buf.size() - moved;
-        if(op == SCSI_WRITE10) {                          /* drain collected bytes to the overlay */
-            uint32_t blocks = moved / 512;
-            for(uint32_t i = 0; i < blocks; i++)
-                disk->block_write(wr_lba + i, buf.data() + (size_t)i*512);
-        }
-    }
+    /* No DRAM access here -- the engine + caller move the bytes. */
 }
 
 #endif /* SCSI_SERVICE_H */

@@ -414,44 +414,71 @@ int main(int argc, char **argv) {
       fprintf(stderr, "[calib2] cyc=%llu reg%u=%d (0x%x)\n", (unsigned long long)cyc,
               (unsigned)tb->retire_reg_two_ptr, (int)tb->retire_reg_two_data, (unsigned)tb->retire_reg_two_data);
 
-    // ---- SCSI shim doorbell: service one Select-And-Transfer ----
-    // Inert unless `ENABLE_SCSI_SHIM (else scsi_req_seq is tied 0) and --disk given.
+    // ---- SCSI: be the disk media for the scsi_dma RTL engine (lower-level model) --
+    // The RTL engine (an ordered DRAM master) walks the descriptor chain + moves the
+    // data through the arbiter, so read-after-write with the CPU holds by construction
+    // (no g_mem backdoor, no latency constant).  We only: (1) on the doorbell, build
+    // the SCSI response payload + status from the CDB; (2) stream it to the engine as
+    // 16B beats on the disk side (capture beats for writes); (3) commit writes on done.
+    static std::vector<uint8_t> g_buf;        // response payload (read) / size (write)
+    static size_t   g_rd_cursor = 0;          // bytes already served to the engine
+    static bool     g_to_dev    = false;
+    static uint64_t g_wr_lba    = 0;
+    static std::vector<uint8_t> g_wr_capture; // beats pushed by the engine (writes)
+    static bool     g_inq_pend  = false;      // SCSIDBG: dump t1/L0 INQUIRY after done
+    static uint32_t g_inq_nbdp  = 0;
     if(g_scsi_disk.ok() && tb->scsi_req_seq != g_last_scsi_req_seq) {
+      g_last_scsi_req_seq = tb->scsi_req_seq;
       scsi_req_t req;
-      req.seq      = tb->scsi_req_seq;
-      req.channel  = CH_SCSI0;
-      req.nbdp     = tb->scsi_req_nbdp;
-      req.xfer_len = tb->scsi_req_xfer_len;
-      for(int i = 0; i < 4; i++) ((uint32_t*)req.cdb)[i] = tb->scsi_req_cdb[i]; // 128b -> 16 CDB bytes
-      req.dest      = (uint8_t)tb->scsi_req_dest;
-      req.lun       = (uint8_t)tb->scsi_req_lun;
+      req.seq = tb->scsi_req_seq; req.channel = CH_SCSI0;
+      req.nbdp = tb->scsi_req_nbdp; req.xfer_len = tb->scsi_req_xfer_len;
+      for(int i = 0; i < 4; i++) ((uint32_t*)req.cdb)[i] = tb->scsi_req_cdb[i];
+      req.dest = (uint8_t)tb->scsi_req_dest; req.lun = (uint8_t)tb->scsi_req_lun;
       req.to_device = (uint8_t)tb->scsi_req_to_device;
       scsi_rsp_t rsp;
-      scsi_service_run(&req, &rsp, scsi_mem, nullptr, &g_scsi_disk);
+      scsi_service_run(&req, &rsp, &g_scsi_disk, g_buf, g_to_dev, g_wr_lba);
+      g_rd_cursor = 0; g_wr_capture.clear();
+      tb->scsi_rsp_seq = rsp.seq; tb->scsi_rsp_residual = rsp.residual;
+      tb->scsi_rsp_scsi_status = rsp.scsi_status; tb->scsi_rsp_tgt_status = rsp.tgt_status;
       if(getenv("SCSIDBG"))
-        fprintf(stderr, "[scsi] cyc=%llu CDB %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x "
-                "dest=%u lun=%u nbdp=%08x len=%u -> st=%02x tgt=%02x resid=%u\n",
+        fprintf(stderr, "[scsi] cyc=%llu CDB %02x %02x %02x %02x %02x %02x dest=%u lun=%u "
+                "nbdp=%08x -> st=%02x tgt=%02x bufsz=%zu dir=%d\n",
                 (unsigned long long)cyc, req.cdb[0],req.cdb[1],req.cdb[2],req.cdb[3],req.cdb[4],
-                req.cdb[5],req.cdb[6],req.cdb[7],req.cdb[8],req.cdb[9], req.dest, req.lun,
-                req.nbdp, req.xfer_len, rsp.scsi_status, rsp.tgt_status, rsp.residual);
-      tb->scsi_rsp_seq         = rsp.seq;
-      tb->scsi_rsp_residual    = rsp.residual;
-      tb->scsi_rsp_scsi_status = rsp.scsi_status;
-      tb->scsi_rsp_tgt_status  = rsp.tgt_status;
-      // verify the INQUIRY data actually landed at the descriptor's BP (t1/L0)
-      if(getenv("SCSIDBG") && req.cdb[0]==0x12 && (req.dest&7)==1 && req.lun==0) {
-        uint8_t *d = scsi_mem(nullptr, req.nbdp, 12);
-        if(d) {
-          uint32_t bp = ((uint32_t)d[0]<<24)|((uint32_t)d[1]<<16)|((uint32_t)d[2]<<8)|d[3];
-          uint32_t bc = ((uint32_t)d[4]<<24)|((uint32_t)d[5]<<16)|((uint32_t)d[6]<<8)|d[7];
-          uint8_t *b = scsi_mem(nullptr, bp, 36);
-          fprintf(stderr, "[inqdump] nbdp=%08x bp=%08x bc=%08x : ", req.nbdp, bp, bc);
-          if(b) { for(int k=0;k<8;k++) fprintf(stderr,"%02x ",b[k]);
-                  fprintf(stderr,"| vendor='%.8s' prod='%.16s'\n", (char*)b+8, (char*)b+16); }
-          else fprintf(stderr, "(bp 0x%08x unmapped)\n", bp);
-        } else fprintf(stderr, "[inqdump] nbdp=%08x unmapped\n", req.nbdp);
+                req.cdb[5], req.dest, req.lun, req.nbdp, rsp.scsi_status, rsp.tgt_status,
+                g_buf.size(), (int)g_to_dev);
+      g_inq_pend = (req.cdb[0]==0x12 && (req.dest&7)==1 && req.lun==0); g_inq_nbdp = req.nbdp;
+    }
+    // disk-side beat stream: drive the current READ beat (zero past the payload),
+    // advance on consume, capture WRITE beats, and commit on engine done.
+    if(g_scsi_disk.ok()) {
+      for(int i = 0; i < 4; i++) {
+        uint32_t w = 0;
+        for(int j = 0; j < 4; j++) {
+          size_t idx = g_rd_cursor + 4*i + j;
+          if(idx < g_buf.size()) w |= (uint32_t)g_buf[idx] << (8*j);
+        }
+        tb->scsi_disk_rd_data[i] = w;
       }
-      g_last_scsi_req_seq      = tb->scsi_req_seq;
+      if(tb->scsi_disk_rd_en) g_rd_cursor += 16;
+      if(tb->scsi_disk_wr_en)
+        for(int k = 0; k < 16; k++)
+          g_wr_capture.push_back((tb->scsi_disk_wr_data[k>>2] >> (8*(k&3))) & 0xff);
+      if(tb->scsi_dma_done) {
+        if(g_to_dev) {                                   // commit captured write bytes
+          size_t nb = g_wr_capture.size() / 512;
+          for(size_t b = 0; b < nb; b++)
+            g_scsi_disk.block_write(g_wr_lba + b, g_wr_capture.data() + b*512);
+        }
+        if(getenv("SCSIDBG") && g_inq_pend) {            // verify INQUIRY landed in DRAM
+          uint8_t *d = scsi_mem(nullptr, g_inq_nbdp, 12);
+          if(d) { uint32_t bp = ((uint32_t)d[0]<<24)|((uint32_t)d[1]<<16)|((uint32_t)d[2]<<8)|d[3];
+            uint8_t *b = scsi_mem(nullptr, bp, 36);
+            fprintf(stderr, "[inqdump] nbdp=%08x bp=%08x : %s\n", g_inq_nbdp, bp,
+                    b ? "" : "(bp unmapped)");
+            if(b) fprintf(stderr, "          vendor='%.8s' prod='%.16s'\n", (char*)b+8, (char*)b+16); }
+          g_inq_pend = false;
+        }
+      }
     }
     // 64-bit-address-bug probe: log every a0 (reg 4) writeback near the fault
     if(cyc > 35850000ull && cyc < 35870000ull) {
