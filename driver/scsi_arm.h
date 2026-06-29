@@ -12,7 +12,9 @@
  *      Once, after the Driver + DRAM mmap are up and the core is running:
  *          static scsi_disk g_disk;  g_disk.open_image("irix65.img");
  *      Each iteration of the main poll loop:
- *          scsi_arm_poll(d, &g_disk, d->get_vaddr());
+ *          scsi_arm_poll(d, &g_disk, c_addr);
+ *      NB: pass the DRAM mmap base (axi.cc's `c_addr` = mmap(phys_addr,memsize)),
+ *      NOT d->get_vaddr() -- get_vaddr() is the AXI control-register window.
  *   3. The shim's select->data delay is an AXI reg now -- tune without re-synth:
  *          d->write32(SCSI_W_SELDELAY, 0);   // 0 => shim default (8192)
  *
@@ -63,6 +65,8 @@ static inline uint8_t *scsi_arm_mem(void *ctx, uint32_t phys, uint32_t len) {
 
 /* Poll the doorbell once; on a new command, service it end-to-end.  Call every
  * iteration of the driver's main loop.  Returns true iff a command was serviced.
+ *
+ * `dram` MUST be the DRAM mmap base (axi.cc `c_addr`), not the control-reg window.
  *
  * Ordering (matches the validated sim contract): the PS reads the request AFTER
  * the doorbell, so the guest's descriptor/buffer cache-writebacks have drained

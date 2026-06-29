@@ -19,8 +19,9 @@ the doorbell and completes on the PS's reply.
 // once, after the Driver + DRAM mmap are up and the core is running:
 static scsi_disk g_disk;  g_disk.open_image("irix65.img");
 d->write32(SCSI_W_SELDELAY, 0);          // 0 => shim default (8192); tune live, no re-synth
-// each iteration of the main poll loop:
-scsi_arm_poll(d, &g_disk, d->get_vaddr());
+// each iteration of the main poll loop -- pass the DRAM mmap base `c_addr`
+// (mmap(phys_addr,memsize)), NOT d->get_vaddr() (that's the control-reg window):
+scsi_arm_poll(d, &g_disk, c_addr);
 ```
 
 ## AXI register map (matches `ip_hdl/axi_is_the_worst_v1_0_S00_AXI.v`)
