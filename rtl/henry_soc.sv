@@ -30,7 +30,14 @@
 // descriptor chain + moves data, replacing the host-service "offload the whole
 // transaction" backdoor.  Occupies arbiter master 1 (mutually exclusive with the
 // mem-to-mem hpc3 DMA).  Requires ENABLE_SCSI_SHIM.
-`define ENABLE_SCSI_DMA 1
+//
+// RETIRED (2026-06-28): the disk is now serviced by the host/PS through the
+// scsi_req_*/scsi_rsp_* mailbox -- the ARM (FPGA) / henry_tb (sim) reads the CDB +
+// descriptor pointer, walks the {BP,BC,DP} chain in shared DRAM, and does the disk
+// I/O straight into the guest's buffers (see scsi_service.h / scsi_move).  The
+// per-beat engine is no longer instantiated; the shim completes on scsi_rsp_seq.
+// scsi_dma.sv is kept for its standalone unit test (sim/scsi_dma_test).
+//`define ENABLE_SCSI_DMA 1
 
 module henry_soc
   #(// MC MEMCFG0 (bank0 cfg) as STORED: BE lw -> bswap.  0x00002023 -> 0x23200000
@@ -110,6 +117,7 @@ module henry_soc
    input  logic [31:0]           scsi_rsp_residual,
    input  logic [7:0]            scsi_rsp_scsi_status,
    input  logic [7:0]            scsi_rsp_tgt_status,
+   input  logic [15:0]           scsi_sel_delay,      // programmable shim select->data delay (AXI reg)
    // ---- scsi_dma engine disk side: 16B beat stream to the disk media (sim TB / FPGA ARM)
    //      The engine is the ordered DRAM agent; the TB/ARM only sources/sinks bytes.
    output logic                  scsi_disk_rd_en,    // READ : engine consumes a beat
@@ -357,6 +365,7 @@ module henry_soc
       .scsi_req_to_device(scsi_req_to_device),
       .scsi_rsp_seq(scsi_rsp_seq), .scsi_rsp_residual(scsi_rsp_residual),
       .scsi_rsp_scsi_status(scsi_rsp_scsi_status), .scsi_rsp_tgt_status(scsi_rsp_tgt_status),
+      .sel_delay(scsi_sel_delay),
       // scsi_dma engine control (phase 2b wires these to the scsi_dma instance +
       // arbiter master 1; for now the engine is not yet instantiated -> done tied 0)
       .dma_go(w_sdma_go), .dma_nbdp(w_sdma_nbdp), .dma_to_device(w_sdma_to_dev),

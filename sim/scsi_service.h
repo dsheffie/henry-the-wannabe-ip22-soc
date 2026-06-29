@@ -18,6 +18,7 @@
 #define SCSI_SERVICE_H
 #include "henry_scsi.h"
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <cstdint>
 #include <vector>
@@ -103,8 +104,9 @@ static inline void scsi_service_run(const scsi_req_t *req, scsi_rsp_t *rsp,
     const uint8_t *cdb = req->cdb;
     uint8_t op  = cdb[0];
     uint8_t dest = req->dest & 7, lun = req->lun & 7;
-    fprintf(stderr, "[scsi] CDB %02x %02x %02x %02x %02x %02x dest=%u lun=%u\n",
-            cdb[0],cdb[1],cdb[2],cdb[3],cdb[4],cdb[5], dest, lun);
+    if(getenv("SCSIDBG"))   // guarded: this header is reused by the on-board ARM driver
+      fprintf(stderr, "[scsi] CDB %02x %02x %02x %02x %02x %02x dest=%u lun=%u\n",
+              cdb[0],cdb[1],cdb[2],cdb[3],cdb[4],cdb[5], dest, lun);
 
     /* selection timeout: only the disk target responds */
     if(dest != SCSI_DISK_TARGET) { rsp->scsi_status = ST_SELECTION_TIMEOUT; return; }

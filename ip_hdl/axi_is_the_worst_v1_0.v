@@ -237,6 +237,12 @@ module axi_is_the_worst_v1_0 #
    
 
    
+   // ---- SCSI mailbox wires: henry_soc publishes req_*, S00_AXI returns rsp_*/sel_delay ----
+   wire [31:0]  w_scsi_req_seq, w_scsi_req_nbdp, w_scsi_rsp_seq, w_scsi_rsp_residual;
+   wire [127:0] w_scsi_req_cdb;
+   wire [7:0]   w_scsi_req_dest, w_scsi_req_lun, w_scsi_rsp_scsi_status, w_scsi_rsp_tgt_status;
+   wire         w_scsi_req_to_device;
+   wire [15:0]  w_scsi_sel_delay;
    axi_is_the_worst_v1_0_S00_AXI # ( .C_S_AXI_DATA_WIDTH(C_S00_AXI_DATA_WIDTH), .C_S_AXI_ADDR_WIDTH(C_S00_AXI_ADDR_WIDTH)) 
    axi_is_the_worst_v1_0_S00_AXI_inst (
 				       .controlreg(w_controlreg),
@@ -309,6 +315,17 @@ module axi_is_the_worst_v1_0 #
 				       .max_fetches(w_max_fetches),
 				       .rv_reset(w_rvcontrol[0]),
 
+				       .scsi_req_seq(w_scsi_req_seq),
+				       .scsi_req_cdb(w_scsi_req_cdb),
+				       .scsi_req_nbdp(w_scsi_req_nbdp),
+				       .scsi_req_dest(w_scsi_req_dest),
+				       .scsi_req_lun(w_scsi_req_lun),
+				       .scsi_req_to_device(w_scsi_req_to_device),
+				       .scsi_rsp_seq(w_scsi_rsp_seq),
+				       .scsi_rsp_residual(w_scsi_rsp_residual),
+				       .scsi_rsp_scsi_status(w_scsi_rsp_scsi_status),
+				       .scsi_rsp_tgt_status(w_scsi_rsp_tgt_status),
+				       .scsi_sel_delay(w_scsi_sel_delay),
 				       .S_AXI_ACLK(s00_axi_aclk),
 				       .S_AXI_ARESETN(s00_axi_aresetn),
 				       .S_AXI_AWADDR(s00_axi_awaddr),
@@ -493,7 +510,18 @@ module axi_is_the_worst_v1_0 #
 	   .inflight(w_inflight),
 	   .dbg_trace_index(w_trace_index),
 	   .dbg_trace_data(w_trace_data),
-	   .dbg_trace_wptr(w_trace_wptr)
+	   .dbg_trace_wptr(w_trace_wptr),
+	   .scsi_req_seq(w_scsi_req_seq),
+	   .scsi_req_cdb(w_scsi_req_cdb),
+	   .scsi_req_nbdp(w_scsi_req_nbdp),
+	   .scsi_req_dest(w_scsi_req_dest),
+	   .scsi_req_lun(w_scsi_req_lun),
+	   .scsi_req_to_device(w_scsi_req_to_device),
+	   .scsi_rsp_seq(w_scsi_rsp_seq),
+	   .scsi_rsp_residual(w_scsi_rsp_residual),
+	   .scsi_rsp_scsi_status(w_scsi_rsp_scsi_status),
+	   .scsi_rsp_tgt_status(w_scsi_rsp_tgt_status),
+	   .scsi_sel_delay(w_scsi_sel_delay)
 	   );
 
    // tie-offs for status/debug taps henry_soc does not expose

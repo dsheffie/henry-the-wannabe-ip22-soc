@@ -41,6 +41,10 @@ module scsi_shim
     input  logic [31:0]  scsi_rsp_residual,  // bytes NOT moved; 0 = full xfer
     input  logic [7:0]   scsi_rsp_scsi_status, // -> reg 0x17
     input  logic [7:0]   scsi_rsp_tgt_status,  // -> reg 0x0f (GOOD/CHECK)
+    // ---- runtime-programmable select/command -> data-phase delay (AXI reg on FPGA).
+    //      0 => the PH_SEL_DELAY default.  Lets us tune the SCSI command latency the
+    //      host needs WITHOUT a re-synth (was a hardcoded localparam). ----
+    input  logic [15:0]  sel_delay,
     // ---- scsi_dma engine (lower-level data mover; gated/connected by henry_soc) ----
     // The WD33C93 phase SM pulses dma_go at the DATA phase, so the engine's
     // descriptor read goes through the arbiter AFTER the driver's post-command
@@ -269,16 +273,19 @@ module scsi_shim
       dma_to_device = r_ctrl[2];          // HPC3 ctrl DIR (1 = WRITE: mem->disk)
       case(r_ph)
         PH_IDLE:
-          if(w_cmd_seltx) begin n_ph = PH_DELAY; n_ph_cnt = PH_SEL_DELAY; end
+          if(w_cmd_seltx) begin n_ph = PH_DELAY;
+             n_ph_cnt = (sel_delay == 16'd0) ? PH_SEL_DELAY : sel_delay; end
         PH_DELAY: begin
            n_ph_cnt = r_ph_cnt - 16'd1;
            if(r_ph_cnt == 16'd0) n_ph = PH_GO;
         end
         PH_GO:
-          if(r_ctrl[4]) begin dma_go = 1'b1; n_ph = PH_BUSY; end  // ACTIVE armed -> run engine
-          else          n_ph = PH_IDLE;                           // no DMA (selection timeout)
+          if(r_ctrl[4]) n_ph = PH_BUSY;   // ACTIVE armed -> wait for the ARM/host service
+          else          n_ph = PH_IDLE;    // no DMA (selection timeout)
         PH_BUSY:
-          if(dma_done) n_ph = PH_IDLE;
+          // ARM-serviced model: the host walks the descriptor + does the DRAM I/O,
+          // then echoes scsi_rsp_seq. (The per-beat scsi_dma engine is retired here.)
+          if(scsi_rsp_seq == r_req_seq) n_ph = PH_IDLE;
         default: n_ph = PH_IDLE;
       endcase
    end

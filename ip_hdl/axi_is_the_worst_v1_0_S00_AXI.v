@@ -94,7 +94,20 @@ module axi_is_the_worst_v1_0_S00_AXI #
     input wire [63:0]			      axi_writes,
     output wire [31:0]			      max_fetches,
     input wire				      rv_reset,
-    
+    // ---- SCSI mailbox (host-served disk): request from henry (PS reads at 0x30-0x35);
+    //      completion + tunable sel_delay written by the PS (slv_reg13/15/16/17). ----
+    input  wire [31:0]			      scsi_req_seq,
+    input  wire [127:0]			      scsi_req_cdb,
+    input  wire [31:0]			      scsi_req_nbdp,
+    input  wire [7:0]			      scsi_req_dest,
+    input  wire [7:0]			      scsi_req_lun,
+    input  wire				      scsi_req_to_device,
+    output wire [31:0]			      scsi_rsp_seq,
+    output wire [31:0]			      scsi_rsp_residual,
+    output wire [7:0]			      scsi_rsp_scsi_status,
+    output wire [7:0]			      scsi_rsp_tgt_status,
+    output wire [15:0]			      scsi_sel_delay,
+
     // Global Clock Signal
     input wire				      S_AXI_ACLK,
     // Global Reset Signal. This Signal is Active LOW
@@ -382,6 +395,12 @@ module axi_is_the_worst_v1_0_S00_AXI #
    assign mask = slv_reg8;
    assign sgi_mode = slv_reg12[0];
    assign dbg_trace_index = slv_reg23[11:0];   // trace buffer read index {row[7:0],word[3:0]}
+   // SCSI completion (PS -> henry): the ARM writes these then echoes the doorbell.
+   assign scsi_rsp_seq         = slv_reg13;        // write 0x0D (echo scsi_req_seq when done)
+   assign scsi_rsp_residual    = slv_reg15;        // write 0x0F
+   assign scsi_rsp_scsi_status = slv_reg16[7:0];   // write 0x10 = {tgt[15:8], scsi[7:0]}
+   assign scsi_rsp_tgt_status  = slv_reg16[15:8];
+   assign scsi_sel_delay       = slv_reg17[15:0];  // write 0x11 (0 => shim default 8192)
 
    
    assign S_AXI_AWREADY	= axi_awready;
@@ -1314,12 +1333,14 @@ module axi_is_the_worst_v1_0_S00_AXI #
 	  6'h2D   : reg_data_out <= l1i_cache_accesses[63:32];
 	  6'h2E   : reg_data_out <= l1i_cache_hits[31:0];
 	  6'h2F   : reg_data_out <= l1i_cache_hits[63:32];
-	  6'h30   : reg_data_out <= l1d_cache_accesses[31:0];
-	  6'h31   : reg_data_out <= l1d_cache_accesses[63:32];
-	  6'h32   : reg_data_out <= l1d_cache_hits[31:0];
-	  6'h33   : reg_data_out <= l1d_cache_hits[63:32];
-	  6'h34   : reg_data_out <= l2_cache_accesses[31:0];
-	  6'h35   : reg_data_out <= l2_cache_accesses[63:32];
+	  // SCSI request mailbox (was L1D/L2 cache perf counters): PS reads the pending
+	  // command here; 0x30 is the doorbell (++ per command) the ARM polls.
+	  6'h30   : reg_data_out <= scsi_req_seq;
+	  6'h31   : reg_data_out <= scsi_req_cdb[31:0];
+	  6'h32   : reg_data_out <= scsi_req_cdb[63:32];
+	  6'h33   : reg_data_out <= scsi_req_cdb[95:64];
+	  6'h34   : reg_data_out <= scsi_req_nbdp;
+	  6'h35   : reg_data_out <= {15'd0, scsi_req_to_device, scsi_req_lun, scsi_req_dest};
 	  6'h36   : reg_data_out <= l2_cache_hits[31:0];
 	  6'h37   : reg_data_out <= l2_cache_hits[63:32];
 	  6'h38   : reg_data_out <= branch_faults[31:0];
