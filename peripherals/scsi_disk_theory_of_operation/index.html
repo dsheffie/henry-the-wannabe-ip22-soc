@@ -1347,10 +1347,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#10-henry-rtl-port-the-arm-host-serviced-hybrid" class="md-nav__link">
+  <a href="#10-henry-rtl-port-on-chip-dma-engine-host-disk-back-end-as-built" class="md-nav__link">
     <span class="md-ellipsis">
       
-        10. Henry RTL port — the ARM-host-serviced hybrid
+        10. Henry RTL port — on-chip DMA engine + host disk back-end (as built)
       
     </span>
   </a>
@@ -1461,19 +1461,19 @@
 <tbody>
 <tr>
 <td>SASR</td>
-<td><code>0x40003</code></td>
-<td><code>0x1fbc0003</code></td>
+<td><code>+3</code></td>
+<td><code>0x1fbc0003</code> (IRIX) / <code>0x1fbc4003</code> (Linux)</td>
 <td>indirect <strong>register-select pointer</strong></td>
 </tr>
 <tr>
 <td>SCMD</td>
-<td><code>0x40007</code></td>
-<td><code>0x1fbc0007</code></td>
+<td><code>+7</code></td>
+<td><code>0x1fbc0007</code> (IRIX) / <code>0x1fbc4007</code> (Linux)</td>
 <td><strong>data port</strong> for the selected register (auto-increments SASR)</td>
 </tr>
 </tbody>
 </table>
-<p>Decode (sgi_hpc.cc): HD0 = <code>0x40000..0x47fff</code>, HD1 = <code>0x48000..0x4ffff</code>; <code>port = ((offs-0x40000) &gt;&gt; 2) &amp; 1</code> (0=SASR, 1=SCMD). <strong>Byte accesses are NOT byte-swapped</strong> (unlike the 32-bit DMA regs). <em>(0x44003/0x44007 in older notes is wrong — it came from a MAME log string.)</em></p>
+<p>Decode (sgi_hpc.cc): the WD33C93 is decoded across the <strong>whole HD0 device region <code>0x40000..0x47fff</code></strong> (HD1 <code>0x48000..0x4ffff</code>); <code>port = ((offs-0x40000) &gt;&gt; 2) &amp; 1</code> (0=SASR, 1=SCMD) — the <code>0x4000</code> bit is a <em>don't-care</em>, so the chip is <strong>aliased across the 32 KB region</strong>. <strong>Byte accesses are NOT byte-swapped</strong> (unlike the 32-bit DMA regs). The two guests pick different points in that region: <strong>IRIX uses <code>0x40003/0x40007</code>, Linux uses <code>0x44003/0x44007</code></strong> — the latter is the SGI spec's <code>hd0.cs</code> sub-window (hpc3.pdf: <code>hd0.cs = 0x1fbc4000..0x1fbc43ff</code>, inside HD0 region <code>0x1fbc0000..0x1fbc7fff</code>); both decode identically. <strong>RTL gotcha:</strong> match the <em>whole region</em>. Decoding only the exact line <code>0x40000</code> (as the first henry shim did) works for IRIX but misses Linux; decoding a <code>0x44000</code>-<em>based</em> region instead breaks IRIX. (Older notes calling <code>0x44003</code> "wrong, a MAME log artifact" conflated the <code>0x44000</code>-based-decode bug with the perfectly valid <code>hd0.cs</code> address Linux uses.)</p>
 <p>Indirect register file <code>regs[0x00..0x1f]</code> (the ones that matter):</p>
 <table>
 <thead>
@@ -1769,15 +1769,19 @@ Two of these are hard-won and <strong>must be reproduced</strong> or IRIX mis-re
 </code></pre></div>
 WRITE(10) is the mirror: PH_DATA_OUT, DMA pumps DRAM→device, <code>finish()</code> drains <code>buf</code>→COW.</p>
 <hr />
-<h2 id="10-henry-rtl-port-the-arm-host-serviced-hybrid">10. Henry RTL port — the ARM-host-serviced hybrid<a class="headerlink" href="#10-henry-rtl-port-the-arm-host-serviced-hybrid" title="Permanent link">&para;</a></h2>
-<p>The FPGA has <strong>no SCSI bus and no disk image in RTL</strong>, and IRIX's driver can't be modified. The plan keeps <strong>everything in §1–§7 identical</strong> (so the stock driver is satisfied) and changes only <strong>where the data-phase bytes come from</strong>:</p>
+<h2 id="10-henry-rtl-port-on-chip-dma-engine-host-disk-back-end-as-built">10. Henry RTL port — on-chip DMA engine + host disk back-end (as built)<a class="headerlink" href="#10-henry-rtl-port-on-chip-dma-engine-host-disk-back-end-as-built" title="Permanent link">&para;</a></h2>
+<p>The FPGA has <strong>no SCSI bus and no disk image in RTL</strong>, and IRIX's/Linux's driver can't be modified. The shipped design keeps <strong>everything in §1–§7 identical</strong> (so the stock driver is satisfied). The disk <em>media</em> lives off-chip in the host (the Zynq PS on the FPGA; <code>henry_tb</code> in sim), but — unlike the earlier host-serviced bridge — <strong>the on-chip DMA engine, not the host, moves data into MIPS memory.</strong> The invariant: <strong>only the DMA engine ever touches MIPS-visible DRAM; the host touches only AXI slave registers.</strong> That makes the transfer coherent by construction (below). Shared contract, sim + FPGA: <code>sim/scsi_service.h</code> (disk backend + <code>scsi_service_run</code> request decode) and <code>sim/henry_scsi.h</code> (<code>scsi_req_t</code>/<code>scsi_rsp_t</code> mailbox layout), reused by <code>driver/scsi_arm.h</code> on the board.</p>
 <ul>
-<li><strong>WD33C93 = control shim in RTL.</strong> Implement the register file, the SASR/SCMD PIO semantics, <code>Select-And-Transfer</code> decode, the data-phase FSM, the §5 completion contract (reg 0x0f, count→0, Command Phase 0x60, INTRQ → IOC2 local0 bit1 → IP2), and §6 pause/resume. It moves <strong>zero</strong> bytes over a bus.</li>
-<li><strong>HPC3 SCSI DMA = stand-alone mem→mem A↔B copier in RTL.</strong> The §3 descriptor walk is real (so HPC3 state stays honest for IRIX), but the device side of CH_XFER is replaced by a <strong>DRAM staging buffer A</strong> instead of <code>dma_r/dma_w</code>: READ pumps <strong>A → BP</strong>, WRITE pumps <strong>BP → A</strong>. The copy goes through the new henry DRAM arbiter (CPU vs DMA).</li>
-<li><strong>ARM (PS) = the disk.</strong> On a Select-And-Transfer, the shim raises a doorbell with the parsed <code>{op, lba, len}</code>; the ARM (<code>~/axilite-mips</code>, which mmaps the same PS-DRAM) does <code>pread</code>/<code>pwrite</code> of the disk image into/out of staging <strong>A</strong>. READ: ARM fills A <em>before</em> the DMA copies A→BP and the shim completes; WRITE: shim/DMA fills A from BP, ARM drains A→disk after.</li>
+<li><strong>WD33C93 = control shim in RTL (<code>rtl/scsi_shim.sv</code>).</strong> Register file + SASR/SCMD PIO semantics (§1.1, byte 3 = SASR / byte 7 = SCMD across the whole HD0 region) + the §5 completion contract (reg 0x0f, count→0, Command Phase 0x60, INTRQ → IOC2 local0 bit1 → IP2). It moves <strong>zero</strong> data bytes. On a <code>Select-And-Transfer</code> it snapshots <code>{cdb, dest, lun, xfer_len, nbdp, DIR}</code> into a mailbox, bumps the <strong>doorbell</strong> (<code>scsi_req_seq</code>), and pulses <code>dma_go</code> to start the engine. RESET (<code>COMMAND=0x00</code>) posts SCSI Status 0 + INTRQ for the driver's reset poll.</li>
+<li><strong>HPC3 SCSI DMA channel = the <code>scsi_dma</code> engine (<code>rtl/scsi_dma.sv</code>, <code>ENABLE_SCSI_DMA</code> on, arbiter master 1).</strong> On <code>dma_go</code> it walks the guest's <code>{BP,BC,DP}</code> descriptor chain <strong>in DRAM via M00</strong> and moves the data itself: READ = drain the beat FIFO → <code>mem[BP]</code>; WRITE = <code>mem[BP]</code> → beat FIFO. It masks the partial final beat and follows the chain (scatter-gather). It is <strong>the only agent that touches MIPS memory.</strong></li>
+<li><strong>Beat conduit (<code>rtl/scsi_beat_fifo.sv</code> + S00 slave regs).</strong> The engine's disk side is a 16-byte-beat FIFO the host fills/drains over the ordered S00 AXI-lite leg. A per-cycle disk-beat handshake can't cross AXI-lite, so the engine <strong>stalls</strong> when the FIFO is empty and resumes as the host trickles beats in (the "very slowly" path). READ conduit: host writes each beat to regs <code>0x20-0x23</code> (push on the <code>0x23</code> write), polling <code>0x25</code> = FIFO-full for flow control. (WRITE-direction capture is validated in sim; the FPGA slave-reg wiring for it is a follow-up — v1 on silicon is reads-only.)</li>
+<li><strong>Host (PS / <code>henry_tb</code>) = the disk, never the DMA.</strong> It polls the doorbell, reads the request over the mailbox, does the disk I/O <strong>into its own buffer</strong> (<code>pread</code> / COW overlay), and <strong>streams the bytes as beats into the FIFO</strong> — it never reads the descriptor and never writes DRAM. It posts the SCSI status (<code>scsi_rsp_*</code>) and echoes the doorbell. Disk-less safe: no image → <code>ST_SELECTION_TIMEOUT</code> so a disk-less guest (Linux from initramfs) completes its scan.</li>
 </ul>
-<p>Net: the RTL never touches a data byte from a disk; the ARM moves blocks via mmap; the WD33C93+HPC3 present a byte-for-byte faithful control/completion sequence so IRIX boots unmodified.</p>
-<p><strong>Sizing (from the §11 boot profile):</strong> the path is small-transfer dominated — median <strong>4 KB</strong>, 90%+ ≤ 32 KB — so the staging buffer <strong>A</strong> and the ARM doorbell must make the 4 KB case cheap (it's &gt;half of all transfers). The tail runs to ~256–512 KB SCSI commands, but the HPC3 chunks a single DMA at <strong>≈252 KB</strong> (≤16 KB per descriptor, §2). Two viable sizings for A: one <strong>chunk</strong> (≤252 KB → ARM serviced once per Select-And-Transfer) or one <strong>descriptor</strong> (≤16 KB → smaller buffer, more doorbells). Either way the absent-target IDs (2–7) must still draw a selection-timeout, and the LUN gate must CHECK-CONDITION LUN≠0 (§11).</p>
+<p><strong>Completion:</strong> the shim holds <code>PH_BUSY</code> and completes on the engine's <code>dma_done</code> — so INTRQ can't fire until the last beat has landed in DRAM. <strong>Or</strong>, when the host has posted its rsp yet the engine is still blocked for a beat that won't come (<code>dma_rd_stalled</code>: short / no-data / unknown-opcode / selection-timeout), the shim cancels the engine and completes with a residual (real SCSI short-transfer). No RTL completion timeout is needed.</p>
+<p><strong>AXI mailbox</strong> (<code>ip_hdl/axi_is_the_worst_v1_0_S00_AXI.v</code>; PS word offsets): reads <code>0x30</code> req_seq(doorbell) · <code>0x31-0x33</code> CDB · <code>0x34</code> nbdp · <code>0x35</code> <code>{to_device,lun,dest}</code>; writes <code>0x0D</code> rsp_seq(echo LAST) · <code>0x0F</code> residual · <code>0x10</code> <code>{tgt_status,scsi_status}</code> · <code>0x11</code> <code>sel_delay</code>. <strong>Beat conduit:</strong> write <code>0x20-0x23</code> = the 16-byte read beat (push on <code>0x23</code>), read <code>0x25</code> = FIFO-full. Debug: read <code>0x38</code> = shim state (<code>#resets/#SASR-rd/#SCMD-wr/#SASR-wr</code> saturating counters + phase/CIP/BSY/INTRQ/SASR), read <code>0x3F</code> = RTL build revision (<code>0xYYYYMMDD</code>, bump per synth).</p>
+<p><strong>Ordering / coherence (by construction):</strong> the engine writes <code>mem[BP]</code> over <strong>M00 — the same port the CPU reads from, serialized by the <code>mem_arbiter</code></strong> — so the guest can't read a stale buffer, and completion is gated on <code>dma_done</code> (after the write). The host never writes shared DRAM, so the PS↔PL non-coherence / cross-path-ordering hazards of the host-serviced bridge are gone. The guest's own pre-DMA <code>dma_cache_inv</code> remains its responsibility (orthogonal; see "Cache coherence" in <code>hpc3.md</code>).</p>
+<p>Net: the on-chip DMA engine does the DRAM I/O over M00; the host supplies disk bytes over the ordered slave-reg conduit and never touches MIPS memory; the WD33C93 + HPC3 register/completion behavior is byte-for-byte faithful so IRIX <strong>and</strong> Linux boot unmodified. Validated in Verilator: engine unit test, directed <code>scsi_read</code>/<code>scsi_write</code> round-trips, and a live IRIX boot to the banner (30 clean transfers incl. a 256 KB read, zero hangs).</p>
+<p><strong>Sizing (from the §11 boot profile):</strong> small-transfer dominated — median <strong>4 KB</strong>, 90%+ ≤ 32 KB — so the doorbell round-trip must make the 4 KB case cheap. The tail runs to ~256–512 KB, chunked by the HPC3 descriptor chain at <strong>≈252 KB</strong> (§2, §6). The engine walks the real chain, so multi-descriptor scatter-gather falls out for free. Absent-target IDs (2–7) draw a selection-timeout, LUN≠0 CHECK-CONDITIONs (§11) — both from <code>scsi_service_run</code>.</p>
 <hr />
 <h2 id="11-boot-workload-profile-empirical">11. Boot workload profile (empirical)<a class="headerlink" href="#11-boot-workload-profile-empirical" title="Permanent link">&para;</a></h2>
 <p>Measured over one IRIX 6.5.22 boot — PROM power-on → root mount → rc-scripts → <code>root</code> login → <code>csh</code> prompt (<code>IRIS 1#</code>) — captured with <code>SCSIDBG=1</code> against the interp_mips model on the clean image. This is the workload the RTL shim must satisfy and be sized for. Reproduction recipe + regeneration scripts: <code>interp_mips/IRIX_SCSI_PROFILE.md</code>.</p>

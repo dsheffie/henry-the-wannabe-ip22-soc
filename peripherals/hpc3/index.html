@@ -1808,9 +1808,11 @@ spec §3.3, and MAME all agree <strong>DIR=1 is memory→device</strong>. Trust 
 4. Teardown: <code>ctrl |= FLUSH</code>, spin while <code>ACTIVE</code>, then <code>ctrl = 0</code>. Reset: <code>ctrl = CRESET; udelay(50); ctrl=0</code>.</p>
 <p>MAME's golden model moves SCSI DMA <strong>byte-at-a-time directly between DRAM and the controller, bypassing the
 fifo entirely</strong> — so the zero-length terminator is harmless and Henry may model it the same way.</p>
-<p><strong>WD33C93 controller</strong>: 8-bit device in the HD0 window at <code>0x40000</code> (HD1 <code>0x48000</code>), accessed as
-<strong>SASR = base+3 (0x40003)</strong> (register-select pointer) and <strong>SCMD = base+7 (0x40007)</strong> (data; auto-increments
-the pointer). The SCSI CDB lives in the controller's register file (regs 0x03–0x0e); the workhorse command is
+<p><strong>WD33C93 controller</strong>: 8-bit device decoded across the whole <strong>HD0 device region <code>0x40000..0x47fff</code></strong> (HD1
+<code>0x48000..0x4ffff</code>); <code>port = ((offs-0x40000)&gt;&gt;2)&amp;1</code>, so the chip is <strong>aliased across the 32 KB region</strong>. Accessed
+as <strong>SASR = +3</strong> (register-select pointer) and <strong>SCMD = +7</strong> (data; auto-increments the pointer). IRIX accesses
+it at <code>0x40003/0x40007</code>; <strong>Linux at <code>0x44003/0x44007</code></strong> (its <code>scsi0_ext</code> = the SGI-spec <code>hd0.cs</code> sub-window
+<code>0x1fbc4000</code>) — both decode identically (see the SCSI-window note below). The SCSI CDB lives in the controller's register file (regs 0x03–0x0e); the workhorse command is
 <strong>Select-w/Atn-and-Transfer (0x18 ← COMMAND, 0x08)</strong>; reading SCSI Status (reg 0x17) clears INTRQ; success
 code = <code>0x16</code> (<code>SELECT_TRANSFER_SUCCESS</code>). Init: <code>dma_mode = CTRL_BURST (0x20)</code>, <code>FS = 20 MHz</code>, host ID 7.</p>
 <p><strong>SCSI command set IRIX actually issues</strong> (live full-boot-to-userland trace): READ(10) <code>0x28</code> (the workhorse,
@@ -1903,12 +1905,12 @@ correctness, and that the HPC3 master path must hit DRAM with <strong>no</strong
 <tr>
 <td>0x40000–0x47fff</td>
 <td>SCSI HD0 device window (WD33C93)</td>
-<td>SASR=0x40003, SCMD=0x40007 (byte = big-endian low byte of the word reg)</td>
+<td>chip aliased across the region (port=bit2). IRIX SASR=0x40003/SCMD=0x40007; Linux SASR=0x44003/SCMD=0x44007 (hd0.cs @0x44000). byte = BE low byte of the word reg</td>
 </tr>
 <tr>
 <td>0x48000–0x4ffff</td>
 <td>SCSI HD1 device window (WD33C93)</td>
-<td>SASR=0x48003, SCMD=0x48007</td>
+<td>hd1.cs @0x4c000; SASR +3 / SCMD +7 in the region</td>
 </tr>
 <tr>
 <td>0x54000</td>
@@ -1927,12 +1929,18 @@ correctness, and that the HPC3 master path must hit DRAM with <strong>no</strong
 </tr>
 </tbody>
 </table>
-<p>✅ <strong>SCSI window (corrected 2026-06-20):</strong> the WD33C93 register windows are at <strong>0x40000 (HD0) / 0x48000
-(HD1)</strong> — SASR=0x40003, SCMD=0x40007. This matches MAME's authoritative <code>hpc3.cpp</code> address map
-(<code>map(0x00040000,0x00047fff).rw(hd_r&lt;0&gt;,hd_w&lt;0&gt;)</code>) and live IRIX (which accesses 0x40003/0x40007). A prior
-note here claimed <strong>+0x4000 = 0x44000/0x4c000</strong> — that was WRONG: it trusted MAME's <em>unhandled-access log
-string</em> (<code>0x1fbc4000 + offset&lt;&lt;2</code>, a formatter bug) instead of <code>map()</code>. The bad address propagated into
-interp_mips and stalled IRIX at "Root device target/1 not available" until corrected.</p>
+<p>✅ <strong>SCSI window (region 0x40000..0x47fff; reconciled 2026-06-29 against the SGI spec).</strong> The WD33C93 is
+decoded across the <strong>whole HD0 device region 0x40000–0x47fff (HD1 0x48000–0x4ffff)</strong> with <code>port=((offs-0x40000)&gt;&gt;2)&amp;1</code>,
+so the chip is <strong>aliased across the 32 KB region</strong> — this matches MAME's <code>map(0x00040000,0x00047fff).rw(hd_r&lt;0&gt;,hd_w&lt;0&gt;)</code>.
+The SGI HPC3 spec (hpc3.pdf) is consistent: the HD0 <em>region</em> is <code>0x1fbc0000–0x1fbc7fff</code>, and the chip <code>hd0.cs</code> is
+the sub-window <code>0x1fbc4000–0x1fbc43ff</code> (offset <strong>0x44000</strong>). Both guests work because the region aliases:
+<strong>IRIX accesses 0x40003/0x40007, Linux accesses 0x44003/0x44007</strong> (the spec <code>hd0.cs</code>; <code>offsetof(hpc3_regs,scsi0_ext)=0x44000</code>).
+History to keep straight: (1) making the decode <code>0x44000</code>-<em>based</em> (region 0x44000.., port from offs−0x44000)
+shifted IRIX's 0x40003 out of range and stalled it at "Root device target/1 not available" — that's the real bug
+the "0x44000 is wrong / MAME log artifact" note was reacting to. (2) But matching only the <em>exact line 0x40000</em>
+(the first henry RTL shim) works for IRIX yet <strong>misses Linux's 0x44003</strong> → the Linux SCSI-reset hang on silicon
+(2026-06-29). <strong>Correct decode = the whole region 0x40000..0x47fff</strong> (henry <code>scsi_shim.sv</code> <code>w_wd_line</code>), which
+covers both. <code>0x44003</code> is NOT wrong — it's the spec address Linux uses.</p>
 <p>⚠️ <strong>bbRAM window (corrected 2026-06-19 from the spec):</strong> the battery-backed RAM / RTC decodes <strong>0x60000–0x7ffff
 only</strong> (spec §3.0: <code>pbus.bbram</code> = 0x1fbe0000–0x1fbfffff = 128 KB). An earlier draft of this doc claimed it ran
 to 0xfffff — that was <strong>wrong</strong>; MAME's 0x60000–0x7ffff and the spec agree. The whole first-chip I/O window is
