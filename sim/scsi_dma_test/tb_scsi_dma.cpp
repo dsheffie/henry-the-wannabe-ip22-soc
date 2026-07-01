@@ -41,7 +41,7 @@ int main(int argc, char** argv){
   uint64_t rd_byte = 0;                 // READ: global ramp cursor (bytes consumed)
   std::vector<uint8_t> wr_capture;      // WRITE: bytes pushed to disk
 
-  d->reset = 1; d->go = 0; d->clk = 0; d->eval();
+  d->reset = 1; d->go = 0; d->cancel = 0; d->clk = 0; d->eval();
   for(int i=0;i<4;i++){ d->clk=1; d->eval(); d->clk=0; d->eval(); cyc++; }
   d->reset = 0;
 
@@ -69,6 +69,7 @@ int main(int argc, char** argv){
         uint32_t w=0; for(int j=0;j<4;j++) w |= (uint32_t)ramp(rd_byte + 4*i + j) << (8*j);
         d->disk_rd_data[i] = w;
       }
+      d->disk_rd_valid = 1;   // unit test: a beat is always ready (matches the old assumed-ready behavior)
 
       d->clk = 0; d->eval();                 // comb settle (engine sees rsp + disk data)
       int rd = d->disk_rd_en, wr = d->disk_wr_en, rv = d->dma_req_valid;

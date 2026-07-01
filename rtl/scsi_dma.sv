@@ -30,6 +30,7 @@ module scsi_dma
     output logic         busy,
     output logic         done,          // 1-cycle pulse when the chain completes
     output logic         irq,           // 1-cycle pulse if the final desc had XIE
+    output logic         rd_stalled,    // READ: waiting for a disk beat that isn't in the FIFO
     // ---- DMA master -> henry DRAM arbiter ----
     output logic                  dma_req_valid,
     output logic [`PA_WIDTH-1:0]  dma_req_addr,
@@ -40,7 +41,9 @@ module scsi_dma
     input  logic [127:0]          dma_rsp_load_data,
     // ---- disk side: 16-byte beat stream (TB/ARM is the disk media) ----
     output logic         disk_rd_en,     // READ: pulse, consume disk_rd_data this cycle
-    input  logic [127:0] disk_rd_data,   // READ: disk -> mem beat (assumed ready)
+    input  logic [127:0] disk_rd_data,   // READ: disk -> mem beat (valid when disk_rd_valid)
+    input  logic         disk_rd_valid,  // READ: a beat is available (FIFO non-empty); else stall
+    input  logic         cancel,         // force back to IDLE (short/no-data/selection timeout)
     output logic         disk_wr_en,     // WRITE: pulse, disk_wr_data valid this cycle
     output logic [127:0] disk_wr_data);  // WRITE: mem -> disk beat
 
@@ -118,11 +121,12 @@ module scsi_dma
                                               : (r_to_dev ? S_W_MEM : S_R_DISK);
            end
         end
-        S_R_DISK: begin                            // READ: pull a disk beat
-           disk_rd_en = 1'b1;
-           n_data     = disk_rd_data;
-           n_state    = S_R_MEM;
-        end
+        S_R_DISK:                                  // READ: pull a disk beat (stall until one is ready)
+          if(disk_rd_valid) begin
+             disk_rd_en = 1'b1;
+             n_data     = disk_rd_data;
+             n_state    = S_R_MEM;
+          end
         S_R_MEM: begin                             // READ: store the beat to mem[bp]
            dma_req_valid      = 1'b1;
            dma_req_addr       = {{(`PA_WIDTH-32){1'b0}}, r_bp};
@@ -169,6 +173,7 @@ module scsi_dma
         end
         default: n_state = S_IDLE;
       endcase
+      if(cancel) n_state = S_IDLE;  // short/no-data/timeout: bail out of any stall, no done pulse
    end
 
    always_ff @(posedge clk) begin
@@ -203,6 +208,10 @@ module scsi_dma
    end
 
    assign busy = (r_state != S_IDLE);
+   // Engine is blocked in the READ data phase with no beat available -- i.e. it
+   // wants a disk beat the ARM/TB hasn't streamed. The shim uses this (+ the ARM
+   // having posted its rsp) to complete a short/no-data transfer instead of hanging.
+   assign rd_stalled = (r_state == S_R_DISK) & ~disk_rd_valid;
    assign done = r_done;
    assign irq  = r_irq;
 

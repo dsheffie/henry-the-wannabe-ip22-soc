@@ -414,63 +414,79 @@ int main(int argc, char **argv) {
       fprintf(stderr, "[calib2] cyc=%llu reg%u=%d (0x%x)\n", (unsigned long long)cyc,
               (unsigned)tb->retire_reg_two_ptr, (int)tb->retire_reg_two_data, (unsigned)tb->retire_reg_two_data);
 
-    // ---- SCSI: model the ARM disk service (on the FPGA this runs on the PS; here it
-    // is the TB).  On the shim doorbell, walk the HPC3 {BP,BC,DP} descriptor chain in
-    // DRAM (scsi_move) and do the disk I/O straight into the guest's buffers -- NO RTL
-    // engine, NO per-beat stream.  scsi_rsp_seq is written LAST, after DRAM is updated,
-    // so the shim completes (and IRIX reads the buffer) only after the data is in place.
-    // Coherence vs the CPU caches relies on IRIX's pre-DMA dma_cache_inv (+ the l2
-    // dirty-bit fix) -- exactly the contract the ARM driver must honor on hardware.
+    // ---- SCSI: the ARM disk service (TB plays the PS).  RADICALLY DIFFERENT "DMA":
+    // the scsi_dma RTL engine is the ONLY agent that touches MIPS memory -- it walks
+    // the {BP,BC,DP} descriptor chain and writes mem[BP] via M00, in the same domain
+    // the CPU reads from.  The TB NEVER touches g_mem for the payload; it only sources
+    // /sinks disk bytes across the beat conduit (the FPGA's ordered S00 slave-reg leg):
+    //   READ : pread the disk -> stream 16B beats into scsi_beat_* (engine -> mem[BP]).
+    //   WRITE: capture the engine's disk_wr beats (engine reads mem[BP]) -> block_write.
+    // Byte count is derived from the CDB by scsi_service_run (sizes g_buf); the engine
+    // independently uses the descriptor BC.  Completion: the engine pulses dma_done
+    // (data has landed); we post scsi_rsp_* for the SCSI-level status (GOOD, or
+    // selection-timeout 0x42 which makes the shim abort the otherwise-stalled engine).
     static std::vector<uint8_t> g_buf;
-    static bool     g_to_dev = false;
-    static uint64_t g_wr_lba = 0;
-    // Defer service after the doorbell so IRIX's descriptor + (for writes) buffer
-    // cache-writebacks drain to DRAM first.  The RTL engine got this for free by
-    // reading the descriptor ~PH_SEL_DELAY cycles late; on real HW the ARM's polling
-    // latency does the same.  Without it we read a STALE descriptor (e.g. a prior
-    // MODE SENSE's bc=254) and short/mis-place the transfer.
-    static const uint64_t SVC_DELAY = 4096;
-    static bool       g_req_pending = false;
-    static uint64_t   g_req_due = 0;
-    static scsi_req_t g_req;
+    static bool       g_to_dev = false;
+    static uint64_t   g_wr_lba = 0;
+    static bool       g_streaming = false;     // READ:  feeding beats into the FIFO
+    static size_t     g_stream_pos = 0;
+    static bool       g_capturing = false;     // WRITE: draining engine disk_wr beats
+    static scsi_rsp_t g_pending_rsp;
+    auto post_rsp = [&](void){
+      tb->scsi_rsp_residual    = g_pending_rsp.residual;
+      tb->scsi_rsp_scsi_status = g_pending_rsp.scsi_status;
+      tb->scsi_rsp_tgt_status  = g_pending_rsp.tgt_status;
+      tb->scsi_rsp_seq         = g_pending_rsp.seq;
+    };
+    tb->scsi_beat_push = 0;
     if(g_scsi_disk.ok() && tb->scsi_req_seq != g_last_scsi_req_seq) {
       g_last_scsi_req_seq = tb->scsi_req_seq;
-      g_req.seq = tb->scsi_req_seq; g_req.channel = CH_SCSI0;
-      g_req.nbdp = tb->scsi_req_nbdp; g_req.xfer_len = tb->scsi_req_xfer_len;
-      for(int i = 0; i < 4; i++) ((uint32_t*)g_req.cdb)[i] = tb->scsi_req_cdb[i];
-      g_req.dest = (uint8_t)tb->scsi_req_dest; g_req.lun = (uint8_t)tb->scsi_req_lun;
-      g_req.to_device = (uint8_t)tb->scsi_req_to_device;
-      g_req_pending = true; g_req_due = cyc + SVC_DELAY;
-    }
-    if(g_req_pending && cyc >= g_req_due) {
-      g_req_pending = false;
-      scsi_rsp_t rsp;
-      scsi_service_run(&g_req, &rsp, &g_scsi_disk, g_buf, g_to_dev, g_wr_lba);
-      // move the payload between the host buf and the descriptor-chain'd DRAM buffers
-      uint32_t moved = 0;
-      if(rsp.scsi_status == ST_SELECT_TRANSFER_SUCCESS && !g_buf.empty()) {
-        moved = scsi_move(scsi_mem, nullptr, g_req.nbdp,
-                          g_buf.data(), (uint32_t)g_buf.size(), g_to_dev);
-        if(g_to_dev) {                                   // WRITE: g_buf now holds DRAM data
-          size_t nb = moved / 512;
-          for(size_t b = 0; b < nb; b++)
-            g_scsi_disk.block_write(g_wr_lba + b, g_buf.data() + b*512);
-        }
-        rsp.residual = (uint32_t)g_buf.size() - moved;
-      }
-      tb->scsi_rsp_residual    = rsp.residual;
-      tb->scsi_rsp_scsi_status = rsp.scsi_status;
-      tb->scsi_rsp_tgt_status  = rsp.tgt_status;
-      tb->scsi_rsp_seq         = rsp.seq;                // set LAST: DRAM now updated
+      scsi_req_t req; req.seq = tb->scsi_req_seq; req.channel = CH_SCSI0;
+      req.nbdp = tb->scsi_req_nbdp; req.xfer_len = tb->scsi_req_xfer_len;
+      for(int i = 0; i < 4; i++) ((uint32_t*)req.cdb)[i] = tb->scsi_req_cdb[i];
+      req.dest = (uint8_t)tb->scsi_req_dest; req.lun = (uint8_t)tb->scsi_req_lun;
+      req.to_device = (uint8_t)tb->scsi_req_to_device;
+      scsi_service_run(&req, &g_pending_rsp, &g_scsi_disk, g_buf, g_to_dev, g_wr_lba);
+      g_pending_rsp.seq = tb->scsi_req_seq;
       if(getenv("SCSIDBG"))
         fprintf(stderr, "[scsi] cyc=%llu CDB %02x %02x %02x %02x %02x %02x dest=%u lun=%u "
-                "nbdp=%08x -> st=%02x tgt=%02x bufsz=%zu dir=%d moved=%u\n",
-                (unsigned long long)cyc, g_req.cdb[0],g_req.cdb[1],g_req.cdb[2],g_req.cdb[3],g_req.cdb[4],
-                g_req.cdb[5], g_req.dest, g_req.lun, g_req.nbdp, rsp.scsi_status, rsp.tgt_status,
-                g_buf.size(), (int)g_to_dev, moved);
+                "nbdp=%08x -> st=%02x tgt=%02x bufsz=%zu dir=%d\n",
+                (unsigned long long)cyc, req.cdb[0],req.cdb[1],req.cdb[2],req.cdb[3],req.cdb[4],
+                req.cdb[5], req.dest, req.lun, req.nbdp, g_pending_rsp.scsi_status,
+                g_pending_rsp.tgt_status, g_buf.size(), (int)g_to_dev);
+      if(g_pending_rsp.scsi_status == ST_SELECT_TRANSFER_SUCCESS && !g_to_dev && !g_buf.empty()) {
+        g_stream_pos = 0; g_streaming = true;          // READ: feed the engine
+      } else if(g_pending_rsp.scsi_status == ST_SELECT_TRANSFER_SUCCESS && g_to_dev) {
+        g_buf.clear(); g_capturing = true;             // WRITE: drain the engine
+      } else {
+        post_rsp();                                    // timeout / no data: status now (shim aborts)
+      }
     }
-    // engine retired on this path: keep its disk-side inputs quiescent.
-    if(g_scsi_disk.ok()) for(int i = 0; i < 4; i++) tb->scsi_disk_rd_data[i] = 0;
+    // READ: push one 16-byte beat/cycle into the conduit (engine stalls when empty),
+    // respecting full; post status once the whole buffer is in flight.
+    if(g_streaming) {
+      if(g_stream_pos >= g_buf.size()) { g_streaming = false; post_rsp(); }
+      else if(!tb->scsi_beat_full) {
+        for(int i = 0; i < 4; i++) { uint32_t w = 0;
+          for(int j = 0; j < 4; j++) { size_t idx = g_stream_pos + 4*i + j;
+            if(idx < g_buf.size()) w |= (uint32_t)g_buf[idx] << (8*j); }
+          tb->scsi_beat_data[i] = w; }
+        tb->scsi_beat_push = 1;
+        g_stream_pos += 16;
+      }
+    }
+    // WRITE: capture each beat the engine pushes out (mem[BP] -> disk), commit at done.
+    if(g_capturing) {
+      if(tb->scsi_disk_wr_en)
+        for(int b = 0; b < 16; b++)
+          g_buf.push_back((tb->scsi_disk_wr_data[b>>2] >> (8*(b&3))) & 0xff);
+      if(tb->scsi_dma_done) {
+        g_capturing = false;
+        for(size_t b = 0; b*512 + 512 <= g_buf.size(); b++)
+          g_scsi_disk.block_write(g_wr_lba + b, g_buf.data() + b*512);
+        post_rsp();
+      }
+    }
     // programmable shim select->data delay (on the FPGA this is an AXI reg the ARM
     // sets; in sim drive a fixed value -- must be >= the SVC_DELAY service deferral).
     tb->scsi_sel_delay = 8192;

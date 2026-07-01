@@ -97,6 +97,7 @@ module axi_is_the_worst_v1_0_S00_AXI #
     // ---- SCSI mailbox (host-served disk): request from henry (PS reads at 0x30-0x35);
     //      completion + tunable sel_delay written by the PS (slv_reg13/15/16/17). ----
     input  wire [31:0]			      scsi_req_seq,
+    input  wire [31:0]			      scsi_dbg,        // shim debug viz (read at 0x38)
     input  wire [127:0]			      scsi_req_cdb,
     input  wire [31:0]			      scsi_req_nbdp,
     input  wire [7:0]			      scsi_req_dest,
@@ -107,6 +108,11 @@ module axi_is_the_worst_v1_0_S00_AXI #
     output wire [7:0]			      scsi_rsp_scsi_status,
     output wire [7:0]			      scsi_rsp_tgt_status,
     output wire [15:0]			      scsi_sel_delay,
+    // ---- SCSI beat conduit (ARM -> engine FIFO): write the 16B beat words to
+    //      regs 0x20..0x23 (push on the 0x23 write); read 0x25 for FIFO-full. ----
+    output wire				      scsi_beat_push,
+    output wire [127:0]			      scsi_beat_data,
+    input  wire				      scsi_beat_full,
 
     // Global Clock Signal
     input wire				      S_AXI_ACLK,
@@ -401,6 +407,17 @@ module axi_is_the_worst_v1_0_S00_AXI #
    assign scsi_rsp_scsi_status = slv_reg16[7:0];   // write 0x10 = {tgt[15:8], scsi[7:0]}
    assign scsi_rsp_tgt_status  = slv_reg16[15:8];
    assign scsi_sel_delay       = slv_reg17[15:0];  // write 0x11 (0 => shim default 8192)
+
+   // ---- SCSI beat conduit: assemble the 16B beat from slv_reg32..35 (0x20..0x23)
+   //      and pulse scsi_beat_push the cycle AFTER the 0x23 write (so slv_reg35 has
+   //      settled).  The ARM polls scsi_beat_full (read 0x25) before each beat. ----
+   assign scsi_beat_data = {slv_reg35, slv_reg34, slv_reg33, slv_reg32};
+   reg r_beat_push;
+   always @( posedge S_AXI_ACLK )
+     if(w_reset) r_beat_push <= 1'b0;
+     else        r_beat_push <= slv_reg_wren &&
+                  (axi_awaddr[ADDR_LSB+OPT_MEM_ADDR_BITS:ADDR_LSB] == 6'h23);
+   assign scsi_beat_push = r_beat_push;
 
    
    assign S_AXI_AWREADY	= axi_awready;
@@ -1322,7 +1339,7 @@ module axi_is_the_worst_v1_0_S00_AXI #
 	  6'h22   : reg_data_out <= slv_reg34;
 	  6'h23   : reg_data_out <= slv_reg35;
 	  6'h24   : reg_data_out <= slv_reg36;
-	  6'h25   : reg_data_out <= slv_reg37;
+	  6'h25   : reg_data_out <= {31'd0, scsi_beat_full};   // SCSI beat FIFO full (flow control)
 	  6'h26   : reg_data_out <= {24'd0, l2_flush_done, l1i_flush_done, l1d_flush_done, cause};
 	  6'h27   : reg_data_out <= r_last_retire;
 	  6'h28   : reg_data_out <= r_insn_cnt[31:0];
@@ -1343,14 +1360,24 @@ module axi_is_the_worst_v1_0_S00_AXI #
 	  6'h35   : reg_data_out <= {15'd0, scsi_req_to_device, scsi_req_lun, scsi_req_dest};
 	  6'h36   : reg_data_out <= l2_cache_hits[31:0];
 	  6'h37   : reg_data_out <= l2_cache_hits[63:32];
-	  6'h38   : reg_data_out <= branch_faults[31:0];
+	  // 0x38 repurposed (was branch_faults[31:0]) -> SCSI shim debug viz.
+	  // [31:28]=#resets [27:22]=#SASR-reads [21:16]=#SCMD-wr [15:10]=#SASR-wr
+	  // [9:8]=phase [7]=CIP [6]=BSY [5]=INTRQ [4:0]=SASR pointer
+	  6'h38   : reg_data_out <= scsi_dbg;
 	  6'h39   : reg_data_out <= branch_faults[63:32];
 	  6'h3A   : reg_data_out <= {23'd0, scc_rx_full, putchar_fifo_rptr, putchar_fifo_wptr};
 	  6'h3B   : reg_data_out <= {24'd0, putchar_fifo_out};
 	  6'h3C   : reg_data_out <= dram_req_cnt[31:0];
 	  6'h3D   : reg_data_out <= dram_req_cnt[63:32];
 	  6'h3E   : reg_data_out <= dram_req_cycles[31:0];
-	  6'h3F   : reg_data_out <= dram_req_cycles[63:32];
+	  // RTL build revision: a hand-bumped constant so the ARM/PS can verify which
+	  // RTL is actually on the silicon (catches the stale-ipshared/stale-bitstream
+	  // trap). BUMP THIS on every meaningful henry RTL change before re-synth.
+	  // Encoding: 0xYYYYMMDD (build date); low nibble = same-day rebuild serial.
+	  // (shadows dram_req_cycles[63:32], which only matters after 2^32 cycles.)
+	  // 0x20260629 = first 06-29 build (shim debug viz); 0x2026062a = + WD33C93
+	  // HD0-window decode fix (Linux scsi0_ext @ 0x44000 now reaches the shim).
+	  6'h3F   : reg_data_out <= 32'h2026062a;
 	  default : reg_data_out <= 0;
 	endcase
      end

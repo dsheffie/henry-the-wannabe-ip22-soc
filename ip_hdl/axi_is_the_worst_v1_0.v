@@ -243,6 +243,10 @@ module axi_is_the_worst_v1_0 #
    wire [7:0]   w_scsi_req_dest, w_scsi_req_lun, w_scsi_rsp_scsi_status, w_scsi_rsp_tgt_status;
    wire         w_scsi_req_to_device;
    wire [15:0]  w_scsi_sel_delay;
+   // SCSI beat conduit: S00_AXI (ARM pushes) -> henry_soc engine FIFO
+   wire         w_scsi_beat_push, w_scsi_beat_full;
+   wire [127:0] w_scsi_beat_data;
+   wire [31:0]  w_scsi_dbg;          // shim debug viz (AXI PMU readback)
    axi_is_the_worst_v1_0_S00_AXI # ( .C_S_AXI_DATA_WIDTH(C_S00_AXI_DATA_WIDTH), .C_S_AXI_ADDR_WIDTH(C_S00_AXI_ADDR_WIDTH)) 
    axi_is_the_worst_v1_0_S00_AXI_inst (
 				       .controlreg(w_controlreg),
@@ -326,6 +330,10 @@ module axi_is_the_worst_v1_0 #
 				       .scsi_rsp_scsi_status(w_scsi_rsp_scsi_status),
 				       .scsi_rsp_tgt_status(w_scsi_rsp_tgt_status),
 				       .scsi_sel_delay(w_scsi_sel_delay),
+				       .scsi_beat_push(w_scsi_beat_push),
+				       .scsi_beat_data(w_scsi_beat_data),
+				       .scsi_beat_full(w_scsi_beat_full),
+				       .scsi_dbg(w_scsi_dbg),
 				       .S_AXI_ACLK(s00_axi_aclk),
 				       .S_AXI_ARESETN(s00_axi_aresetn),
 				       .S_AXI_AWADDR(s00_axi_awaddr),
@@ -521,7 +529,11 @@ module axi_is_the_worst_v1_0 #
 	   .scsi_rsp_residual(w_scsi_rsp_residual),
 	   .scsi_rsp_scsi_status(w_scsi_rsp_scsi_status),
 	   .scsi_rsp_tgt_status(w_scsi_rsp_tgt_status),
-	   .scsi_sel_delay(w_scsi_sel_delay)
+	   .scsi_sel_delay(w_scsi_sel_delay),
+	   .scsi_beat_push(w_scsi_beat_push),
+	   .scsi_beat_data(w_scsi_beat_data),
+	   .scsi_beat_full(w_scsi_beat_full),
+	   .scsi_dbg(w_scsi_dbg)
 	   );
 
    // tie-offs for status/debug taps henry_soc does not expose

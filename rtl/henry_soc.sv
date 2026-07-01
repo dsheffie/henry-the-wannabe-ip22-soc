@@ -37,7 +37,7 @@
 // I/O straight into the guest's buffers (see scsi_service.h / scsi_move).  The
 // per-beat engine is no longer instantiated; the shim completes on scsi_rsp_seq.
 // scsi_dma.sv is kept for its standalone unit test (sim/scsi_dma_test).
-//`define ENABLE_SCSI_DMA 1
+`define ENABLE_SCSI_DMA 1
 
 module henry_soc
   #(// MC MEMCFG0 (bank0 cfg) as STORED: BE lw -> bswap.  0x00002023 -> 0x23200000
@@ -118,13 +118,16 @@ module henry_soc
    input  logic [7:0]            scsi_rsp_scsi_status,
    input  logic [7:0]            scsi_rsp_tgt_status,
    input  logic [15:0]           scsi_sel_delay,      // programmable shim select->data delay (AXI reg)
-   // ---- scsi_dma engine disk side: 16B beat stream to the disk media (sim TB / FPGA ARM)
-   //      The engine is the ordered DRAM agent; the TB/ARM only sources/sinks bytes.
-   output logic                  scsi_disk_rd_en,    // READ : engine consumes a beat
-   input  logic [127:0]          scsi_disk_rd_data,  // READ : disk -> mem beat
-   output logic                  scsi_disk_wr_en,    // WRITE: engine produces a beat
+   // ---- scsi_dma engine disk side: the ARM (PS / sim TB) feeds 16B beats across
+   //      the ordered S00 slave-reg leg into a FIFO; the engine (the ONLY agent that
+   //      touches MIPS memory) drains it and writes mem[BP] via M00.  READ direction:
+   input  logic                  scsi_beat_push,     // 1-cycle: ARM enqueues scsi_beat_data
+   input  logic [127:0]          scsi_beat_data,     // the 16-byte beat to enqueue
+   output logic                  scsi_beat_full,     // flow control: ARM must not push when set
+   output logic                  scsi_disk_wr_en,    // WRITE: engine produces a beat (v1: unused)
    output logic [127:0]          scsi_disk_wr_data,  // WRITE: mem -> disk beat
-   output logic                  scsi_dma_done       // engine finished the chain (TB sync)
+   output logic                  scsi_dma_done,      // engine finished the chain (TB sync)
+   output logic [31:0]           scsi_dbg            // shim debug viz (AXI PMU readback)
    );
 
    localparam int unsigned DEV_LAT = 2;   // device response latency (cycles)
@@ -260,10 +263,10 @@ module henry_soc
    wire [15:0]          w_dma_req_mask;
 
    // shim phase SM -> engine control (data-phase trigger)
-   wire        w_sdma_go, w_sdma_to_dev;
+   wire        w_sdma_go, w_sdma_to_dev, w_sdma_abort;
    wire [31:0] w_sdma_nbdp;
    // arbiter master 1 select: SCSI DMA engine (ENABLE_SCSI_DMA) vs mem-to-mem hpc3.
-   wire                 w_eng_req_valid, w_eng_done;
+   wire                 w_eng_req_valid, w_eng_done, w_eng_rd_stalled;
    wire [`PA_WIDTH-1:0] w_eng_req_addr;
    wire [127:0]         w_eng_req_store_data;
    wire [4:0]           w_eng_req_opcode;
@@ -369,11 +372,13 @@ module henry_soc
       // scsi_dma engine control (phase 2b wires these to the scsi_dma instance +
       // arbiter master 1; for now the engine is not yet instantiated -> done tied 0)
       .dma_go(w_sdma_go), .dma_nbdp(w_sdma_nbdp), .dma_to_device(w_sdma_to_dev),
-      .dma_done(w_eng_done),
-      .scsi_intrq(w_scsi_intrq));
+      .dma_done(w_eng_done), .dma_rd_stalled(w_eng_rd_stalled), .dma_abort(w_sdma_abort),
+      .scsi_intrq(w_scsi_intrq),
+      .dbg(scsi_dbg));
 `else
    wire [127:0] w_rd_scsi     = 128'd0;
    wire         w_scsi_intrq  = 1'b0;
+   assign scsi_dbg            = 32'd0;
    assign scsi_req_seq        = 32'd0;
    assign scsi_req_nbdp       = 32'd0;
    assign scsi_req_xfer_len   = 32'd0;
@@ -382,26 +387,36 @@ module henry_soc
    assign scsi_req_lun        = 8'd0;
    assign scsi_req_to_device  = 1'b0;
    assign w_sdma_go = 1'b0; assign w_sdma_nbdp = 32'd0; assign w_sdma_to_dev = 1'b0;
+   assign w_sdma_abort = 1'b0;
 `endif
 
    // ---- SCSI DMA engine: the ordered DRAM agent that walks the descriptor chain
    //      and moves data; disk side streams 16B beats to the TB/ARM disk media. ----
 `ifdef ENABLE_SCSI_DMA
+   // ARM-fed beat FIFO -> engine disk-read port (the engine stalls when empty).
+   wire         w_fifo_pop, w_fifo_empty;
+   wire [127:0] w_fifo_rdata;
+   scsi_beat_fifo u_scsi_beat_fifo
+     (.clk(clk), .reset(reset),
+      .push(scsi_beat_push), .wdata(scsi_beat_data), .full(scsi_beat_full),
+      .pop(w_fifo_pop), .rdata(w_fifo_rdata), .empty(w_fifo_empty));
    scsi_dma u_scsi_dma
      (.clk(clk), .reset(reset),
       .go(w_sdma_go), .nbdp(w_sdma_nbdp), .to_device(w_sdma_to_dev),
-      .busy(), .done(w_eng_done), .irq(),
+      .busy(), .done(w_eng_done), .irq(), .rd_stalled(w_eng_rd_stalled),
       .dma_req_valid(w_eng_req_valid), .dma_req_addr(w_eng_req_addr),
       .dma_req_opcode(w_eng_req_opcode), .dma_req_store_data(w_eng_req_store_data),
       .dma_req_mask(w_eng_req_mask),
       .dma_rsp_valid(w_mem_rsp_dma), .dma_rsp_load_data(mem_rsp_load_data),
-      .disk_rd_en(scsi_disk_rd_en), .disk_rd_data(scsi_disk_rd_data),
+      .disk_rd_en(w_fifo_pop), .disk_rd_data(w_fifo_rdata), .disk_rd_valid(~w_fifo_empty),
+      .cancel(w_sdma_abort),
       .disk_wr_en(scsi_disk_wr_en), .disk_wr_data(scsi_disk_wr_data));
    assign scsi_dma_done = w_eng_done;
 `else
    assign w_eng_req_valid = 1'b0, w_eng_req_addr = '0, w_eng_req_store_data = '0,
-          w_eng_req_opcode = 5'd0, w_eng_req_mask = 16'd0, w_eng_done = 1'b0;
-   assign scsi_disk_rd_en = 1'b0, scsi_disk_wr_en = 1'b0, scsi_disk_wr_data = '0,
+          w_eng_req_opcode = 5'd0, w_eng_req_mask = 16'd0, w_eng_done = 1'b0,
+          w_eng_rd_stalled = 1'b0;
+   assign scsi_beat_full = 1'b0, scsi_disk_wr_en = 1'b0, scsi_disk_wr_data = '0,
           scsi_dma_done = 1'b0;
 `endif
 

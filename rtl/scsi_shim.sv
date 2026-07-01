@@ -53,8 +53,14 @@ module scsi_shim
     output logic [31:0]  dma_nbdp,           // descriptor-chain head (phys)
     output logic         dma_to_device,      // DIR: 1 = WRITE (mem->disk)
     input  logic         dma_done,           // engine finished the chain
+    input  logic         dma_rd_stalled,     // engine blocked waiting for a disk beat (no more data)
+    output logic         dma_abort,          // cancel the engine (short/no-data/selection timeout)
     // ---- interrupt ----
-    output logic         scsi_intrq);        // -> IOC2 local0 bit1 (SCSI0)
+    output logic         scsi_intrq,         // -> IOC2 local0 bit1 (SCSI0)
+    // ---- silicon debug visibility (read back via an AXI PMU slot): proves the
+    //      WD33C93 accesses actually reach the shim + exposes the reset->INTRQ
+    //      state.  Pure observability; saturating event counters + live regs. ----
+    output logic [31:0]  dbg);
 
    // ---- WD33C93 phase progression: SEL_ATN_XFER -> select/command -> DATA -----
    // Coarse model of the SCSI bus phases.  The DATA phase opens PH_SEL_DELAY
@@ -92,6 +98,9 @@ module scsi_shim
    logic [31:0] r_cbp, r_nbdp, r_bc;
    logic [7:0]  r_ctrl;
    logic        r_chan_irq;        // HPC3 per-channel IRQ (XIE), surfaced in ctrl bit0
+   // ---- silicon debug event counters (saturating) -> dbg ----
+   logic [5:0]  r_cnt_sasr, r_cnt_scmd, r_cnt_rd;   // SASR writes / SCMD writes / SASR-port reads
+   logic [3:0]  r_cnt_reset;                        // CMD_RESETs seen
    // ---- request mailbox (latched at the doorbell) + completion bookkeeping ----
    logic [31:0]  r_req_seq, r_done_seq;
    logic [127:0] r_req_cdb;
@@ -100,7 +109,14 @@ module scsi_shim
    logic         r_req_dir;
 
    // ---- MMIO decode (line-aligned offs + byte mask) ----
-   wire w_wd_line = sel & (offs == 19'h40000);          // WD33C93: SASR=byte3, SCMD=byte7
+   // WD33C93 decodes across the WHOLE HD0 device region 0x40000..0x47fff (SGI
+   // hpc3.pdf: HD0 device regs = 0x1fbc0000..0x1fbc7fff; the chip hd0.cs is the
+   // 0x1fbc4000 sub-window but the 32KB region aliases it -- MAME map(0x40000,
+   // 0x47fff)). IRIX accesses it at 0x40003/0x40007, Linux at 0x44003/0x44007
+   // (its scsi0_ext = hd0.cs @ offset 0x44000); BOTH are valid. The old decode
+   // matched only the exact line 0x40000 -> worked for IRIX, MISSED Linux. Match
+   // the region. SASR=byte3, SCMD=byte7 (== interp_mips port=((offs-0x40000)>>2)&1).
+   wire w_wd_line = sel & ((offs & 19'h78000) == 19'h40000);
    wire w_sasr_wr = w_wd_line &  is_store & mask[3];
    wire w_scmd_wr = w_wd_line &  is_store & mask[7];
    wire w_sasr_rd = w_wd_line & ~is_store & mask[3];
@@ -135,6 +151,7 @@ module scsi_shim
          r_req_seq <= 32'd0; r_done_seq <= 32'd0; r_req_cdb <= 128'd0;
          r_req_nbdp <= 32'd0; r_req_xfer <= 32'd0; r_req_dest <= 8'd0;
          r_req_lun <= 8'd0; r_req_dir <= 1'b0;
+         r_cnt_sasr <= 6'd0; r_cnt_scmd <= 6'd0; r_cnt_rd <= 6'd0; r_cnt_reset <= 4'd0;
       end
       else begin
          // ---- WD33C93 SASR/SCMD port (one access per cycle) ----
@@ -184,6 +201,12 @@ module scsi_shim
             if(r_sasr == WD_SCSI_STATUS) r_intrq <= 1'b0;   // reading SCSI Status clears INTRQ
             r_sasr <= (r_sasr + 5'd1) & 5'h1f;
          end
+
+         // ---- silicon debug counters (independent of the access chain above) ----
+         if(w_sasr_wr   & (r_cnt_sasr  != 6'h3f)) r_cnt_sasr  <= r_cnt_sasr  + 6'd1;
+         if(w_scmd_wr   & (r_cnt_scmd  != 6'h3f)) r_cnt_scmd  <= r_cnt_scmd  + 6'd1;
+         if(w_sasr_rd   & (r_cnt_rd    != 6'h3f)) r_cnt_rd    <= r_cnt_rd    + 6'd1;
+         if(w_cmd_reset & (r_cnt_reset != 4'hf )) r_cnt_reset <= r_cnt_reset + 4'd1;
 
 `ifdef VERILATOR
          // sim-only trace of the WD33C93 control plane (grep the console log)
@@ -263,12 +286,17 @@ module scsi_shim
    assign scsi_req_lun       = r_req_lun;
    assign scsi_req_to_device = r_req_dir;
    assign scsi_intrq         = r_intrq;
+   // dbg layout: [31:28]=#resets [27:22]=#SASR-reads [21:16]=#SCMD-wr [15:10]=#SASR-wr
+   //             [9:8]=phase [7]=CIP [6]=BSY [5]=INTRQ [4:0]=SASR pointer
+   assign dbg = {r_cnt_reset, r_cnt_rd, r_cnt_scmd, r_cnt_sasr,
+                 r_ph, r_cip, r_bsy, r_intrq, r_sasr};
 
    // ---- phase SM: SEL_ATN_XFER -> select/cmd delay -> pulse dma_go at DATA ----
    always_comb begin
       n_ph     = r_ph;
       n_ph_cnt = r_ph_cnt;
       dma_go        = 1'b0;
+      dma_abort     = 1'b0;
       dma_nbdp      = r_nbdp;
       dma_to_device = r_ctrl[2];          // HPC3 ctrl DIR (1 = WRITE: mem->disk)
       case(r_ph)
@@ -280,12 +308,23 @@ module scsi_shim
            if(r_ph_cnt == 16'd0) n_ph = PH_GO;
         end
         PH_GO:
-          if(r_ctrl[4]) n_ph = PH_BUSY;   // ACTIVE armed -> wait for the ARM/host service
-          else          n_ph = PH_IDLE;    // no DMA (selection timeout)
+          if(r_ctrl[4]) begin dma_go = 1'b1; n_ph = PH_BUSY; end  // ACTIVE -> START the engine
+          else          n_ph = PH_IDLE;                            // no DMA (selection timeout)
         PH_BUSY:
-          // ARM-serviced model: the host walks the descriptor + does the DRAM I/O,
-          // then echoes scsi_rsp_seq. (The per-beat scsi_dma engine is retired here.)
-          if(scsi_rsp_seq == r_req_seq) n_ph = PH_IDLE;
+          // The scsi_dma engine -- the ONLY agent that touches MIPS memory -- walks
+          // the descriptor + drains the ARM-fed beat FIFO into mem[BP], then pulses
+          // dma_done, so completion (INTRQ) can't fire before the data has landed.
+          // But the engine only finishes if it gets all its beats.  When the ARM has
+          // finished servicing (rsp_seq echoed) yet the engine is still blocked for a
+          // beat (dma_rd_stalled) -> no more data is coming: a short / no-data / unknown
+          // -opcode / selection-timeout transfer.  Cancel the engine (dma_abort) and
+          // complete with whatever landed (real SCSI short-transfer + residual), rather
+          // than hang forever polling CIP/BSY.
+          if(dma_done) n_ph = PH_IDLE;
+          else if((scsi_rsp_seq == r_req_seq) & dma_rd_stalled) begin
+             dma_abort = 1'b1;
+             n_ph      = PH_IDLE;
+          end
         default: n_ph = PH_IDLE;
       endcase
    end
