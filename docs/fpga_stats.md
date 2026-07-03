@@ -13,6 +13,79 @@ fully-associative TLB CAM), and it is **route-dominated** (~63% route) -- so are
 reductions that shrink the TLB array tend to help WNS more than logic-level
 counting suggests. Newest block first.
 
+## 2026-07-03 -- 1fdc585 (mem-pipe CACHE hit-ops) -- WNS + full LUT breakdown by hierarchy
+
+| metric | value |
+|--------|-------|
+| WNS @ 100 MHz | **+0.147 ns** (all met, 0 failing endpoints; impl_12 strategy) |
+| Worst path | `cpu/cpu/e/r_int_result_reg[0]` -> `cpu/dcache/dtlb/pa_reg[28]` |
+| Data path delay | 9.501 ns  (logic 2.874 ns / **30.3%**, route 6.627 ns / **69.7%**) |
+| CLB LUTs (post-route) | 62320 (88.32%) |
+| LUT as Logic | 60469 (85.70%) |
+| LUT as Memory (LUTRAM) | 1851 (6.43%) |
+| CLB Registers (FF) | 35910 (25.45%) |
+| Block RAM | 25 |
+| DSP | 43 |
+
+> The worst path shifted this build from the icache->ITLB chain to the **dcache** side
+> (`e/r_int_result` -> `dtlb/pa_reg` -- the AGU result reaching the D-side 48-way CAM), still
+> route-dominated (**70%**). The mem-pipe CACHE hit-ops (D Hit-WB/Inval now translate through the
+> dtlb like loads -- fixes IRIX `vfs_mountroot` EWRONGFS) added ~2.9K synth LUTs but closed at
+> +0.147 ns.
+
+### LUT breakdown by hierarchy
+
+From `report_utilization -hierarchical` on the **synthesized** netlist (`synth_1.dcp`). These are
+synth **Total LUTs** (pre-route, includes SRLs) = **63,480**; post-route packing lands them at the
+62,320 CLB LUTs above. Regenerate with:
+
+```tcl
+open_checkpoint <run>/synth_1/ultra96v2_oob_wrapper.dcp
+report_utilization -hierarchical -hierarchical_depth 20 -file util_hier.rpt
+```
+
+**Top level -- 63,480 LUTs = 90.0% of the 70,560-LUT device.** The r9999 CPU (core + all caches)
+is **93.7%** of the design; the SoC/AXI/PS glue is the remaining ~6%.
+
+| block | module | Total LUTs | Logic | LUTRAM | FFs | % design |
+|-------|--------|-----------:|------:|-------:|----:|---------:|
+| OOO core | `core` | 42,647 | 40,996 | 1,464 | 21,255 | **67.2%** |
+| I-cache | `l1i` | 10,091 | 10,083 | 8 | 6,973 | 15.9% |
+| D-cache | `l1d` | 5,131 | 5,051 | 80 | 1,360 | 8.1% |
+| L2 cache | `l2` | 1,596 | 1,596 | 0 | 517 | 2.5% |
+| AXI shim | `axi_is_the_worst` | 1,430 | 1,445 | 0 | 2,536 | 2.3% |
+| IP22 devices | hpc3·mc·ioc·scsi | 1,292 | 1,208 | 84 | 2,051 | 2.0% |
+| Zynq PS + interconnect | Xilinx IP | 1,247 | 1,166 | 40 | 999 | 2.0% |
+| SoC glue | `henry_soc` | 46 | 22 | 8 | 152 | 0.1% |
+
+IP22 devices pooled: hpc3 223 · mc 274 · ioc 176 · scsi (shim 245 + beat_fifo 150 + dma 224 = 619).
+
+**Inside the OOO core -- 42,647 LUTs** (grouped compute / storage / control):
+
+| unit | module | Total LUTs | % core | group |
+|------|--------|-----------:|-------:|-------|
+| exec datapath · CP0 · int scheduler | `exec` (own) | 15,362 | 36.0% | compute |
+| core control · ROB · rename · retire | `core` (own) | 11,654 | 27.3% | control |
+| integer register file | `rf4r2w` | 4,986 | 11.7% | storage |
+| select encoders (×5) | `find_first_set` | 4,756 | 11.2% | control |
+| FP register file | `fp_regfile` | 3,032 | 7.1% | storage |
+| FPU (add 687 · mul 511 · f2i 138 · ctl) | `fpu` | 1,575 | 3.7% | compute |
+| integer divider | `divider` | 732 | 1.7% | compute |
+| integer multiplier | `mul` | 480 | 1.1% | compute |
+
+**Area targets (ranked):**
+1. **A single `find_first_set` = 4,180 LUTs** (of the 4,756 in the ×5 group) -- an oversized priority
+   select (scheduler oldest-ready / ROB). The clearest *synth-level* win: a re-architected priority
+   mux or different inference could reclaim a chunk with zero uarch change.
+2. **Register files = 8,018 LUTs = 12.6% of the whole design** (int `rf4r2w` 4,986 + FP `fp_regfile`
+   3,032), all distributed-RAM ports. The FP RF exists only for IRIX's N32 FPU -- a lever for a
+   no-FP variant. (The clustered `fp_regfile` already landed the big FP-RF area win; the int
+   `rf4r2w` is the next candidate for the same banked/registered-read treatment.)
+3. **Micro-ITLB CAM = 3,989 LUTs** (`l1i/itlb`) -- why the I-side (10.1K) is fatter than the D-side
+   (5.1K). The "always-miss v1" CAM is latency-only (uses the real 48-entry JTLB for translation) and
+   never earned its area; finishing or reverting it is pure area.
+4. `exec` matrix scheduler + banked ROB -- both on the standing area-reduction plan.
+
 ## 2026-06-24 -- SCC ioc.sv control-write fix (FP-complete core; Explore P&R + post-route phys_opt)
 
 | metric | value |
