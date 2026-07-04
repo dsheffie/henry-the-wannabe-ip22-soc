@@ -93,6 +93,9 @@ module henry_soc
    output logic [`M_WIDTH-1:0]   retire_reg_data,
    output logic [4:0]            retire_reg_two_ptr,
    output logic [`M_WIDTH-1:0]   retire_reg_two_data,
+   output logic                  retire_reg_valid,
+   output logic                  retire_reg_two_valid,
+   output logic [31:0]           cp0_count,
    // FSM-state + trace-buffer taps (were tied off in the AXI wrapper)
    output logic [4:0]            core_state,
    output logic [2:0]            l1i_state,
@@ -216,8 +219,8 @@ module henry_soc
       .mem_rsp_bad(c_rsp_bad),
       .mem_rsp_load_data(c_rsp_load_data),
 
-      .retire_reg_ptr(retire_reg_ptr), .retire_reg_data(retire_reg_data), .retire_reg_valid(),
-      .retire_reg_two_ptr(retire_reg_two_ptr), .retire_reg_two_data(retire_reg_two_data), .retire_reg_two_valid(),
+      .retire_reg_ptr(retire_reg_ptr), .retire_reg_data(retire_reg_data), .retire_reg_valid(retire_reg_valid),
+      .retire_reg_two_ptr(retire_reg_two_ptr), .retire_reg_two_data(retire_reg_two_data), .retire_reg_two_valid(retire_reg_two_valid),
       .retire_valid(retire_valid), .retire_two_valid(retire_two_valid),
       .retire_pc(retire_pc), .retire_two_pc(retire_two_pc),
       .retire_op(), .retire_two_op(),
@@ -229,7 +232,7 @@ module henry_soc
       .core_state(core_state), .l1i_state(l1i_state), .l1d_state(l1d_state), .l2_state(l2_state), .l2_rsp_state(l2_rsp_state),
       .inflight(inflight), .epc(epc), .status_reg(status_reg), .badvaddr(badvaddr), .cause(cause),
       .l1i_flush_done(), .l1d_flush_done(), .l2_flush_done(),
-      .took_irq(took_irq), .cp0_count(),
+      .took_irq(took_irq), .cp0_count(cp0_count),
       .dbg_head_pc(dbg_head_pc), .dbg_head_fetch_cycle(), .dbg_head_alloc_cycle(),
       .dbg_serialize_cycle(), .dbg_cycle(), .dbg_oldest_first_pending(),
       .dbg_trace_index(dbg_trace_index), .dbg_trace_data(dbg_trace_data), .dbg_trace_wptr(dbg_trace_wptr)

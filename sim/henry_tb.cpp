@@ -24,6 +24,24 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+// ---- lockstep co-sim checker: r9999's embedded interp as the golden model ----
+#include "interpret.hh"
+#include "loadelf.hh"
+// The interp objects reference these globals (defined in r9999/top.cc, which we
+// don't link); provide them here so the ISS objects resolve.
+namespace globals {
+  bool     enClockFuncts   = false;
+  uint64_t icountMIPS      = 0;
+  uint64_t cycle           = 0;
+  bool     trace_retirement= false;
+  bool     trace_fp        = false;
+  bool     report_syscalls = false;
+};
+static sparse_mem *g_ss_mem   = nullptr;   // golden ISS memory (own 4GB, PA-indexed)
+static state_t    *ss         = nullptr;   // golden checker state
+static bool        g_checker  = false;     // --checker enables the lockstep compare
+static uint64_t    g_chk_insns = 0;        // instructions checked
+
 static const uint64_t MEM_SIZE = 0x20000000ull;   // 512 MB physical window
 static const uint64_t MEM_MASK = MEM_SIZE - 1;
 static const uint32_t HALT_PA  = 0x1fd00000u;      // magic-halt register (BFD00000)
@@ -111,6 +129,7 @@ static void load_checkpoint(const char *path) {
     if(fread(&p, 1, sizeof(p), f) != sizeof(p)) { fprintf(stderr, "short checkpoint\n"); exit(1); }
     bool bad = false; uint32_t off = fpga_map(p.va, &bad);
     if(!bad) memcpy(g_mem + off, p.data, 4096);
+    if(ss) memcpy(ss->mem.get_raw_ptr(p.va), p.data, 4096);  // golden ISS: PA-indexed
   }
   fclose(f);
   g_have_ckpt = true;
@@ -131,6 +150,110 @@ extern "C" long long loadtlb(int entry, int field) {  /* 0=hi 1=lo0 2=lo1 3=page
   const cp_tlb &t = g_ckpt.tlb[entry % 48];
   switch(field & 3) { case 0: return (long long)t.entry_hi;  case 1: return (long long)t.entry_lo0;
                       case 2: return (long long)t.entry_lo1; default: return (long long)t.page_mask; }
+}
+
+// ---------------------------------------------------------------------------
+// Lockstep co-sim checker (mirrors r9999/top.cc): seed the golden ISS from the
+// checkpoint, then on each RTL retire step the ISS and compare the retired reg.
+// ---------------------------------------------------------------------------
+static void seed_checker() {
+  if(!ss || !g_have_ckpt) return;
+  ss->pc = (state_t::reg_t)g_ckpt.pc;
+  ss->hi = (state_t::reg_t)g_ckpt.hi;  ss->lo = (state_t::reg_t)g_ckpt.lo;
+  for(int i = 0; i < 32; i++) {
+    ss->gpr[i]     = (state_t::reg_t)g_ckpt.gpr[i];
+    ss->cpr0[i]    = g_ckpt.cpr0[i];
+    ss->cpr0_64[i] = g_ckpt.cpr0_64[i];
+    ss->cpr1[i]    = g_ckpt.cpr1[i];
+  }
+  for(int i = 0; i < 5; i++) ss->fcr1[i] = g_ckpt.fcr1[i];
+  for(int i = 0; i < 48 && i < (int)(sizeof(ss->tlb)/sizeof(ss->tlb[0])); i++) {
+    ss->tlb[i].entry_hi  = g_ckpt.tlb[i].entry_hi;
+    ss->tlb[i].entry_lo0 = g_ckpt.tlb[i].entry_lo0;
+    ss->tlb[i].entry_lo1 = g_ckpt.tlb[i].entry_lo1;
+    ss->tlb[i].page_mask = g_ckpt.tlb[i].page_mask;
+  }
+  fprintf(stderr, "[checker] golden ISS seeded at pc=%08x\n", (uint32_t)ss->pc);
+}
+
+static uint64_t g_chk_diverge = 0, g_chk_copsupp = 0, g_chk_resync = 0, g_chk_mapped = 0;
+static bool     g_expect_ds = false;   // next retire is a branch's delay slot
+static uint32_t g_ds_pc     = 0;
+static int      g_settle    = 0;       // suppress compares while ISS state re-converges after a resync
+
+// A diverging retired reg is a known ISS-fidelity gap to trust silently if it is
+// k0/k1 (kernel exception scratch) or a coprocessor read (mfc0/dmfc0/cfc1/mfc2/
+// ... read CP0/CP1/CP2 bits the 1:1 ISS doesn't model bit-for-bit: CU2, Cause).
+static bool chk_suppress(uint32_t vpc, int rrp) {
+  if(rrp == 26 || rrp == 27) return true;
+  if(vpc >= 0x80000000u && vpc < 0xc0000000u) {
+    uint8_t *p = ss->mem.get_raw_ptr(vpc & 0x1fffffffu);
+    uint32_t insn = (uint32_t(p[0])<<24)|(uint32_t(p[1])<<16)|(uint32_t(p[2])<<8)|uint32_t(p[3]);
+    uint32_t op = insn >> 26, rs = (insn >> 21) & 0x1f, funct = insn & 0x3f;
+    if((op == 0x10 || op == 0x11 || op == 0x12) && rs <= 2) return true;
+    // mfhi/mflo: HI/LO isn't retire-exposed so the ISS can't trust-sync it, and
+    // it drifts across mapped-userspace mults we skip.  Not a pointer/data path.
+    if(op == 0 && (funct == 0x10 || funct == 0x12)) return true;
+  }
+  return false;
+}
+
+// Compare the ISS's architected result for a retired insn against the RTL, then
+// trust the RTL value (keeps the ISS locked; also covers device-MMIO loads).
+static void chk_compare(uint32_t vpc, bool rrv, int rrp, uint64_t rrd) {
+  if(!rrv || rrp == 0) return;
+  if((uint64_t)ss->gpr[rrp] != rrd) {
+    if(g_settle > 0 || chk_suppress(vpc, rrp)) g_chk_copsupp++;
+    else {
+      if(g_chk_diverge < 40)
+        fprintf(stderr, "[checker] DIVERGE @pc=%08x r%d: ISS=%016llx RTL=%016llx (chk#%llu)\n",
+                vpc, rrp, (unsigned long long)ss->gpr[rrp], (unsigned long long)rrd,
+                (unsigned long long)g_chk_insns);
+      g_chk_diverge++;
+    }
+  }
+  ss->gpr[rrp] = (state_t::reg_t)rrd;
+}
+
+// Advance the golden ISS by one RTL retirement, staying locked to the RTL.  The
+// ISS runs a branch + its delay slot atomically inside one execMips, so when the
+// RTL retires that delay slot separately we CONSUME it (compare + trust) instead
+// of re-executing.  A genuine control-flow desync re-syncs onto the RTL pc so the
+// harness keeps tracking a full OS boot rather than stalling.
+static void checker_step(uint64_t rpc, bool rrv, int rrp, uint64_t rrd) {
+  if(!ss || ss->brk) return;
+  uint32_t vpc = (uint32_t)rpc;
+  if(g_expect_ds && vpc == g_ds_pc) {        // delay slot the ISS already executed
+    g_expect_ds = false;
+    chk_compare(vpc, rrv, rrp, rrd);
+    return;
+  }
+  g_expect_ds = false;
+  // Mapped execution (user / TLB-translated, pc outside kseg0/kseg1): the 1:1
+  // va2pa ISS reads the wrong physical memory, so it cannot validly execute it.
+  // Trust the RTL wholesale (no check) and keep the register file synced; the
+  // ISS resumes checking when the RTL returns to kseg0 (where bad istack lives).
+  if(vpc < 0x80000000u || vpc >= 0xc0000000u) {
+    ss->pc = (state_t::reg_t)(int64_t)rpc;
+    if(rrv && rrp != 0) ss->gpr[rrp] = (state_t::reg_t)rrd;
+    g_chk_mapped++;
+    return;
+  }
+  bool resynced = false;
+  if((uint32_t)ss->pc != vpc) {              // genuine desync (wrong-path/fidelity)
+    static int shown = 0;
+    if(shown < 12) { fprintf(stderr, "[checker] DESYNC ISS=%08x RTL=%08x after %llu checked\n",
+                             (uint32_t)ss->pc, vpc, (unsigned long long)g_chk_insns); shown++; }
+    ss->pc = (state_t::reg_t)(int64_t)rpc;   // re-sync onto RTL control flow
+    g_chk_resync++; resynced = true; g_settle = 16;  // let the reg file re-converge
+  }
+  if(g_settle > 0) g_settle--;
+  uint32_t prev = (uint32_t)ss->pc;
+  execMips(ss);
+  g_chk_insns++;
+  if((uint32_t)ss->pc != prev + 4) { g_expect_ds = true; g_ds_pc = prev + 4; }  // took a branch
+  if(resynced) { if(rrv && rrp != 0) ss->gpr[rrp] = (state_t::reg_t)rrd; }  // trust only (state stale)
+  else chk_compare(vpc, rrv, rrp, rrd);
 }
 
 static inline uint32_t be32(const uint8_t *p) {
@@ -298,6 +421,7 @@ int main(int argc, char **argv) {
     else if(a == "--rx" && i+1 < argc)     rx_str = argv[++i];
     else if(a == "--disk" && i+1 < argc)   g_scsi_disk.open_image(argv[++i]);
     else if(a == "--checkpoint" && i+1 < argc) ckpt_file = argv[++i];
+    else if(a == "--checker")              g_checker = true;
   }
   std::vector<uint8_t> rx_bytes(rx_str.begin(), rx_str.end());
   if(kernel.empty() && ckpt_file.empty()) { fprintf(stderr, "usage: %s {--kernel <elf> | --checkpoint <file>} [--arcs <blob>] [--maxcyc N]\n", argv[0]); return 1; }
@@ -305,6 +429,15 @@ int main(int argc, char **argv) {
   g_mem = (uint8_t*)mmap(nullptr, MEM_SIZE, PROT_READ|PROT_WRITE,
                          MAP_PRIVATE|MAP_ANONYMOUS|MAP_NORESERVE, -1, 0);
   if(g_mem == MAP_FAILED) { perror("mmap ram"); return 1; }
+
+  // Lockstep checker: create the golden ISS now so load_checkpoint can seed its
+  // (PA-indexed) memory, matching the interp's va2pa output.
+  if(g_checker) {
+    g_ss_mem = new sparse_mem();
+    ss = new state_t(*g_ss_mem);
+    initState(ss);
+    fprintf(stderr, "[checker] golden ISS created\n");
+  }
 
   uint32_t entry;
   uint32_t kentry;
@@ -314,6 +447,7 @@ int main(int argc, char **argv) {
     // from g_ckpt via DPI at reset. Skips the (hours-long) boot entirely.
     load_checkpoint(ckpt_file.c_str());
     entry = kentry = (uint32_t)g_ckpt.pc;
+    seed_checker();
   } else {
   entry = load_elf_be32(kernel.c_str());
   kentry = entry;                  // real kernel entry (trace starts here)
@@ -377,7 +511,24 @@ int main(int argc, char **argv) {
   uint64_t req_addr = 0; uint32_t req_op = 0; uint16_t req_mask = 0;
   uint32_t req_sd[4] = {0,0,0,0};
   bool req_bad = false, req_is_halt = false;
-  const int MEM_LAT = 4;
+  /* RANDOM per-request memory latency (shmoo -> randomized): each request draws a
+   * latency in [MEM_LAT_MIN,MEM_LAT_MAX], seeded by MEM_SEED, so a single boot
+   * explores many load-timing alignments (mimics the FPGA's non-determinism to
+   * hunt the load-timing x interrupt-boundary corruption race). */
+  const int MEM_LAT_MIN = getenv("MEM_LAT_MIN") ? atoi(getenv("MEM_LAT_MIN")) : 1;
+  const int MEM_LAT_MAX = getenv("MEM_LAT_MAX") ? atoi(getenv("MEM_LAT_MAX")) : 16;
+  const unsigned MEM_SEED = getenv("MEM_SEED") ? (unsigned)atoi(getenv("MEM_SEED")) : 1;
+  /* deterministic xorshift64 PRNG (machine-independent, unlike rand()) so a given
+   * MEM_SEED reproduces the exact latency sequence anywhere. */
+  uint64_t memlat_state = MEM_SEED ? (uint64_t)MEM_SEED : 88172645463325252ULL;
+  auto memlat_next = [&memlat_state]() -> uint64_t {
+    memlat_state ^= memlat_state << 13;
+    memlat_state ^= memlat_state >> 7;
+    memlat_state ^= memlat_state << 17;
+    return memlat_state;
+  };
+  const uint64_t MEM_LAT_SPAN = (uint64_t)(MEM_LAT_MAX - MEM_LAT_MIN + 1);
+  fprintf(stderr, "[memlat] RANDOM xorshift latency [%d,%d] seed=%u\n", MEM_LAT_MIN, MEM_LAT_MAX, MEM_SEED);
   uint64_t retired = 0, last_pc = 0;
   uint64_t prev_epc = 0; int exc_prints = 0; uint32_t prev_sr = 0; uint64_t prev_badv = 0;
 
@@ -405,6 +556,21 @@ int main(int argc, char **argv) {
     if(drain) putchar(drain_ch);
 
     if(tb->retire_valid) { retired++; last_pc = tb->retire_pc; }
+
+    // ---- lockstep co-sim checker (mirrors r9999/top.cc:686-800) ----
+    if(g_checker && ss) {
+      ss->cpr0[CPR0_COUNT] = (uint32_t)tb->cp0_count;      // keep mfc0 $9 in sync
+      // Track the RTL's exception CP0 regs so the ISS's handler control-flow
+      // follows the RTL (the co-sim scope is GPRs/data, not CP0 modeling).
+      ss->cpr0[14] = (uint32_t)tb->epc;      ss->cpr0_64[14] = tb->epc;        // EPC
+      ss->cpr0[12] = tb->status_reg;                                           // Status
+      ss->cpr0[8]  = (uint32_t)tb->badvaddr; ss->cpr0_64[8]  = tb->badvaddr;   // BadVAddr
+      if(tb->took_irq) raise_int(ss, (uint32_t)tb->epc);   // IRQ: jump ISS to vector
+      if(tb->retire_valid)
+        checker_step(tb->retire_pc, tb->retire_reg_valid, tb->retire_reg_ptr, tb->retire_reg_data);
+      if(tb->retire_two_valid)
+        checker_step(tb->retire_two_pc, tb->retire_reg_two_valid, tb->retire_reg_two_ptr, tb->retire_reg_two_data);
+    }
 
     // calibration probe: _cpuclkper100ticks ends at 0x88019648 (subu v0,v1,v0).
     if(tb->retire_valid && (uint32_t)tb->retire_pc == 0x88019648u)
@@ -515,6 +681,7 @@ int main(int argc, char **argv) {
         fprintf(trace, "%08x %llu\n", (uint32_t)tb->retire_two_pc, (unsigned long long)cyc);
     }
 
+
     // ---- memory bus servicing (mem_rsp sampled on the NEXT posedge) ----
     tb->mem_rsp_valid = 0;
     tb->mem_rsp_bad   = 0;
@@ -534,7 +701,8 @@ int main(int argc, char **argv) {
       req_op   = tb->mem_req_opcode;
       req_mask = tb->mem_req_mask;
       for(int i = 0; i < 4; i++) req_sd[i] = tb->mem_req_store_data[i];
-      reply_cyc = (int64_t)cyc + ((req_op == 4) ? MEM_LAT : 2*MEM_LAT);
+      { int lat = MEM_LAT_MIN + (int)(memlat_next() % MEM_LAT_SPAN);   /* random per request */
+        reply_cyc = (int64_t)cyc + ((req_op == 4) ? lat : 2*lat); }
     }
     if(reply_cyc == (int64_t)cyc) {
       if(req_bad) {
@@ -594,6 +762,10 @@ int main(int argc, char **argv) {
           (unsigned long long)tb->dbg_head_pc, (unsigned)tb->cause,
           (unsigned long long)tb->epc, (unsigned long long)tb->badvaddr,
           (unsigned)tb->status_reg, (unsigned)tb->took_irq);
+  if(g_checker)
+    fprintf(stderr, "[checker] %llu insns checked, %llu real divergences, %llu suppressed, %llu mapped-skip, %llu resync\n",
+            (unsigned long long)g_chk_insns, (unsigned long long)g_chk_diverge,
+            (unsigned long long)g_chk_copsupp, (unsigned long long)g_chk_mapped, (unsigned long long)g_chk_resync);
   printf("\n[tb] %s\n", halted ? "halted (magic-halt store)" : "reached max cycles");
   for(uint64_t pa : dump_pas) dump_pa(pa);
   if(trace) { fclose(trace); fprintf(stderr, "[tb] wrote retired-PC trace to %s\n", trace_file.c_str()); }
