@@ -81,6 +81,71 @@ ambiguity), so the C++ SCC hook is the reliable headless serial sink. Getting se
 5. **HPC3 SCSI + WD33C93** → read the root disk. See [HPC3](peripherals/hpc3.md).
 6. GIO64 bus-errors empty slots → IRIX skips graphics cleanly. See [GIO64](peripherals/gio64.md).
 
+## Chasing a bug on silicon — HW watchpoint + the ISS diff
+
+MAME-as-oracle only helps when the bug reproduces in MAME. When it only shows up **on the FPGA** — a
+sim/synth timing hazard, or (as here) IRIX wedging somewhere MAME never reaches — you have to catch state
+*on the running part*. The workflow that cracked the IRIX `bad istack` panic:
+
+**1. Freeze the pipeline at the offending instruction (core.sv).** Reuse the single-step gate: a
+breakpoint/watchpoint that latches a "hit" flop and folds it into `w_step_ok`, so the core **stops retiring
+without a reset** — the register file and DRAM stay coherent at the moment of interest.
+
+```verilog
+// PC breakpoint: freeze after retiring BP_PC.  VALUE watchpoint: freeze after a
+// retiring insn writes a target value into a target reg (here $29/sp).
+wire w_wp_match = bp_enable &
+  ((retire_reg_valid     & (retire_reg_ptr==5'd29) & ((retire_reg_data[31:0]&WP_MASK)==WP_VAL)) |
+   (retire_reg_two_valid & (retire_reg_two_ptr==5'd29) & ((retire_reg_two_data[31:0]&WP_MASK)==WP_VAL)));
+wire w_step_ok = (r_single_step | r_bp_hit | r_wp_hit) ? t_step_edge : 1'b1;  // no step edge -> frozen
+```
+
+- **Timing trap:** compare the *flopped* retire outputs (`retire_reg_data/ptr/valid`), **not** the
+  combinational ROB head — the ROB-head read is already the near-critical retire path, and a 32-bit masked
+  compare hung off it cost **WNS −3.6 ns**. Registering it (flop→logic→flop) closes timing at the price of
+  the freeze landing ~1–2 instructions late (disassemble the window). Adding a probe *moves the critical
+  path* — classic bring-up.
+
+**2. Read the state out (driver, over AXI-Lite).** With the core frozen (not reset) the debug reads are
+coherent: `read32(7)`=last PC, `read32(0xb)`=CP0 EPC, `read32(0x26)&31`=Cause, and the GPRs via
+`write32(14,i); read32(0xe)` (a shadow register file rebuilt from the retire stream).
+- **Gotcha that cost a synth:** the henry AXI wrapper dropped `retire_reg_valid` end-to-end (henry_soc
+  connected it empty; the wrapper tied `w_reg_val*=1'b0` and never fed the S00_AXI `r_arch_regs` shadow), so
+  every GPR read returned 0. Wire `retire_reg_valid`/`_two_valid` out of henry_soc → into the shadow.
+
+**3. Read guest DRAM (`devmem`).** The driver mmaps guest RAM at host phys `0x5ff00000`, so
+`host = 0x5ff00000 + guest_pa` (the PROM at guest `0x1fc00000` is specially relocated to `+0x10C00000`).
+The guest is **big-endian**, so byte-swap `devmem`'s output. **Caveat:** only *flushed* memory is DRAM-visible
+— a freshly written-back-cached word (e.g. a just-updated scheduler global) reads stale `0`. An old global
+(the wired int-stack ptr at `0xFFFFA020`) reads correctly; a hot one (the idle-sp global `0xFFFFA164`) doesn't.
+
+**4. Diff against the ISS (`interp_mips`) — the silicon's oracle.** interp_mips boots the *identical*
+kernel+disk fast and correctly, so it tells you what a value *should* be. This is what turns "sp is
+`0x8834afb8`" into "corrupted" vs "legitimate." Trace the same PC in the ISS (a temp hook in `interpret.cc`,
+or `--gdb`), read the same global via its `va_translate`, and compare.
+- `PRID=<val>` env override (added at `interpret.cc` PRId init) sweeps R4400↔R4600 without a rebuild.
+- `PCTRACEOUT=<file>` dumps one PC per retired instruction. **ALWAYS bound it with `-m <icnt>`, never a
+  wall-clock `timeout`** — a 50 s run traced 1.4 **billion** PCs → 12.8 GB/file → filled the disk and OOM'd
+  the box. The divergence you want is usually in the first few million instructions anyway.
+
+**Worked example — the `bad istack` chase.** The watchpoint (freeze when sp is written `0x8834a___`) fired
+at `resumeidle+0x2c: lw sp,-24156(zero)` → sp=`0x8834afb8`, which *looked* like sp corruption into the PDA
+region. But reading that idle-sp global (`mem[0xFFFFA164]`) in the **ISS** returned the **same** `0x8834afb8`
+— so it's the *legitimate* idle-thread stack pointer, not corruption. Reframe: the FPGA can't mount root
+(SCSI), gets **stuck in the idle thread**, the timer fires during idle (sp above the int-stack boundary), and
+`VEC_int`'s int-stack-only exit rejects it → panic. The ISS never hits it because with a working disk it
+mounts root and stays *busy*. **The value of the tooling wasn't finding a corruption — it was *definitively
+ruling one out*,** redirecting the hunt from the CPU to the SCSI/root-mount path. (Full trail:
+`~/.../memory/project_irix_boot.md`.)
+
+**Reading FPGA timing/util after a probe:** the routed reports live in `…/<proj>.runs/impl_N/`
+(`*_timing_summary_routed.rpt` WNS, `*_utilization_placed.rpt`). Grep the *fresh* one — the
+`utilization_synth.rpt` is easy to misread if a prior run's copy is stale. Two knobs that bought timing
+margin for the probe on a 94%-LUT-full die: **ALU matrix scheduler 8→4** (`LG_INT_SCHED_ENTRIES 3→2` — not
+an area win since the FPU dominates the LUTs, but the O(N²) wakeup/select was *on the critical path*, so it
+was a real WNS win) and **L2 1024→8 lines** (a BRAM knob, no LUT/correctness impact — caches are
+non-inclusive so shrinking is safe).
+
 ## Related work
 
 **Project CYAN** ([wiki.unix-haters.org](https://wiki.unix-haters.org/doku.php?id=sgimips:cyan))

@@ -13,7 +13,7 @@ set -eu
 
 SIM_DIR="$(cd "$(dirname "$0")" && pwd)"
 KERNEL=${KERNEL:-/home/dsheffie/code/linux-mips/vmlinux.32}
-ARCS=${ARCS:-/home/dsheffie/code/r9999/arcs/arcs_linux.bin}
+ARCS=${ARCS:-/home/dsheffie/code/r9999/arcs/henry_arcs.bin}
 MAXCYC=${MAXCYC:-200000000}
 
 # Build the Linux ARCS firmware blob if missing (from arcs_linux.S via its Makefile).

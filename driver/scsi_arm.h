@@ -31,10 +31,14 @@
 #include "scsi_service.h"   // scsi_disk, scsi_move, scsi_service_run  (+ henry_scsi.h)
 #include <cstdint>
 #include <vector>
+#include <cstdio>          // CDB logging (IRIX root-mount debug)
 
 enum {
   SCSI_R_SEQ      = 0x30, SCSI_R_CDB0 = 0x31, SCSI_R_CDB1 = 0x32, SCSI_R_CDB2 = 0x33,
   SCSI_R_NBDP     = 0x34, SCSI_R_TLD  = 0x35,
+  SCSI_R_DBG      = 0x38,   // shim debug viz: [31:28]=#resets [27:22]=#SASR-rd [21:16]=#SCMD-wr
+                            //   [15:10]=#SASR-wr [9:8]=phase [7]=CIP [6]=BSY [5]=INTRQ [4:0]=SASR
+  SCSI_R_RTLREV   = 0x3F,   // hand-bumped RTL build revision (0xYYYYMMDD) -- verify the bitstream is current
   SCSI_W_RSP_SEQ  = 0x0D, SCSI_W_RESID = 0x0F, SCSI_W_STATUS = 0x10, SCSI_W_SELDELAY = 0x11,
 };
 
@@ -118,6 +122,19 @@ static inline bool scsi_arm_poll(Driver *d, scsi_disk *disk, uint8_t *dram) {
     }
     rsp.residual = (uint32_t)buf.size() - moved;
   }
+
+  /* IRIX root-mount debug: log every serviced SCSI command + its outcome. */
+  fprintf(stderr, "[cdb] seq=%u op=0x%02x cdb=%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x "
+                  "dest=%u lun=%u to_dev=%d wr_lba=%llu status=0x%02x tgt=0x%02x "
+                  "bufsz=%u moved=%u nbdp=0x%08x\n",
+          req.seq, (unsigned)req.cdb[0],
+          (unsigned)req.cdb[0],(unsigned)req.cdb[1],(unsigned)req.cdb[2],(unsigned)req.cdb[3],
+          (unsigned)req.cdb[4],(unsigned)req.cdb[5],(unsigned)req.cdb[6],(unsigned)req.cdb[7],
+          (unsigned)req.cdb[8],(unsigned)req.cdb[9],
+          (unsigned)req.dest, (unsigned)req.lun, (int)to_dev, (unsigned long long)wr_lba,
+          (unsigned)rsp.scsi_status, (unsigned)rsp.tgt_status,
+          (unsigned)buf.size(), (unsigned)moved, req.nbdp);
+  fflush(stderr);
 
   __sync_synchronize();                         /* DRAM writes visible before completion */
   d->write32(SCSI_W_RESID,   rsp.residual);

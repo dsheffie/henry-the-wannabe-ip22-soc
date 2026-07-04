@@ -30,32 +30,50 @@
 
 typedef uint8_t *(*scsi_mem_fn)(void *ctx, uint32_t phys, uint32_t len);
 
-/* ---- disk backend: read-only image + in-memory copy-on-write overlay ---- */
+/* ---- disk backend ----
+ * Default (rw=false): read-only image + in-memory copy-on-write overlay -- safe
+ *   for sim and for probing a golden image (writes are dropped on exit).
+ * Write mode (open_image(path,true)): O_RDWR write-THROUGH to the image file, so
+ *   writes persist across driver restarts / board reboots.  sync() -> fsync so the
+ *   bytes survive a power cycle.  Opt-in only, so we never clobber a golden image. */
 struct scsi_disk {
     int      fd = -1;
     uint64_t nblocks = 0;
-    std::unordered_map<uint64_t, std::array<uint8_t,512>> overlay;   /* COW writes */
+    bool     rw = false;
+    std::unordered_map<uint64_t, std::array<uint8_t,512>> overlay;   /* COW writes (ro mode) */
 
-    bool open_image(const char *path) {
-        fd = ::open(path, O_RDONLY);
-        if(fd < 0) { fprintf(stderr, "scsi_disk: cannot open %s\n", path); return false; }
+    bool open_image(const char *path, bool writable = false) {
+        rw = writable;
+        fd = ::open(path, rw ? O_RDWR : O_RDONLY);
+        if(fd < 0) { fprintf(stderr, "scsi_disk: cannot open %s (%s)\n",
+                             path, rw ? "rw" : "ro"); return false; }
         struct stat st;
         if(::fstat(fd, &st) == 0) nblocks = (uint64_t)st.st_size / 512;
-        fprintf(stderr, "scsi_disk: %s -- %llu blocks (%llu MB)\n", path,
-                (unsigned long long)nblocks, (unsigned long long)(nblocks/2048));
+        fprintf(stderr, "scsi_disk: %s -- %llu blocks (%llu MB) [%s]\n", path,
+                (unsigned long long)nblocks, (unsigned long long)(nblocks/2048),
+                rw ? "WRITE-THROUGH" : "read-only+COW");
         return true;
     }
     bool ok() const { return fd >= 0; }
 
-    void block_read(uint64_t lba, uint8_t *dst) {           /* overlay wins, else image, else zero */
-        auto it = overlay.find(lba);
-        if(it != overlay.end()) { memcpy(dst, it->second.data(), 512); return; }
+    void block_read(uint64_t lba, uint8_t *dst) {
+        if(!rw) {                                           /* ro: overlay wins, else image, else zero */
+            auto it = overlay.find(lba);
+            if(it != overlay.end()) { memcpy(dst, it->second.data(), 512); return; }
+        }
         if(lba < nblocks && ::pread(fd, dst, 512, (off_t)lba * 512) == 512) return;
         memset(dst, 0, 512);
     }
-    void block_write(uint64_t lba, const uint8_t *src) {    /* writes go ONLY to the overlay */
-        std::array<uint8_t,512> b; memcpy(b.data(), src, 512); overlay[lba] = b;
+    void block_write(uint64_t lba, const uint8_t *src) {
+        if(rw) {                                            /* rw: write through to the image file */
+            if(::pwrite(fd, src, 512, (off_t)lba * 512) != 512)
+                fprintf(stderr, "scsi_disk: pwrite lba %llu failed\n", (unsigned long long)lba);
+            else if(lba + 1 > nblocks) nblocks = lba + 1;
+            return;
+        }
+        std::array<uint8_t,512> b; memcpy(b.data(), src, 512); overlay[lba] = b;   /* ro: overlay only */
     }
+    void sync() { if(rw && fd >= 0) ::fsync(fd); }          /* durability barrier (guest SYNC CACHE) */
 };
 
 /* ---- move `n` bytes between a host buffer and the descriptor-chain'd DRAM buffers.
