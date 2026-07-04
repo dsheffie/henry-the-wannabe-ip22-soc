@@ -1236,6 +1236,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#chasing-a-bug-on-silicon-hw-watchpoint-the-iss-diff" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Chasing a bug on silicon — HW watchpoint + the ISS diff
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#related-work" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1340,6 +1351,17 @@
     <span class="md-ellipsis">
       
         Boot bring-up order (what to make work, in order)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#chasing-a-bug-on-silicon-hw-watchpoint-the-iss-diff" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Chasing a bug on silicon — HW watchpoint + the ISS diff
       
     </span>
   </a>
@@ -1468,6 +1490,62 @@ ambiguity), so the C++ SCC hook is the reliable headless serial sink. Getting se
 <li><strong>HPC3 SCSI + WD33C93</strong> → read the root disk. See <a href="../peripherals/hpc3/">HPC3</a>.</li>
 <li>GIO64 bus-errors empty slots → IRIX skips graphics cleanly. See <a href="../peripherals/gio64/">GIO64</a>.</li>
 </ol>
+<h2 id="chasing-a-bug-on-silicon-hw-watchpoint-the-iss-diff">Chasing a bug on silicon — HW watchpoint + the ISS diff<a class="headerlink" href="#chasing-a-bug-on-silicon-hw-watchpoint-the-iss-diff" title="Permanent link">&para;</a></h2>
+<p>MAME-as-oracle only helps when the bug reproduces in MAME. When it only shows up <strong>on the FPGA</strong> — a
+sim/synth timing hazard, or (as here) IRIX wedging somewhere MAME never reaches — you have to catch state
+<em>on the running part</em>. The workflow that cracked the IRIX <code>bad istack</code> panic:</p>
+<p><strong>1. Freeze the pipeline at the offending instruction (core.sv).</strong> Reuse the single-step gate: a
+breakpoint/watchpoint that latches a "hit" flop and folds it into <code>w_step_ok</code>, so the core <strong>stops retiring
+without a reset</strong> — the register file and DRAM stay coherent at the moment of interest.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1">// PC breakpoint: freeze after retiring BP_PC.  VALUE watchpoint: freeze after a</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="c1">// retiring insn writes a target value into a target reg (here $29/sp).</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="kt">wire</span><span class="w"> </span><span class="n">w_wp_match</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">bp_enable</span><span class="w"> </span><span class="o">&amp;</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span><span class="p">((</span><span class="n">retire_reg_valid</span><span class="w">     </span><span class="o">&amp;</span><span class="w"> </span><span class="p">(</span><span class="n">retire_reg_ptr</span><span class="o">==</span><span class="mh">5</span><span class="mi">&#39;d29</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="p">((</span><span class="n">retire_reg_data</span><span class="p">[</span><span class="mh">31</span><span class="o">:</span><span class="mh">0</span><span class="p">]</span><span class="o">&amp;</span><span class="n">WP_MASK</span><span class="p">)</span><span class="o">==</span><span class="n">WP_VAL</span><span class="p">))</span><span class="w"> </span><span class="o">|</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">   </span><span class="p">(</span><span class="n">retire_reg_two_valid</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="p">(</span><span class="n">retire_reg_two_ptr</span><span class="o">==</span><span class="mh">5</span><span class="mi">&#39;d29</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="p">((</span><span class="n">retire_reg_two_data</span><span class="p">[</span><span class="mh">31</span><span class="o">:</span><span class="mh">0</span><span class="p">]</span><span class="o">&amp;</span><span class="n">WP_MASK</span><span class="p">)</span><span class="o">==</span><span class="n">WP_VAL</span><span class="p">)));</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="kt">wire</span><span class="w"> </span><span class="n">w_step_ok</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">r_single_step</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">r_bp_hit</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">r_wp_hit</span><span class="p">)</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="n">t_step_edge</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="mh">1</span><span class="mb">&#39;b1</span><span class="p">;</span><span class="w">  </span><span class="c1">// no step edge -&gt; frozen</span>
+</code></pre></div>
+<ul>
+<li><strong>Timing trap:</strong> compare the <em>flopped</em> retire outputs (<code>retire_reg_data/ptr/valid</code>), <strong>not</strong> the
+  combinational ROB head — the ROB-head read is already the near-critical retire path, and a 32-bit masked
+  compare hung off it cost <strong>WNS −3.6 ns</strong>. Registering it (flop→logic→flop) closes timing at the price of
+  the freeze landing ~1–2 instructions late (disassemble the window). Adding a probe <em>moves the critical
+  path</em> — classic bring-up.</li>
+</ul>
+<p><strong>2. Read the state out (driver, over AXI-Lite).</strong> With the core frozen (not reset) the debug reads are
+coherent: <code>read32(7)</code>=last PC, <code>read32(0xb)</code>=CP0 EPC, <code>read32(0x26)&amp;31</code>=Cause, and the GPRs via
+<code>write32(14,i); read32(0xe)</code> (a shadow register file rebuilt from the retire stream).
+- <strong>Gotcha that cost a synth:</strong> the henry AXI wrapper dropped <code>retire_reg_valid</code> end-to-end (henry_soc
+  connected it empty; the wrapper tied <code>w_reg_val*=1'b0</code> and never fed the S00_AXI <code>r_arch_regs</code> shadow), so
+  every GPR read returned 0. Wire <code>retire_reg_valid</code>/<code>_two_valid</code> out of henry_soc → into the shadow.</p>
+<p><strong>3. Read guest DRAM (<code>devmem</code>).</strong> The driver mmaps guest RAM at host phys <code>0x5ff00000</code>, so
+<code>host = 0x5ff00000 + guest_pa</code> (the PROM at guest <code>0x1fc00000</code> is specially relocated to <code>+0x10C00000</code>).
+The guest is <strong>big-endian</strong>, so byte-swap <code>devmem</code>'s output. <strong>Caveat:</strong> only <em>flushed</em> memory is DRAM-visible
+— a freshly written-back-cached word (e.g. a just-updated scheduler global) reads stale <code>0</code>. An old global
+(the wired int-stack ptr at <code>0xFFFFA020</code>) reads correctly; a hot one (the idle-sp global <code>0xFFFFA164</code>) doesn't.</p>
+<p><strong>4. Diff against the ISS (<code>interp_mips</code>) — the silicon's oracle.</strong> interp_mips boots the <em>identical</em>
+kernel+disk fast and correctly, so it tells you what a value <em>should</em> be. This is what turns "sp is
+<code>0x8834afb8</code>" into "corrupted" vs "legitimate." Trace the same PC in the ISS (a temp hook in <code>interpret.cc</code>,
+or <code>--gdb</code>), read the same global via its <code>va_translate</code>, and compare.
+- <code>PRID=&lt;val&gt;</code> env override (added at <code>interpret.cc</code> PRId init) sweeps R4400↔R4600 without a rebuild.
+- <code>PCTRACEOUT=&lt;file&gt;</code> dumps one PC per retired instruction. <strong>ALWAYS bound it with <code>-m &lt;icnt&gt;</code>, never a
+  wall-clock <code>timeout</code></strong> — a 50 s run traced 1.4 <strong>billion</strong> PCs → 12.8 GB/file → filled the disk and OOM'd
+  the box. The divergence you want is usually in the first few million instructions anyway.</p>
+<p><strong>Worked example — the <code>bad istack</code> chase.</strong> The watchpoint (freeze when sp is written <code>0x8834a___</code>) fired
+at <code>resumeidle+0x2c: lw sp,-24156(zero)</code> → sp=<code>0x8834afb8</code>, which <em>looked</em> like sp corruption into the PDA
+region. But reading that idle-sp global (<code>mem[0xFFFFA164]</code>) in the <strong>ISS</strong> returned the <strong>same</strong> <code>0x8834afb8</code>
+— so it's the <em>legitimate</em> idle-thread stack pointer, not corruption. Reframe: the FPGA can't mount root
+(SCSI), gets <strong>stuck in the idle thread</strong>, the timer fires during idle (sp above the int-stack boundary), and
+<code>VEC_int</code>'s int-stack-only exit rejects it → panic. The ISS never hits it because with a working disk it
+mounts root and stays <em>busy</em>. <strong>The value of the tooling wasn't finding a corruption — it was <em>definitively
+ruling one out</em>,</strong> redirecting the hunt from the CPU to the SCSI/root-mount path. (Full trail:
+<code>~/.../memory/project_irix_boot.md</code>.)</p>
+<p><strong>Reading FPGA timing/util after a probe:</strong> the routed reports live in <code>…/&lt;proj&gt;.runs/impl_N/</code>
+(<code>*_timing_summary_routed.rpt</code> WNS, <code>*_utilization_placed.rpt</code>). Grep the <em>fresh</em> one — the
+<code>utilization_synth.rpt</code> is easy to misread if a prior run's copy is stale. Two knobs that bought timing
+margin for the probe on a 94%-LUT-full die: <strong>ALU matrix scheduler 8→4</strong> (<code>LG_INT_SCHED_ENTRIES 3→2</code> — not
+an area win since the FPU dominates the LUTs, but the O(N²) wakeup/select was <em>on the critical path</em>, so it
+was a real WNS win) and <strong>L2 1024→8 lines</strong> (a BRAM knob, no LUT/correctness impact — caches are
+non-inclusive so shrinking is safe).</p>
 <h2 id="related-work">Related work<a class="headerlink" href="#related-work" title="Permanent link">&para;</a></h2>
 <p><strong>Project CYAN</strong> (<a href="https://wiki.unix-haters.org/doku.php?id=sgimips:cyan">wiki.unix-haters.org</a>)
 is a from-scratch FPGA SoC of the SGI <strong>Indigo IP20</strong>, the board generation just
