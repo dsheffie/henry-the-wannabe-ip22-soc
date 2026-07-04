@@ -122,7 +122,8 @@ static inline void scsi_service_run(const scsi_req_t *req, scsi_rsp_t *rsp,
     const uint8_t *cdb = req->cdb;
     uint8_t op  = cdb[0];
     uint8_t dest = req->dest & 7, lun = req->lun & 7;
-    if(getenv("SCSIDBG"))   // guarded: this header is reused by the on-board ARM driver
+    static const bool g_scsidbg = getenv("SCSIDBG") != nullptr;   // read once, not per-CDB
+    if(g_scsidbg)   // guarded: this header is reused by the on-board ARM driver
       fprintf(stderr, "[scsi] CDB %02x %02x %02x %02x %02x %02x dest=%u lun=%u\n",
               cdb[0],cdb[1],cdb[2],cdb[3],cdb[4],cdb[5], dest, lun);
 
