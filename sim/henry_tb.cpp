@@ -198,12 +198,28 @@ static bool chk_suppress(uint32_t vpc, int rrp) {
   return false;
 }
 
+// True if the retiring insn is a load whose effective address is IP22 device /
+// PROM space or kseg1 uncached -- the 1:1 ISS models no devices there (reads 0),
+// so trust the RTL.  MUST be called BEFORE execMips so ss->gpr[base] is the
+// pre-load value (covers the rt==base form, e.g. lw a4,off(a4)).
+static bool is_device_load(uint32_t vpc) {
+  if(vpc < 0x80000000u || vpc >= 0xc0000000u) return false;
+  uint8_t *p = ss->mem.get_raw_ptr(vpc & 0x1fffffffu);
+  uint32_t insn = (uint32_t(p[0])<<24)|(uint32_t(p[1])<<16)|(uint32_t(p[2])<<8)|uint32_t(p[3]);
+  uint32_t op = insn >> 26, rs = (insn >> 21) & 0x1f;
+  bool is_load = (op >= 0x20 && op <= 0x27) || op == 0x1a || op == 0x1b || op == 0x37;
+  if(!is_load) return false;
+  uint32_t ea = (uint32_t)((int64_t)ss->gpr[rs] + (int16_t)(insn & 0xffff));
+  uint32_t pa = (ea >= 0x80000000u) ? (ea & 0x1fffffffu) : ea;
+  return (pa >= 0x1f000000u) || (ea >= 0xa0000000u && ea < 0xc0000000u);
+}
+
 // Compare the ISS's architected result for a retired insn against the RTL, then
 // trust the RTL value (keeps the ISS locked; also covers device-MMIO loads).
-static void chk_compare(uint32_t vpc, bool rrv, int rrp, uint64_t rrd) {
+static void chk_compare(uint32_t vpc, bool rrv, int rrp, uint64_t rrd, bool devload) {
   if(!rrv || rrp == 0) return;
   if((uint64_t)ss->gpr[rrp] != rrd) {
-    if(g_settle > 0 || chk_suppress(vpc, rrp)) g_chk_copsupp++;
+    if(g_settle > 0 || devload || chk_suppress(vpc, rrp)) g_chk_copsupp++;
     else {
       if(g_chk_diverge < 40)
         fprintf(stderr, "[checker] DIVERGE @pc=%08x r%d: ISS=%016llx RTL=%016llx (chk#%llu)\n",
@@ -225,7 +241,7 @@ static void checker_step(uint64_t rpc, bool rrv, int rrp, uint64_t rrd) {
   uint32_t vpc = (uint32_t)rpc;
   if(g_expect_ds && vpc == g_ds_pc) {        // delay slot the ISS already executed
     g_expect_ds = false;
-    chk_compare(vpc, rrv, rrp, rrd);
+    chk_compare(vpc, rrv, rrp, rrd, is_device_load(vpc));  // best-effort (post-exec base)
     return;
   }
   g_expect_ds = false;
@@ -248,12 +264,13 @@ static void checker_step(uint64_t rpc, bool rrv, int rrp, uint64_t rrd) {
     g_chk_resync++; resynced = true; g_settle = 16;  // let the reg file re-converge
   }
   if(g_settle > 0) g_settle--;
+  bool devload = is_device_load(vpc);        // classify BEFORE execMips (pre-load base)
   uint32_t prev = (uint32_t)ss->pc;
   execMips(ss);
   g_chk_insns++;
   if((uint32_t)ss->pc != prev + 4) { g_expect_ds = true; g_ds_pc = prev + 4; }  // took a branch
   if(resynced) { if(rrv && rrp != 0) ss->gpr[rrp] = (state_t::reg_t)rrd; }  // trust only (state stale)
-  else chk_compare(vpc, rrv, rrp, rrd);
+  else chk_compare(vpc, rrv, rrp, rrd, devload);
 }
 
 static inline uint32_t be32(const uint8_t *p) {
@@ -401,6 +418,7 @@ static uint32_t install_arcs_handoff(uint32_t kentry) {
 int main(int argc, char **argv) {
   std::string kernel, arcs, ckpt_file;
   uint64_t max_cyc = 120000000ull;
+  uint64_t max_icnt = 0;   // --maxicnt: stop after this many retired insns (0 = unlimited)
   uint32_t start_pc = 0;   // fake-BIOS: start in the arcs boot stub (skip C++ handoff)
   std::vector<uint64_t> dump_pas;
   std::string trace_file;
@@ -415,6 +433,7 @@ int main(int argc, char **argv) {
     else if(a == "--arcs" && i+1 < argc)   arcs   = argv[++i];
     else if(a == "--arcs-addr" && i+1 < argc) arcs_addr = strtoull(argv[++i], nullptr, 0);
     else if(a == "--maxcyc" && i+1 < argc) max_cyc = strtoull(argv[++i], nullptr, 0);
+    else if(a == "--maxicnt" && i+1 < argc) max_icnt = strtoull(argv[++i], nullptr, 0);
     else if(a == "--start-pc" && i+1 < argc) start_pc = (uint32_t)strtoull(argv[++i], nullptr, 0);
     else if(a == "--dump" && i+1 < argc)   dump_pas.push_back(strtoull(argv[++i], nullptr, 0));
     else if(a == "--trace" && i+1 < argc)  trace_file = argv[++i];
@@ -535,7 +554,7 @@ int main(int argc, char **argv) {
   // Loop mirrors r9999 top.cc phase ordering: posedge eval FIRST (core samples
   // the mem_rsp set last cycle), THEN read mem_req and present mem_rsp for the
   // next posedge, then negedge eval.
-  for(uint64_t cyc = 0; cyc < max_cyc && !halted && !Verilated::gotFinish(); cyc++) {
+  for(uint64_t cyc = 0; cyc < max_cyc && (max_icnt == 0 || retired < max_icnt) && !halted && !Verilated::gotFinish(); cyc++) {
     // SCC serial Rx injection (--rx): drip one byte into the IOC2 Rx FIFO every 64
     // cycles once the core is running, so a directed test observes a serial IRQ.
     tb->scc_rx_valid = 0;
