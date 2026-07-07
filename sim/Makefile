@@ -27,7 +27,7 @@ VFLAGS = -cc --exe -O3 \
          -Wno-fatal -Wno-WIDTH -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE \
          -Wno-UNUSED -Wno-BLKANDNBLK -Wno-PINMISSING \
          -y $(RTL) -y $(R9999) +incdir+$(R9999) --top-module $(TOP) -Mdir obj_dir \
-         -CFLAGS "-I$(R9999)" \
+         -CFLAGS "-I$(R9999) -DFAITHFUL_SCSI" \
          -o henry_tb
 
 # Depend on the r9999 core sources too (via -y $(R9999)), so a core-only change
@@ -37,12 +37,16 @@ obj_dir/henry_tb: $(RTL)/henry_soc.sv $(RTL)/mc.sv $(RTL)/hpc3.sv $(RTL)/ioc.sv 
 	# Pass the golden-ISS .cc to Verilator's --exe so it compiles them (RTL-agnostic)
 	# alongside henry_tb.cpp into obj_dir/*.o.
 	$(VERILATOR) $(VFLAGS) $(RTL)/henry_soc.sv henry_tb.cpp $(INTERP_CC)
-	$(MAKE) CXX="clang++-16" LINK="clang++-16" \
-	        OPT_FAST="-O3 -flto=thin" OPT_GLOBAL="-O2 -flto=thin" OPT_SLOW="-O1 -flto=thin" \
-	        LDFLAGS="-flto=thin" -C obj_dir -f V$(TOP).mk
-	# ThinLTO doesn't cross a plain ar archive -- re-link the .o directly so the
-	# hot model objects get LTO'd (per dsheffie: use the *.o, not the ar).
-	cd obj_dir && clang++-16 -flto=thin henry_tb.o verilated.o verilated_dpi.o Vhenry_soc*.o $(addsuffix .o,$(INTERP)) -lm -lpthread -latomic -o henry_tb
+	# LTO dropped from the COMPILES (per dsheffie) -- the clang-14/16 mismatch +
+	# ar-archive relink was the whole build headache; clang-16 is forced end-to-end
+	# so a core-only edit reliably lands via a plain `make`.  The LINK, however,
+	# keeps -flto: the r9999 INTERP .o ($(R9999)/disassemble.o &c) are LLVM bitcode
+	# whenever ooo_core has been built there, and Verilator's --exe reuses those
+	# in-place objects.  An -flto link consumes bitcode AND regular .o transparently;
+	# a plain link fails "file format not recognized".
+	$(MAKE) CXX="clang++-16" LINK="clang++-16 -flto" \
+	        OPT_FAST="-O2" OPT_GLOBAL="-O2" OPT_SLOW="-O1" \
+	        -C obj_dir -f V$(TOP).mk henry_tb
 
 .PHONY: build run clean
 build: obj_dir/henry_tb

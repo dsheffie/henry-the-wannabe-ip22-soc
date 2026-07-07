@@ -81,12 +81,25 @@ typedef struct {
     uint8_t  to_device;  /* DIR: 0 = READ (dev->mem), 1 = WRITE (mem->dev)        */
 } scsi_req_t;
 
+/* Completion kind for the faithful chunked-DMA path (Stage A).
+ *   COMPLETE : the SCSI command's full length was moved -> end the command.
+ *   PAUSE    : a chunk boundary -- the guest (IRIX) programmed the WD33C93 transfer
+ *              count for fewer bytes than the CDB length, so the HPC3 chain ended
+ *              (EOX) before pos == total.  The shim raises INTRQ with chunk status
+ *              (0x48 data-out / 0x49 data-in) + command-phase 0x46, but does NOT
+ *              mark command-complete; the guest reprograms the DMA and re-issues
+ *              SEL_ATN_XFER, and the service resumes from `pos`.  Mirrors
+ *              interp_mips pause_transfer()/select_and_transfer().
+ * Default 0 = COMPLETE preserves the legacy one-shot behavior. */
+enum { SCSI_DONE_COMPLETE = 0, SCSI_DONE_PAUSE = 1 };
+
 /* ---- COMPLETION: service -> shim. Shim latches into the WD33C93 regs + INTRQ ---- */
 typedef struct {
     uint32_t seq;         /* echoes scsi_req_t.seq (or free-runs for RX, see seam) */
     uint32_t residual;    /* bytes NOT moved; MUST be 0 on success (short-xfer!)   */
     uint8_t  scsi_status; /* -> reg 0x17 (ST_SELECT_TRANSFER_SUCCESS / TIMEOUT)    */
     uint8_t  tgt_status;  /* -> reg 0x0f (TGT_GOOD / TGT_CHECK_CONDITION)          */
+    uint8_t  completion;  /* SCSI_DONE_COMPLETE | SCSI_DONE_PAUSE (Stage-A chunked)*/
 } scsi_rsp_t;
 
 #endif /* HENRY_SCSI_H */

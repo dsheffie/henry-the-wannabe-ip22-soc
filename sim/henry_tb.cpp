@@ -40,6 +40,7 @@ namespace globals {
 static sparse_mem *g_ss_mem   = nullptr;   // golden ISS memory (own 4GB, PA-indexed)
 static state_t    *ss         = nullptr;   // golden checker state
 static bool        g_checker  = false;     // --checker enables the lockstep compare
+static const bool  g_go_a0_trace = getenv("GO_A0_TRACE") != nullptr; // diagnostic a0-corruption window trace
 static uint64_t    g_chk_insns = 0;        // instructions checked
 
 static const uint64_t MEM_SIZE = 0x20000000ull;   // 512 MB physical window
@@ -145,6 +146,37 @@ extern "C" int       loadcp0(int reg)    { return g_have_ckpt ? (int)g_ckpt.cpr0
 extern "C" long long loadcp0_64(int reg) { return g_have_ckpt ? (long long)g_ckpt.cpr0_64[reg & 31] : 0; }
 extern "C" long long loadhilo(int half)  { return g_have_ckpt ? (half ? g_ckpt.hi : g_ckpt.lo) : 0; }
 extern "C" int       loadfcsr()          { return g_have_ckpt ? (int)g_ckpt.fcr1[4] : 0; } /* FCR31 = fcr1[4] */
+// A/B DIAG (go stale-a0): RTL calls this at the mem-execute stage. g_probe_cyc is
+// updated by the main loop. GO_A0_TRACE-gated so it is inert unless armed.
+uint64_t g_probe_cyc = 0;
+extern "C" void dpi_a0_probe(int pc, int is_store, int phys, long long val) {
+  if(!g_go_a0_trace) return;
+  // is_store: 0=restore-load dst(Pd), 1=store srcA(Ps), 2=int-PRF load writeback.
+  // Writebacks flood, so window them to the faulting-replay cycles.
+  if(is_store == 2 && !(g_probe_cyc >= 21123000ull && g_probe_cyc <= 21124300ull)) return;
+  const char *tag = is_store == 1 ? "STORE-srcA(Ps)" : is_store == 0 ? "LOAD-dst(Pd)  " : "PRF-WB        ";
+  fprintf(stderr, "[a0dpi] cyc=%llu pc=%08x %s phys=%d val=%016llx\n",
+          (unsigned long long)g_probe_cyc, (unsigned)pc, tag, phys,
+          (unsigned long long)val);
+}
+// A/B DIAG: read committed DRAM (g_mem) at a PA, big-endian 64b, to split
+// SAVE-LOST (DRAM==0) from LOAD-MISREAD (DRAM==0x1200fa608 but load returned 0).
+extern "C" void dpi_mem_at(long long vaddr, long long pa, long long stdata, int is_store) {
+  if(!g_go_a0_trace) return;
+  uint32_t phys = (uint32_t)((uint64_t)pa & 0x1fffffffull);
+  bool bad = false;
+  uint32_t off = FPGA_ADDRESS_MAP ? fpga_map(phys, &bad) : (uint32_t)(phys & MEM_MASK);
+  uint64_t v = 0; int okmem = (!bad && (uint64_t)off + 8 <= MEM_SIZE);
+  if(okmem) { for(int i = 0; i < 8; i++) { v = (v << 8) | g_mem[off + i]; } }
+  if(is_store)
+    fprintf(stderr, "[a0mem] cyc=%llu SAVE-store vaddr=%016llx pa=%08x stdata=%016llx dram_before=%016llx bad=%d\n",
+            (unsigned long long)g_probe_cyc, (unsigned long long)vaddr, phys,
+            (unsigned long long)stdata, (unsigned long long)v, bad);
+  else
+    fprintf(stderr, "[a0mem] cyc=%llu RESTORE-load vaddr=%016llx pa=%08x DRAM64=%016llx bad=%d\n",
+            (unsigned long long)g_probe_cyc, (unsigned long long)vaddr, phys,
+            (unsigned long long)v, bad);
+}
 extern "C" long long loadtlb(int entry, int field) {  /* 0=hi 1=lo0 2=lo1 3=pagemask */
   if(!g_have_ckpt) return 0;
   const cp_tlb &t = g_ckpt.tlb[entry % 48];
@@ -186,6 +218,10 @@ static int      g_settle    = 0;       // suppress compares while ISS state re-c
 // ... read CP0/CP1/CP2 bits the 1:1 ISS doesn't model bit-for-bit: CU2, Cause).
 static bool chk_suppress(uint32_t vpc, int rrp) {
   if(rrp == 26 || rrp == 27) return true;
+  // dosample (i8254 PIT calibration, 0x880045ac..): lbu of the free-running PIT
+  // counter -- the 1:1 ISS models no PIT so it reads a constant while the RTL
+  // reads the real count. Known-benign timing-dependent device read.
+  if(vpc >= 0x880045acu && vpc <= 0x88004650u) return true;
   if(vpc >= 0x80000000u && vpc < 0xc0000000u) {
     uint8_t *p = ss->mem.get_raw_ptr(vpc & 0x1fffffffu);
     uint32_t insn = (uint32_t(p[0])<<24)|(uint32_t(p[1])<<16)|(uint32_t(p[2])<<8)|uint32_t(p[3]);
@@ -221,7 +257,7 @@ static void chk_compare(uint32_t vpc, bool rrv, int rrp, uint64_t rrd, bool devl
   if((uint64_t)ss->gpr[rrp] != rrd) {
     if(g_settle > 0 || devload || chk_suppress(vpc, rrp)) g_chk_copsupp++;
     else {
-      if(g_chk_diverge < 40)
+      if(g_chk_diverge < 200)
         fprintf(stderr, "[checker] DIVERGE @pc=%08x r%d: ISS=%016llx RTL=%016llx (chk#%llu)\n",
                 vpc, rrp, (unsigned long long)ss->gpr[rrp], (unsigned long long)rrd,
                 (unsigned long long)g_chk_insns);
@@ -256,10 +292,20 @@ static void checker_step(uint64_t rpc, bool rrv, int rrp, uint64_t rrd) {
     return;
   }
   bool resynced = false;
-  if((uint32_t)ss->pc != vpc) {              // genuine desync (wrong-path/fidelity)
+  if((uint32_t)ss->pc != vpc) {              // control-flow (PC) divergence
+    // Classify. An exception-vector target = the RTL took an exception the 1:1 ISS
+    // doesn't model (async timer IRQ; or a TLB/AdEL it can't see) -- usually benign.
+    // A MAIN-LINE divergence (both in normal code, different PC) = a real wrong-PC
+    // bug: bad eret target, mis-resolved branch, or a spurious/missed exception.
+    bool exc_entry = (vpc==0x80000000u || vpc==0x80000080u || vpc==0x80000100u ||
+                      vpc==0x80000180u || (vpc>=0xbfc00200u && vpc<=0xbfc00480u));
     static int shown = 0;
-    if(shown < 12) { fprintf(stderr, "[checker] DESYNC ISS=%08x RTL=%08x after %llu checked\n",
-                             (uint32_t)ss->pc, vpc, (unsigned long long)g_chk_insns); shown++; }
+    if(shown < 200) {
+      fprintf(stderr, "[checker] PC-DIVERGE ISS=%08x RTL=%08x %s after %llu checked\n",
+              (uint32_t)ss->pc, vpc, exc_entry ? "[exc-entry]" : "[MAIN-LINE!]",
+              (unsigned long long)g_chk_insns);
+      shown++;
+    }
     ss->pc = (state_t::reg_t)(int64_t)rpc;   // re-sync onto RTL control flow
     g_chk_resync++; resynced = true; g_settle = 16;  // let the reg file re-converge
   }
@@ -314,6 +360,10 @@ static uint32_t load_elf_be32(const char *path) {
     bool b = false; uint32_t off = fpga_map(ca, &b);
     if(b || off + p_memsz > MEM_SIZE) { fprintf(stderr, "segment out of RAM\n"); exit(1); }
     memcpy(g_mem + off, f + p_offset, p_filesz);          // .bss already zero
+    // Seed the golden ISS too, so --checker works on a fresh --kernel boot (not
+    // just --checkpoint). The 1:1 va2pa ISS reads at the RAW physical `pa`
+    // (va & 0x1fffffff), NOT the fpga_map'd g_mem offset -- index ss->mem by pa.
+    if(ss) memcpy(ss->mem.get_raw_ptr(pa), f + p_offset, p_filesz);
     printf("loaded segment: pa 0x%08x -> dram off 0x%08x  filesz 0x%x  memsz 0x%x\n",
            pa, off, p_filesz, p_memsz);
   }
@@ -336,6 +386,7 @@ static void load_blob(const char *path, uint64_t pa) {
   uint32_t cpa = ((((uint32_t)pa) >> 19) == 0) ? (((uint32_t)pa) | 0x08000000u) : (uint32_t)pa;
   bool bad = false; uint32_t off = fpga_map(cpa, &bad);
   memcpy(g_mem + off, f, st.st_size);
+  if(ss) memcpy(ss->mem.get_raw_ptr((uint32_t)pa), f, st.st_size);  // golden ISS: raw physical
   printf("loaded ARCS firmware (%lld bytes) at physical 0x%llx (dram off 0x%x)\n",
          (long long)st.st_size, (unsigned long long)pa, off);
   munmap(f, st.st_size);
@@ -477,6 +528,8 @@ int main(int argc, char **argv) {
     // its kentry internally, so skip the patch when not loading at the PROM.
     if(arcs_addr == 0x1fc00000ull) {
       bool b=false; uint32_t soff = fpga_map(0x1fc00008u, &b); put_be32(soff, kentry);
+      if(ss) { uint8_t *q = ss->mem.get_raw_ptr(0x1fc00008u);   // golden ISS: same kentry patch
+               q[0]=kentry>>24; q[1]=kentry>>16; q[2]=kentry>>8; q[3]=(uint8_t)kentry; }
       printf("patched FSBL kentry slot @0x1fc00008 (dram 0x%x) = 0x%08x\n", soff, kentry);
     }
     if(start_pc) { entry = start_pc; printf("fake-bios: start pc = %08x\n", start_pc); }
@@ -487,6 +540,14 @@ int main(int argc, char **argv) {
   // checkpoint PC is a full 64-bit VA (n64 user code @ 0x1_xxxxxxxx); don't truncate.
   uint64_t resume_pc64 = ckpt_file.empty() ? (uint64_t)(int64_t)(int32_t)entry
                                            : (uint64_t)g_ckpt.pc;
+
+  // Fresh-boot checker: ISS memory was seeded by load_elf_be32/load_blob above;
+  // start it at the same entry the RTL resumes from (checker_step re-syncs the pc
+  // on the first retirement anyway, but this makes the first compares meaningful).
+  if(g_checker && ss && ckpt_file.empty()) {
+    ss->pc = (state_t::reg_t)resume_pc64;
+    fprintf(stderr, "[checker] golden ISS seeded for --kernel boot at pc=%08x\n", (uint32_t)ss->pc);
+  }
 
   // retired-PC trace (for the MAME co-sim diff): one 32-bit vPC per line, in
   // retire order incl. delay slots, starting at the kernel entry (skip the stub).
@@ -555,6 +616,7 @@ int main(int argc, char **argv) {
   // the mem_rsp set last cycle), THEN read mem_req and present mem_rsp for the
   // next posedge, then negedge eval.
   for(uint64_t cyc = 0; cyc < max_cyc && (max_icnt == 0 || retired < max_icnt) && !halted && !Verilated::gotFinish(); cyc++) {
+    g_probe_cyc = cyc;  // A/B DIAG: expose cyc to dpi_a0_probe
     // SCC serial Rx injection (--rx): drip one byte into the IOC2 Rx FIFO every 64
     // cycles once the core is running, so a directed test observes a serial IRQ.
     tb->scc_rx_valid = 0;
@@ -591,6 +653,62 @@ int main(int argc, char **argv) {
         checker_step(tb->retire_two_pc, tb->retire_reg_two_valid, tb->retire_reg_two_ptr, tb->retire_reg_two_data);
     }
 
+    // ---- go a0-corruption trace (approach B checkpoint; diagnostic) ----
+    // Walk a0 (reg 4) through the ISR that runs between the userspace load
+    // @0x12000146c (a0 <- valid ptr 0x1200fa608) and the faulting store
+    // @0x120001480 (a0 == 0 -> SIGSEGV write to NULL).  Deterministic on the B
+    // checkpoint; window scoped so the log stays small.  Env GO_A0_TRACE=1 arms it.
+    // PC-gated variant (timing-independent for the A/B toggles): fire only near
+    // the crash neighborhood so the log stays small regardless of when (which
+    // cycle) the architectural crash point is reached.  a0 RESTORE @0x880119e0,
+    // the go userspace crash region 0x1200146c..0x12000494, capped by g_go_lines.
+    static uint64_t g_go_lines = 0;
+    uint32_t p0lo = (uint32_t)tb->retire_pc, p1lo = (uint32_t)tb->retire_two_pc;
+    bool near0 = (p0lo == 0x880119e0u) || (p0lo >= 0x20001460u && p0lo <= 0x20001494u);
+    bool near1 = (p1lo == 0x880119e0u) || (p1lo >= 0x20001460u && p1lo <= 0x20001494u);
+    if(g_go_a0_trace && g_go_lines < 4000 && (near0 || near1)) {
+      g_go_lines++;
+      if(tb->retire_valid && near0)
+        fprintf(stderr, "[go] cyc=%llu p0 pc=0x%08x rv=%u r%u<=0x%llx\n",
+                (unsigned long long)cyc, p0lo, (unsigned)tb->retire_reg_valid,
+                (unsigned)tb->retire_reg_ptr, (unsigned long long)tb->retire_reg_data);
+      if(tb->retire_two_valid && near1)
+        fprintf(stderr, "[go] cyc=%llu p1 pc=0x%08x rv=%u r%u<=0x%llx\n",
+                (unsigned long long)cyc, p1lo, (unsigned)tb->retire_reg_two_valid,
+                (unsigned)tb->retire_reg_two_ptr, (unsigned long long)tb->retire_reg_two_data);
+    }
+    if(g_go_a0_trace && cyc > 21073000ull && cyc < 21130000ull) {
+      // (1) every ARCHITECTURAL write to a0 (reg 4), both retire ports.  If a0
+      // reaches 0 WITHOUT any such write, the clobber is silent (PRF/rename).
+      if(tb->retire_valid && tb->retire_reg_valid && tb->retire_reg_ptr == 4)
+        fprintf(stderr, "[a0] cyc=%llu p0 pc=0x%llx a0<=0x%016llx\n",
+                (unsigned long long)cyc, (unsigned long long)tb->retire_pc,
+                (unsigned long long)tb->retire_reg_data);
+      if(tb->retire_two_valid && tb->retire_reg_two_valid && tb->retire_reg_two_ptr == 4)
+        fprintf(stderr, "[a0] cyc=%llu p1 pc=0x%llx a0<=0x%016llx\n",
+                (unsigned long long)cyc, (unsigned long long)tb->retire_two_pc,
+                (unsigned long long)tb->retire_reg_two_data);
+      // (2) IRQ / exception entry markers (nested-exception detection).
+      if(tb->took_irq)
+        fprintf(stderr, "[irq] cyc=%llu epc=0x%llx cause=%u sr=0x%08x badv=0x%llx\n",
+                (unsigned long long)cyc, (unsigned long long)tb->epc,
+                (unsigned)tb->cause, (unsigned)tb->status_reg,
+                (unsigned long long)tb->badvaddr);
+      // (3) full retire trace (both ports, with any reg writeback) for the ISR
+      // walk + disassembly.  sp(29)/k0(26)/k1(27) writes here let us reconstruct
+      // the pt_regs frame base to locate PT_R4 for the save/restore.
+      if(tb->retire_valid)
+        fprintf(stderr, "[rt] cyc=%llu p0 pc=0x%08x rv=%u r%u<=0x%llx\n",
+                (unsigned long long)cyc, (uint32_t)tb->retire_pc,
+                (unsigned)tb->retire_reg_valid, (unsigned)tb->retire_reg_ptr,
+                (unsigned long long)tb->retire_reg_data);
+      if(tb->retire_two_valid)
+        fprintf(stderr, "[rt] cyc=%llu p1 pc=0x%08x rv=%u r%u<=0x%llx\n",
+                (unsigned long long)cyc, (uint32_t)tb->retire_two_pc,
+                (unsigned)tb->retire_reg_two_valid, (unsigned)tb->retire_reg_two_ptr,
+                (unsigned long long)tb->retire_reg_two_data);
+    }
+
     // calibration probe: _cpuclkper100ticks ends at 0x88019648 (subu v0,v1,v0).
     if(tb->retire_valid && (uint32_t)tb->retire_pc == 0x88019648u)
       fprintf(stderr, "[calib] cyc=%llu reg%u=%d (0x%x)\n", (unsigned long long)cyc,
@@ -617,6 +735,17 @@ int main(int argc, char **argv) {
     static size_t     g_stream_pos = 0;
     static bool       g_capturing = false;     // WRITE: draining engine disk_wr beats
     static scsi_rsp_t g_pending_rsp;
+#ifdef FAITHFUL_SCSI
+    // Faithful chunked DMA (Stage A): carry {buf,pos,total} across HPC3 descriptor-
+    // chain EOX chunk boundaries.  chunk = min(WD33C93 xfer count, remaining) == the
+    // chain the engine walks per doorbell; on dma_done pos+=chunk and, if pos<total,
+    // post a PAUSE (0x48/0x49) so IRIX reprograms + re-issues SEL_ATN_XFER.  A doorbell
+    // arriving mid-transfer is a RESUME (same buf; beats stream continuously across
+    // chunks).  Mirrors interp_mips select_and_transfer()/pause_transfer().
+    static size_t     g_pos = 0, g_total = 0;
+    static uint32_t   g_chunk = 0;
+    static bool       g_active = false;
+#endif
     auto post_rsp = [&](void){
       tb->scsi_rsp_residual    = g_pending_rsp.residual;
       tb->scsi_rsp_scsi_status = g_pending_rsp.scsi_status;
@@ -631,6 +760,30 @@ int main(int argc, char **argv) {
       for(int i = 0; i < 4; i++) ((uint32_t*)req.cdb)[i] = tb->scsi_req_cdb[i];
       req.dest = (uint8_t)tb->scsi_req_dest; req.lun = (uint8_t)tb->scsi_req_lun;
       req.to_device = (uint8_t)tb->scsi_req_to_device;
+#ifdef FAITHFUL_SCSI
+      bool resume = g_active && g_pos < g_total;       // mid-transfer doorbell = resume
+      if(!resume) {                                    // NEW command: decode + read disk
+        scsi_service_run(&req, &g_pending_rsp, &g_scsi_disk, g_buf, g_to_dev, g_wr_lba);
+        g_total = g_buf.size(); g_pos = 0; g_stream_pos = 0;
+        g_active = (g_pending_rsp.scsi_status == ST_SELECT_TRANSFER_SUCCESS) && !g_buf.empty();
+      } else {                                         // RESUME: same buf, new chain
+        g_pending_rsp.scsi_status = ST_SELECT_TRANSFER_SUCCESS; g_pending_rsp.tgt_status = TGT_GOOD;
+      }
+      g_pending_rsp.seq = tb->scsi_req_seq;
+      if(getenv("SCSIDBG"))
+        fprintf(stderr, "[scsi] cyc=%llu %s CDB %02x %02x %02x %02x %02x %02x dest=%u lun=%u "
+                "nbdp=%08x xfer=%u pos=%zu/%zu dir=%d\n", (unsigned long long)cyc,
+                resume?"RESUME":"NEW", req.cdb[0],req.cdb[1],req.cdb[2],req.cdb[3],req.cdb[4],
+                req.cdb[5], req.dest, req.lun, req.nbdp, req.xfer_len, g_pos, g_total, (int)g_to_dev);
+      if(g_active) {
+        uint32_t rem = (uint32_t)(g_total - g_pos);    // chunk = WD33C93 count (== chain)
+        g_chunk = (req.xfer_len && req.xfer_len < rem) ? req.xfer_len : rem;
+        if(!g_to_dev) { g_streaming = true; }          // READ: feed the engine this chunk
+        else          { if(!resume) g_buf.clear(); g_capturing = true; }  // WRITE: drain
+      } else {
+        post_rsp();                                    // timeout / no data (shim aborts)
+      }
+#else
       scsi_service_run(&req, &g_pending_rsp, &g_scsi_disk, g_buf, g_to_dev, g_wr_lba);
       g_pending_rsp.seq = tb->scsi_req_seq;
       if(getenv("SCSIDBG"))
@@ -646,10 +799,33 @@ int main(int argc, char **argv) {
       } else {
         post_rsp();                                    // timeout / no data: status now (shim aborts)
       }
+#endif
     }
     // READ: push one 16-byte beat/cycle into the conduit (engine stalls when empty),
     // respecting full; post status once the whole buffer is in flight.
     if(g_streaming) {
+#ifdef FAITHFUL_SCSI
+      // Stream beats continuously across chunks (the engine consumes one chain per
+      // doorbell); the chunk boundary is dma_done, not the stream pointer.
+      if(g_stream_pos < g_total && !tb->scsi_beat_full) {
+        for(int i = 0; i < 4; i++) { uint32_t w = 0;
+          for(int j = 0; j < 4; j++) { size_t idx = g_stream_pos + 4*i + j;
+            if(idx < g_total) w |= (uint32_t)g_buf[idx] << (8*j); }
+          tb->scsi_beat_data[i] = w; }
+        tb->scsi_beat_push = 1;
+        g_stream_pos += 16;
+      }
+      if(tb->scsi_dma_done) {                          // engine finished this chunk's chain
+        g_pos += g_chunk; g_streaming = false;
+        if(g_pos < g_total) {                          // chunk PAUSE: IRIX will resume
+          g_pending_rsp.completion = SCSI_DONE_PAUSE; g_pending_rsp.scsi_status = 0x49;
+        } else {                                       // whole command delivered
+          g_pending_rsp.completion = SCSI_DONE_COMPLETE;
+          g_pending_rsp.scsi_status = ST_SELECT_TRANSFER_SUCCESS; g_active = false;
+        }
+        g_pending_rsp.residual = 0; post_rsp();
+      }
+#else
       if(g_stream_pos >= g_buf.size()) { g_streaming = false; post_rsp(); }
       else if(!tb->scsi_beat_full) {
         for(int i = 0; i < 4; i++) { uint32_t w = 0;
@@ -659,6 +835,7 @@ int main(int argc, char **argv) {
         tb->scsi_beat_push = 1;
         g_stream_pos += 16;
       }
+#endif
     }
     // WRITE: capture each beat the engine pushes out (mem[BP] -> disk), commit at done.
     if(g_capturing) {
@@ -667,16 +844,30 @@ int main(int argc, char **argv) {
           g_buf.push_back((tb->scsi_disk_wr_data[b>>2] >> (8*(b&3))) & 0xff);
       if(tb->scsi_dma_done) {
         g_capturing = false;
+#ifdef FAITHFUL_SCSI
+        // commit this chunk's blocks at the running LBA offset, then advance / pause
+        for(size_t b = 0; b*512 + 512 <= g_buf.size(); b++)
+          g_scsi_disk.block_write(g_wr_lba + g_pos/512 + b, g_buf.data() + b*512);
+        g_pos += g_chunk; g_buf.clear();
+        if(g_pos < g_total) {                          // chunk PAUSE: IRIX will resume
+          g_pending_rsp.completion = SCSI_DONE_PAUSE; g_pending_rsp.scsi_status = 0x48;
+        } else {                                       // whole command delivered
+          g_pending_rsp.completion = SCSI_DONE_COMPLETE;
+          g_pending_rsp.scsi_status = ST_SELECT_TRANSFER_SUCCESS; g_active = false;
+        }
+        g_pending_rsp.residual = 0; post_rsp();
+#else
         for(size_t b = 0; b*512 + 512 <= g_buf.size(); b++)
           g_scsi_disk.block_write(g_wr_lba + b, g_buf.data() + b*512);
         post_rsp();
+#endif
       }
     }
     // programmable shim select->data delay (on the FPGA this is an AXI reg the ARM
     // sets; in sim drive a fixed value -- must be >= the SVC_DELAY service deferral).
     tb->scsi_sel_delay = 8192;
     // 64-bit-address-bug probe: log every a0 (reg 4) writeback near the fault
-    if(cyc > 35850000ull && cyc < 35870000ull) {
+    if(false && cyc > 35850000ull && cyc < 35870000ull) {
       if(tb->retire_valid && tb->retire_reg_ptr == 4)  // reg 4 = a0
         fprintf(stderr, "[a0wr] cyc=%llu pc=0x%llx a0=0x%016llx\n",
                 (unsigned long long)cyc, (unsigned long long)tb->retire_pc,
@@ -765,13 +956,14 @@ int main(int argc, char **argv) {
       prev_epc = tb->epc; prev_badv = tb->badvaddr; exc_prints++;
     }
     prev_sr = tb->status_reg;
-    if(cyc && (cyc % 5000000) == 0)
+    if(false & cyc && (cyc % 5000000) == 0) {
       fprintf(stderr, "[tb] cyc %llu  retired %llu  last_pc 0x%llx  head_pc 0x%llx  "
               "cause=%u epc=0x%llx badv=0x%llx sr=0x%08x irq=%u\n",
               (unsigned long long)cyc, (unsigned long long)retired,
               (unsigned long long)last_pc, (unsigned long long)tb->dbg_head_pc,
               (unsigned)tb->cause, (unsigned long long)tb->epc,
               (unsigned long long)tb->badvaddr, (unsigned)tb->status_reg, (unsigned)tb->took_irq);
+    }
     if(tb->got_bad_addr) { printf("\n[tb] got_bad_addr at cycle %llu\n", (unsigned long long)cyc); }
   }
 

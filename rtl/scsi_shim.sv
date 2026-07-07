@@ -1,4 +1,9 @@
 `include "machine.vh"
+// FAITHFUL_SCSI (Stage A): faithful chunked-DMA -- honor a service PAUSE (scsi_status
+// 0x48/0x49) at an HPC3 descriptor-chain EOX boundary so IRIX's >252KB transfers
+// pause/resume correctly instead of completing early.  Default OFF keeps the working
+// one-shot path; uncomment to A/B.  Pairs with per-target {buf,pos} in the ARM/TB.
+`define FAITHFUL_SCSI
 // -----------------------------------------------------------------------------
 // scsi_shim.sv -- WD33C93A + HPC3 SCSI-DMA-channel control shim for the
 // ARM/DPI-host-serviced disk path (docs/peripherals/scsi_disk_theory_of_operation.md).
@@ -235,6 +240,19 @@ module scsi_shim
             r_cip <= 1'b0; r_bsy <= 1'b0; r_intrq <= 1'b1;
             r_done_seq <= r_req_seq;
             r_ctrl <= r_ctrl & ~8'h10;                // DMA done: clear HPC3 ctrl ACTIVE
+`ifdef FAITHFUL_SCSI
+            // Stage-A chunked DMA: the service posts scsi_status 0x48 (data-out) /
+            // 0x49 (data-in) to signal a CHUNK PAUSE -- the HPC3 chain EOX'd before the
+            // SCSI command's full length.  Raise INTRQ with transfer-count-exhausted
+            // phase (0x46) but do NOT mark command-complete (0x60): the guest reprograms
+            // the DMA + re-issues SEL_ATN_XFER and the service resumes from pos.
+            // (interp_mips pause_transfer()).  No target-status/chan-IRQ update.
+            if((scsi_rsp_scsi_status == 8'h48) || (scsi_rsp_scsi_status == 8'h49)) begin
+               r_cmd_phase <= 8'h46;                  // transfer count exhausted (chunked)
+               r_xfer_cnt  <= 24'd0;                  // WD33C93 count counted down to 0
+            end
+            else
+`endif
             if(scsi_rsp_scsi_status != 8'h42) begin   // NORMAL completion (not selection timeout)
                r_target_lun <= scsi_rsp_tgt_status;   // reg 0x0f = target status (GOOD/CHECK)
                r_cmd_phase  <= CMD_PHASE_COMPLETE;    // 0x60 command-complete
