@@ -31,5 +31,6 @@ make -s
 echo "[run_go] kernel=$KERNEL"
 echo "[run_go] arcs=$ARCS"
 echo "[run_go] UNBOUNDED: maxcyc=$MAXCYC  maxicnt=0 (unlimited insns)  -- Ctrl-C to stop"
+
 exec ./obj_dir/henry_tb --checker --kernel "$KERNEL" --arcs "$ARCS" --start-pc 0xbfc00000 \
      --maxcyc "$MAXCYC" "$@"

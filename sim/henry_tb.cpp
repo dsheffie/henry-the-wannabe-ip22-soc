@@ -23,6 +23,8 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
 
 // ---- lockstep co-sim checker: r9999's embedded interp as the golden model ----
 #include "interpret.hh"
@@ -71,6 +73,12 @@ static inline uint32_t fpga_map(uint32_t cpuaddr, bool *bad) {
 }
 
 static uint8_t *g_mem = nullptr;
+
+// timer-IRQ trace: core.sv calls log_timer_irq() (DPI) once per timer interrupt
+// taken; we stamp it with the current sim cycle.  Queryable via monitor `timer`.
+static uint64_t g_cur_cyc = 0;                 // updated each loop iteration
+static std::vector<uint64_t> g_timer_irq_cyc;  // cycle of every timer IRQ taken
+extern "C" void log_timer_irq() { g_timer_irq_cyc.push_back(g_cur_cyc); }
 
 // ---- SCSI disk service (scsi_shim.sv mailbox; active only with `ENABLE_SCSI_SHIM + --disk) ----
 // Poll the doorbell (scsi_req_seq change), walk the descriptor chain in g_mem, do
@@ -466,6 +474,149 @@ static uint32_t install_arcs_handoff(uint32_t kentry) {
   return K | STUB_PA;
 }
 
+// ============================================================================
+// TCP monitor: connect over a socket (env MONPORT, default 2323; enable with
+// MON=1 or MONPORT=N) to inspect state and halt/step the sim.  Mirrors the
+// on-board mips-axi mon.cc protocol -- raw TCP, Ctrl-] toggles console<->monitor
+// -- so the same `mipsmon` client works.
+//   commands: pc regs r<N> cp0 epc mem <hex> [n] state perf halt go step[N] help
+// GPR/CP0 come from the lockstep ISS (`ss`) -> run with --checker for those;
+// pc/mem/state/step/halt work without it.  Nothing changes unless a client
+// connects (non-blocking accept polled from the main loop).
+// ============================================================================
+static int      g_mon_listen = -1, g_mon_client = -1;
+static bool     g_mon_cmd_mode = true;    // true = commands, false = console passthrough
+static bool     g_mon_paused   = false;   // halt: main loop freezes (polls, does not tick)
+static uint64_t g_mon_step_to  = 0;       // step: run until `retired` reaches this, then pause
+static char     g_mon_line[512];
+static int      g_mon_len = 0;
+static uint64_t g_mon_cyc = 0, g_mon_retired = 0, g_mon_last_pc = 0;  // snapshot from the loop
+
+static void mon_send(const char *s) {
+  if(g_mon_client >= 0) { ssize_t r = write(g_mon_client, s, strlen(s)); (void)r; }
+}
+static void mon_console_out(int c) {   // guest console byte -> client (console mode only)
+  if(g_mon_client >= 0 && !g_mon_cmd_mode) { char b = (char)c; ssize_t r = write(g_mon_client, &b, 1); (void)r; }
+}
+static void mon_init(int port) {
+  g_mon_listen = socket(AF_INET, SOCK_STREAM, 0);
+  if(g_mon_listen < 0) return;
+  int one = 1; setsockopt(g_mon_listen, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
+  struct sockaddr_in a; memset(&a, 0, sizeof(a));
+  a.sin_family = AF_INET; a.sin_addr.s_addr = INADDR_ANY; a.sin_port = htons((uint16_t)port);
+  if(bind(g_mon_listen, (struct sockaddr*)&a, sizeof(a)) < 0) { close(g_mon_listen); g_mon_listen = -1; return; }
+  listen(g_mon_listen, 1);
+  fcntl(g_mon_listen, F_SETFL, fcntl(g_mon_listen, F_GETFL, 0) | O_NONBLOCK);
+  fprintf(stderr, "[mon] henry_tb monitor on tcp:%d (connect: `nc localhost %d`)\n", port, port);
+}
+// read a 32-bit word the way the RTL AXI master does (kseg->phys, then fpga_map)
+static bool mon_mem_rd(uint32_t va, uint32_t *out) {
+  uint32_t phys = (va >= 0x80000000u && va < 0xc0000000u) ? (va & 0x1fffffffu) : va;
+  bool bad = false; uint32_t off = fpga_map(phys, &bad);
+  if(bad || (uint64_t)off + 4 > MEM_SIZE) return false;
+  *out = ((uint32_t)g_mem[off]<<24)|((uint32_t)g_mem[off+1]<<16)|((uint32_t)g_mem[off+2]<<8)|g_mem[off+3];
+  return true;
+}
+static const char *g_mon_help =
+  "pc regs r<N> cp0 epc mem <hex> [n] state perf timer[N] halt go step[N] help   (Ctrl-] = console)\r\n";
+
+static void mon_cmd(char *line) {
+  char out[1024];
+  while(*line == ' ') line++;
+  if(line[0] == 0 || (line[0] == 'c' && line[1] == 0)) { g_mon_cmd_mode = false; mon_send("\r\n[console -- Ctrl-] = monitor]\r\n"); return; }
+  else if(!strncmp(line, "help", 4) || line[0] == '?') mon_send(g_mon_help);
+  else if(!strncmp(line, "pc", 2)) {
+    snprintf(out, sizeof(out), "rtl_last_pc=%016llx iss_pc=%016llx cyc=%llu retired=%llu\r\n",
+             (unsigned long long)g_mon_last_pc, (unsigned long long)(ss ? (uint64_t)ss->pc : 0),
+             (unsigned long long)g_mon_cyc, (unsigned long long)g_mon_retired); mon_send(out);
+  }
+  else if(!strncmp(line, "state", 5)) {
+    snprintf(out, sizeof(out), "cyc=%llu retired=%llu %s (checker=%s)\r\n",
+             (unsigned long long)g_mon_cyc, (unsigned long long)g_mon_retired,
+             g_mon_paused ? "[PAUSED]" : "[running]", ss ? "on" : "off"); mon_send(out);
+  }
+  else if(!strncmp(line, "perf", 4)) {
+    uint64_t c = g_mon_cyc ? g_mon_cyc : 1; uint64_t m = g_mon_retired * 1000 / c;
+    snprintf(out, sizeof(out), "retired=%llu cycles=%llu ipc=%llu.%03llu\r\n",
+             (unsigned long long)g_mon_retired, (unsigned long long)g_mon_cyc,
+             (unsigned long long)(m/1000), (unsigned long long)(m%1000)); mon_send(out);
+  }
+  else if(!strncmp(line, "cp0", 3) || !strncmp(line, "epc", 3)) {
+    if(!ss) mon_send("cp0: no ISS -- run with --checker\r\n");
+    else { snprintf(out, sizeof(out),
+      "epc=%016llx status=%08x cause=%08x badv=%016llx index=%08x entryhi=%016llx\r\n",
+      (unsigned long long)ss->cpr0_64[14], (uint32_t)ss->cpr0[12], (uint32_t)ss->cpr0[13],
+      (unsigned long long)ss->cpr0_64[8], (uint32_t)ss->cpr0[0], (unsigned long long)ss->cpr0_64[10]); mon_send(out); }
+  }
+  else if(!strncmp(line, "regs", 4) || (line[0]=='r' && line[1] != 'e')) {
+    if(!ss) mon_send("regs: no ISS -- run with --checker\r\n");
+    else { const char *p = line+1; while(*p==' ') p++;
+      if(*p>='0' && *p<='9') { int n = atoi(p) & 31; snprintf(out,sizeof(out),"r%d=%016llx\r\n",n,(unsigned long long)ss->gpr[n]); mon_send(out); }
+      else for(int n=0;n<32;n++){ snprintf(out,sizeof(out),"r%-2d=%016llx%s",n,(unsigned long long)ss->gpr[n],(n&1)?"\r\n":"  "); mon_send(out); } }
+  }
+  else if(!strncmp(line, "mem", 3)) {
+    const char *p = line+3; while(*p==' ') p++;
+    uint32_t addr = (uint32_t)strtoul(p, nullptr, 16);
+    const char *q = p; while(*q && *q!=' ') q++; while(*q==' ') q++;
+    int n = (*q>='0'&&*q<='9') ? atoi(q) : 4; if(n > 64) n = 64;
+    for(int i=0;i<n;i++){ uint32_t v; if(mon_mem_rd(addr+4*i,&v)) snprintf(out,sizeof(out),"%08x: %08x\r\n",addr+4*i,v);
+                          else snprintf(out,sizeof(out),"%08x: <out of range>\r\n",addr+4*i); mon_send(out); }
+  }
+  else if(!strncmp(line, "timer", 5) || !strncmp(line, "tirq", 4)) {
+    size_t n = g_timer_irq_cyc.size();
+    if(n == 0) mon_send("timer: no timer IRQs logged yet\r\n");
+    else {
+      const char *p = line; while(*p && *p!=' ') p++; while(*p==' ') p++;
+      int want = (*p>='0'&&*p<='9') ? atoi(p) : 10;
+      snprintf(out, sizeof(out), "timer IRQs: %zu total  first=%llu last=%llu  (last %d, cyc:+delta)\r\n",
+               n, (unsigned long long)g_timer_irq_cyc[0], (unsigned long long)g_timer_irq_cyc[n-1], want);
+      mon_send(out);
+      size_t lo = (n > (size_t)want) ? n - want : 0;
+      for(size_t i = lo; i < n; i++) {
+        uint64_t d = (i > 0) ? g_timer_irq_cyc[i] - g_timer_irq_cyc[i-1] : 0;
+        snprintf(out, sizeof(out), "  #%zu  cyc=%llu  +%llu\r\n", i, (unsigned long long)g_timer_irq_cyc[i], (unsigned long long)d);
+        mon_send(out);
+      }
+    }
+  }
+  else if(!strncmp(line, "halt", 4) || line[0]=='h') { g_mon_paused = true;  g_mon_step_to = 0; mon_send("[halted]\r\n"); }
+  else if(!strncmp(line, "go", 2)   || line[0]=='g') { g_mon_paused = false; g_mon_step_to = 0; mon_send("[running]\r\n"); }
+  else if(!strncmp(line, "step", 4) || line[0]=='s' || line[0]=='n') {
+    const char *p = line + ((line[0]=='s'&&line[1]=='t') ? 4 : 1); while(*p==' ') p++;
+    uint64_t cnt = (*p>='0'&&*p<='9') ? strtoull(p,nullptr,10) : 1;
+    g_mon_step_to = g_mon_retired + cnt; g_mon_paused = false;   // run cnt retirements, re-pause
+    snprintf(out, sizeof(out), "[step %llu insns...]\r\n", (unsigned long long)cnt); mon_send(out);
+    return;   // the step-done reporter prints the next prompt
+  }
+  else mon_send("? (help)\r\n");
+  mon_send("mon> ");
+}
+
+static void mon_poll(void) {
+  if(g_mon_listen < 0) return;
+  if(g_mon_client < 0) {
+    int fd = accept(g_mon_listen, nullptr, nullptr);
+    if(fd < 0) return;
+    g_mon_client = fd;
+    fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
+    g_mon_cmd_mode = true; g_mon_len = 0;
+    mon_send("\r\n[henry_tb monitor] 'help'; Ctrl-] toggles console\r\nmon> ");
+    return;
+  }
+  uint8_t rb[256];
+  ssize_t n = read(g_mon_client, rb, sizeof(rb));
+  if(n == 0) { close(g_mon_client); g_mon_client = -1; g_mon_paused = false; g_mon_step_to = 0; return; }
+  if(n < 0) return;   // EWOULDBLOCK
+  for(ssize_t i=0;i<n;i++){
+    uint8_t c = rb[i];
+    if(c == 0x1d) { g_mon_cmd_mode = !g_mon_cmd_mode; mon_send(g_mon_cmd_mode ? "\r\n[monitor]\r\nmon> " : "\r\n[console]\r\n"); continue; }
+    if(!g_mon_cmd_mode) continue;   // console input to guest not wired (inspect-only)
+    if(c=='\r'||c=='\n'){ mon_send("\r\n"); g_mon_line[g_mon_len]=0; mon_cmd(g_mon_line); g_mon_len=0; }
+    else if(c==0x7f||c==8){ if(g_mon_len>0){ g_mon_len--; mon_send("\b \b"); } }
+    else if(g_mon_len < (int)sizeof(g_mon_line)-1){ g_mon_line[g_mon_len++]=(char)c; char e[2]={(char)c,0}; mon_send(e); }
+  }
+}
+
 int main(int argc, char **argv) {
   std::string kernel, arcs, ckpt_file;
   uint64_t max_cyc = 120000000ull;
@@ -560,6 +711,13 @@ int main(int argc, char **argv) {
 
   setvbuf(stdout, nullptr, _IONBF, 0);   // unbuffered: banner appears promptly
 
+  // TCP monitor: enable with MON=1 or MONPORT=N (default port 2323). Opt-in so
+  // the many automated runs don't hold a socket; connect with `nc localhost 2323`.
+  //{ const char *mp = getenv("MONPORT");
+  //if(mp || getenv("MON")) mon_init(mp ? atoi(mp) : 2323);
+  //}
+  mon_init(2323);
+
   Verilated::commandArgs(argc, argv);
   Vhenry_soc *tb = new Vhenry_soc;
 
@@ -616,6 +774,15 @@ int main(int argc, char **argv) {
   // the mem_rsp set last cycle), THEN read mem_req and present mem_rsp for the
   // next posedge, then negedge eval.
   for(uint64_t cyc = 0; cyc < max_cyc && (max_icnt == 0 || retired < max_icnt) && !halted && !Verilated::gotFinish(); cyc++) {
+    g_cur_cyc = cyc;   // stamp for the log_timer_irq() DPI (fires during eval below)
+    // TCP monitor: snapshot counters, poll for client input, and FREEZE (poll
+    // only, no RTL tick) while halted -- so `halt`/`step` hold the sim still for
+    // inspection.  Poll sparsely while free-running to keep the fast path fast.
+    if(g_mon_listen >= 0) {
+      g_mon_cyc = cyc; g_mon_retired = retired; g_mon_last_pc = (uint64_t)last_pc;
+      if(g_mon_paused || (cyc & 0x3ff) == 0) mon_poll();
+      while(g_mon_paused) { mon_poll(); usleep(1000); }
+    }
     g_probe_cyc = cyc;  // A/B DIAG: expose cyc to dpi_a0_probe
     // SCC serial Rx injection (--rx): drip one byte into the IOC2 Rx FIFO every 64
     // cycles once the core is running, so a directed test observes a serial IRQ.
@@ -634,9 +801,16 @@ int main(int argc, char **argv) {
 
     tb->clk = 1;
     tb->eval();                              // posedge (FIFO advances if pop)
-    if(drain) putchar(drain_ch);
+    if(drain) { putchar(drain_ch); mon_console_out(drain_ch); }
 
     if(tb->retire_valid) { retired++; last_pc = tb->retire_pc; }
+    // monitor `step N`: re-pause once N more instructions have retired
+    if(g_mon_step_to && retired >= g_mon_step_to) {
+      g_mon_paused = true; g_mon_step_to = 0;
+      char b[128]; snprintf(b, sizeof(b), "[stepped] retired=%llu rtl_pc=%016llx\r\nmon> ",
+                            (unsigned long long)retired, (unsigned long long)tb->retire_pc);
+      mon_send(b);
+    }
 
     // ---- lockstep co-sim checker (mirrors r9999/top.cc:686-800) ----
     if(g_checker && ss) {
@@ -956,7 +1130,7 @@ int main(int argc, char **argv) {
       prev_epc = tb->epc; prev_badv = tb->badvaddr; exc_prints++;
     }
     prev_sr = tb->status_reg;
-    if(false & cyc && (cyc % 5000000) == 0) {
+    if(cyc && (cyc % (1UL<<24)) == 0) {
       fprintf(stderr, "[tb] cyc %llu  retired %llu  last_pc 0x%llx  head_pc 0x%llx  "
               "cause=%u epc=0x%llx badv=0x%llx sr=0x%08x irq=%u\n",
               (unsigned long long)cyc, (unsigned long long)retired,
