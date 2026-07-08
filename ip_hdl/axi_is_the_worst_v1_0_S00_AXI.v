@@ -47,6 +47,8 @@ module axi_is_the_worst_v1_0_S00_AXI #
     input wire [31:0]                         dbg_trace_data,
     input wire [8:0]                          dbg_trace_wptr,
     output wire [11:0]                        dbg_trace_index,
+    input wire [31:0]                         dbg_head_pc,
+    input wire [31:0]                         dbg_head_status,
     input wire [31:0]			      badvaddr,
     input wire [4:0]			      cause,
     input wire				      l1i_flush_done,
@@ -1328,8 +1330,8 @@ module axi_is_the_worst_v1_0_S00_AXI #
 	  6'h17   : reg_data_out <= slv_reg23;
 	  6'h18   : reg_data_out <= dbg_trace_data;
 	  6'h19   : reg_data_out <= {23'd0, dbg_trace_wptr};
-	  6'h1A   : reg_data_out <= slv_reg26;
-	  6'h1B   : reg_data_out <= slv_reg27;
+	  6'h1A   : reg_data_out <= dbg_head_pc;      // ROB head PC (was slv_reg26 scratch)
+	  6'h1B   : reg_data_out <= dbg_head_status;  // ROB head status bits (was slv_reg27 scratch)
 	  6'h1C   : reg_data_out <= slv_reg28;
 	  6'h1D   : reg_data_out <= slv_reg29;
 	  6'h1E   : reg_data_out <= slv_reg30;

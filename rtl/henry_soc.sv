@@ -83,6 +83,7 @@ module henry_soc
    output logic                  retire_two_valid,
    output logic [`M_WIDTH-1:0]   retire_two_pc,
    output logic [`M_WIDTH-1:0]   dbg_head_pc,
+   output logic [31:0] 		 dbg_head_status,
    output logic [`M_WIDTH-1:0]   epc,
    output logic [31:0]           status_reg,
    output logic [`M_WIDTH-1:0]   badvaddr,
@@ -233,7 +234,7 @@ module henry_soc
       .inflight(inflight), .epc(epc), .status_reg(status_reg), .badvaddr(badvaddr), .cause(cause),
       .l1i_flush_done(), .l1d_flush_done(), .l2_flush_done(),
       .took_irq(took_irq), .cp0_count(cp0_count),
-      .dbg_head_pc(dbg_head_pc), .dbg_head_fetch_cycle(), .dbg_head_alloc_cycle(),
+      .dbg_head_pc(dbg_head_pc), .dbg_head_status(dbg_head_status), .dbg_head_fetch_cycle(), .dbg_head_alloc_cycle(),
       .dbg_serialize_cycle(), .dbg_cycle(), .dbg_oldest_first_pending(),
       .dbg_trace_index(dbg_trace_index), .dbg_trace_data(dbg_trace_data), .dbg_trace_wptr(dbg_trace_wptr)
       );

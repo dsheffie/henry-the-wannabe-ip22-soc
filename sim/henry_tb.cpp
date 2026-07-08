@@ -42,7 +42,9 @@ namespace globals {
 static sparse_mem *g_ss_mem   = nullptr;   // golden ISS memory (own 4GB, PA-indexed)
 static state_t    *ss         = nullptr;   // golden checker state
 static bool        g_checker  = false;     // --checker enables the lockstep compare
+#ifdef HENRY_TB_GO_DEBUG
 static const bool  g_go_a0_trace = getenv("GO_A0_TRACE") != nullptr; // diagnostic a0-corruption window trace
+#endif
 static uint64_t    g_chk_insns = 0;        // instructions checked
 
 static const uint64_t MEM_SIZE = 0x20000000ull;   // 512 MB physical window
@@ -154,8 +156,9 @@ extern "C" int       loadcp0(int reg)    { return g_have_ckpt ? (int)g_ckpt.cpr0
 extern "C" long long loadcp0_64(int reg) { return g_have_ckpt ? (long long)g_ckpt.cpr0_64[reg & 31] : 0; }
 extern "C" long long loadhilo(int half)  { return g_have_ckpt ? (half ? g_ckpt.hi : g_ckpt.lo) : 0; }
 extern "C" int       loadfcsr()          { return g_have_ckpt ? (int)g_ckpt.fcr1[4] : 0; } /* FCR31 = fcr1[4] */
-// A/B DIAG (go stale-a0): RTL calls this at the mem-execute stage. g_probe_cyc is
-// updated by the main loop. GO_A0_TRACE-gated so it is inert unless armed.
+// A/B DIAG (go stale-a0): bug #41 diagnostic, resolved. The RTL DPI import that
+// called these was removed, so they are dead -- compile in with -DHENRY_TB_GO_DEBUG.
+#ifdef HENRY_TB_GO_DEBUG
 uint64_t g_probe_cyc = 0;
 extern "C" void dpi_a0_probe(int pc, int is_store, int phys, long long val) {
   if(!g_go_a0_trace) return;
@@ -185,6 +188,7 @@ extern "C" void dpi_mem_at(long long vaddr, long long pa, long long stdata, int 
             (unsigned long long)g_probe_cyc, (unsigned long long)vaddr, phys,
             (unsigned long long)v, bad);
 }
+#endif // HENRY_TB_GO_DEBUG
 extern "C" long long loadtlb(int entry, int field) {  /* 0=hi 1=lo0 2=lo1 3=pagemask */
   if(!g_have_ckpt) return 0;
   const cp_tlb &t = g_ckpt.tlb[entry % 48];
@@ -767,7 +771,12 @@ int main(int argc, char **argv) {
   };
   const uint64_t MEM_LAT_SPAN = (uint64_t)(MEM_LAT_MAX - MEM_LAT_MIN + 1);
   fprintf(stderr, "[memlat] RANDOM xorshift latency [%d,%d] seed=%u\n", MEM_LAT_MIN, MEM_LAT_MAX, MEM_SEED);
-  uint64_t retired = 0, last_pc = 0;
+  // No-retire watchdog: if the core goes this many cycles without retiring an
+  // instruction it is wedged (e.g. the ip22_eeprom_read deadlock) -- bail out with
+  // a diagnostic instead of spinning to --maxcyc. 0 disables. Env NO_RETIRE_LIMIT.
+  const uint64_t NO_RETIRE_LIMIT = getenv("NO_RETIRE_LIMIT") ? strtoull(getenv("NO_RETIRE_LIMIT"), nullptr, 0) : 65536;
+  uint64_t retired = 0, last_pc = 0, last_retire_cyc = 0;
+  bool deadlock = false;
   uint64_t prev_epc = 0; int exc_prints = 0; uint32_t prev_sr = 0; uint64_t prev_badv = 0;
 
   // Loop mirrors r9999 top.cc phase ordering: posedge eval FIRST (core samples
@@ -783,7 +792,9 @@ int main(int argc, char **argv) {
       if(g_mon_paused || (cyc & 0x3ff) == 0) mon_poll();
       while(g_mon_paused) { mon_poll(); usleep(1000); }
     }
+#ifdef HENRY_TB_GO_DEBUG
     g_probe_cyc = cyc;  // A/B DIAG: expose cyc to dpi_a0_probe
+#endif
     // SCC serial Rx injection (--rx): drip one byte into the IOC2 Rx FIFO every 64
     // cycles once the core is running, so a directed test observes a serial IRQ.
     tb->scc_rx_valid = 0;
@@ -803,7 +814,48 @@ int main(int argc, char **argv) {
     tb->eval();                              // posedge (FIFO advances if pop)
     if(drain) { putchar(drain_ch); mon_console_out(drain_ch); }
 
-    if(tb->retire_valid) { retired++; last_pc = tb->retire_pc; }
+    if(tb->retire_valid) { retired++; last_pc = tb->retire_pc; last_retire_cyc = cyc; }
+    else if(NO_RETIRE_LIMIT && (cyc - last_retire_cyc) > NO_RETIRE_LIMIT) {
+      fprintf(stderr, "[tb] NO-RETIRE WATCHDOG: %llu cycles with no retirement "
+              "(cyc=%llu retired=%llu last_pc=0x%llx head_pc=0x%08x head_status=0x%02x). WEDGED.\n",
+              (unsigned long long)(cyc - last_retire_cyc), (unsigned long long)cyc,
+              (unsigned long long)retired, (unsigned long long)last_pc,
+              (uint32_t)tb->dbg_head_pc, (uint32_t)tb->dbg_head_status);
+      deadlock = true; halted = true;
+    }
+
+    // ---- full-GPR snapshot at the near-NULL store fault. go SIGSEGVs at
+    // `sw zero,0(v0)` (delay slot @0x120024dd4, EPC=branch 0x120024dd0),
+    // v0 = a5(r9) + ((s2(r18)+s0(r16))<<2). a5 committed-good, so the index or a
+    // read-side clobber is the culprit -- dump every committed GPR + last-writer
+    // PC so we can compute exactly where v0 went to 4. ----
+    // (bug #41 diagnostic, resolved; compile in with -DHENRY_TB_GO_DEBUG)
+#ifdef HENRY_TB_GO_DEBUG
+    {
+      static uint64_t g_gpr[32] = {0}, g_gpr_pc[32] = {0};
+      if(tb->retire_valid && tb->retire_reg_valid) { int r=tb->retire_reg_ptr; g_gpr[r]=tb->retire_reg_data; g_gpr_pc[r]=tb->retire_pc; }
+      if(tb->retire_two_valid && tb->retire_reg_two_valid) { int r=tb->retire_reg_two_ptr; g_gpr[r]=tb->retire_reg_two_data; g_gpr_pc[r]=tb->retire_two_pc; }
+      // retire ring: last 256 retired (pc, reg, data) per port, to reconstruct
+      // the exact dynamic path into the faulting store.
+      static uint64_t g_ring_pc[256]; static int g_ring_reg[256]; static uint64_t g_ring_d[256]; static int g_ri=0;
+      if(tb->retire_valid) { g_ring_pc[g_ri&255]=tb->retire_pc; g_ring_reg[g_ri&255]=tb->retire_reg_valid?tb->retire_reg_ptr:-1; g_ring_d[g_ri&255]=tb->retire_reg_data; g_ri++; }
+      if(tb->retire_two_valid) { g_ring_pc[g_ri&255]=tb->retire_two_pc; g_ring_reg[g_ri&255]=tb->retire_reg_two_valid?tb->retire_reg_two_ptr:-1; g_ring_d[g_ri&255]=tb->retire_reg_two_data; g_ri++; }
+      static int g_fault_seen = 0;
+      bool hit = ((tb->epc & 0xffffffffffull) == 0x120024dd0ull) && (tb->cause == 3) && (tb->badvaddr <= 0x1000ull);
+      if(hit && !g_fault_seen) {
+        static const char *nm[32]={"r0","at","v0","v1","a0","a1","a2","a3","a4","a5","a6","a7","t0","t1","t2","t3","s0","s1","s2","s3","s4","s5","s6","s7","t8","t9","k0","k1","gp","sp","s8","ra"};
+        fprintf(stderr, "[gpr!] cyc=%llu near-NULL store (badv=0x%llx). committed GPRs:\n", (unsigned long long)cyc, (unsigned long long)tb->badvaddr);
+        for(int r=0;r<32;r++)
+          fprintf(stderr, "   %s(r%d)=0x%llx  (wr@0x%llx)\n", nm[r], r, (unsigned long long)g_gpr[r], (unsigned long long)g_gpr_pc[r]);
+        fprintf(stderr, "[ring] last 200 retired (pc reg<=data):\n");
+        for(int k=200;k>=1;k--){ int i=(g_ri-k)&255; if(!g_ring_pc[i]) continue;
+          if(g_ring_reg[i]>=0) fprintf(stderr, "   0x%08llx  r%d<=0x%llx\n", (unsigned long long)(g_ring_pc[i]&0xffffffffffull), g_ring_reg[i], (unsigned long long)g_ring_d[i]);
+          else fprintf(stderr, "   0x%08llx\n", (unsigned long long)(g_ring_pc[i]&0xffffffffffull)); }
+      }
+      g_fault_seen = hit;
+    }
+#endif // HENRY_TB_GO_DEBUG
+
     // monitor `step N`: re-pause once N more instructions have retired
     if(g_mon_step_to && retired >= g_mon_step_to) {
       g_mon_paused = true; g_mon_step_to = 0;
@@ -828,6 +880,8 @@ int main(int argc, char **argv) {
     }
 
     // ---- go a0-corruption trace (approach B checkpoint; diagnostic) ----
+    // (bug #41 diagnostic, resolved; compile in with -DHENRY_TB_GO_DEBUG)
+#ifdef HENRY_TB_GO_DEBUG
     // Walk a0 (reg 4) through the ISR that runs between the userspace load
     // @0x12000146c (a0 <- valid ptr 0x1200fa608) and the faulting store
     // @0x120001480 (a0 == 0 -> SIGSEGV write to NULL).  Deterministic on the B
@@ -882,6 +936,7 @@ int main(int argc, char **argv) {
                 (unsigned)tb->retire_reg_two_valid, (unsigned)tb->retire_reg_two_ptr,
                 (unsigned long long)tb->retire_reg_two_data);
     }
+#endif // HENRY_TB_GO_DEBUG
 
     // calibration probe: _cpuclkper100ticks ends at 0x88019648 (subu v0,v1,v0).
     if(tb->retire_valid && (uint32_t)tb->retire_pc == 0x88019648u)
@@ -1151,7 +1206,8 @@ int main(int argc, char **argv) {
     fprintf(stderr, "[checker] %llu insns checked, %llu real divergences, %llu suppressed, %llu mapped-skip, %llu resync\n",
             (unsigned long long)g_chk_insns, (unsigned long long)g_chk_diverge,
             (unsigned long long)g_chk_copsupp, (unsigned long long)g_chk_mapped, (unsigned long long)g_chk_resync);
-  printf("\n[tb] %s\n", halted ? "halted (magic-halt store)" : "reached max cycles");
+  printf("\n[tb] %s\n", deadlock ? "NO-RETIRE WATCHDOG tripped (wedged)"
+                        : halted ? "halted (magic-halt store)" : "reached max cycles");
   for(uint64_t pa : dump_pas) dump_pa(pa);
   if(trace) { fclose(trace); fprintf(stderr, "[tb] wrote retired-PC trace to %s\n", trace_file.c_str()); }
   delete tb;

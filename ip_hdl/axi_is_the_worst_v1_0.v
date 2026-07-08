@@ -124,6 +124,8 @@ module axi_is_the_worst_v1_0 #
    wire [4:0]					w_cause;
    wire [11:0]					w_trace_index;
    wire [31:0]					w_trace_data;
+   wire [63:0]					w_dbg_head_pc;
+   wire [31:0]					w_dbg_head_status;
    wire [8:0]					w_trace_wptr;
    wire						w_l1i_flush_done, w_l1d_flush_done, w_l2_flush_done;
    
@@ -275,6 +277,8 @@ module axi_is_the_worst_v1_0 #
 				       .dbg_trace_data(w_trace_data),
 				       .dbg_trace_wptr(w_trace_wptr),
 				       .dbg_trace_index(w_trace_index),
+				       .dbg_head_pc(w_dbg_head_pc[31:0]),
+				       .dbg_head_status(w_dbg_head_status),
 				       .l1i_flush_done(w_l1i_flush_done),
 				       .l1d_flush_done(w_l1d_flush_done),
 				       .l2_flush_done(w_l2_flush_done),				       
@@ -504,7 +508,8 @@ module axi_is_the_worst_v1_0 #
 	   .got_break(w_got_break),
 	   .got_ud(w_got_ud),
 	   .got_bad_addr(w_got_bad_addr),
-	   .dbg_head_pc(),
+	   .dbg_head_pc(w_dbg_head_pc),
+	   .dbg_head_status(w_dbg_head_status),
 	   .took_irq(),
 	   .epc(w_epc),
 	   .status_reg(w_status_reg),
