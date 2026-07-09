@@ -59,17 +59,17 @@ extern "C" void wr_log(long long pc, int rob_ptr, unsigned long long addr,
 static void drain_store_check() {
   while(!g_iss_stores.empty() && !g_rtl_stores.empty()) {
     store_rec &i = g_iss_stores.front(), &r = g_rtl_stores.front();
-    // The ISS now translates via the ported full TLB (tlb_probe_ro), so both addrs are
-    // REAL PAs -- compare the full address + low-32 data (catches wrong-PAGE stores too).
+    // Both sides now: real PA (ISS via tlb_probe_ro), and data masked to the store size
+    // (sb/sh/sw/sd).  Compare pc + full PA + full data.
     bool ok = ((uint32_t)i.pc) == ((uint32_t)r.pc)
               && i.addr == r.addr
-              && ((uint32_t)i.data) == ((uint32_t)r.data);
+              && i.data == r.data;
     if(!ok) {
       fprintf(stderr, "[STORE-CHECK] ROOT STORE DIVERGENCE\n"
-              "  ISS pc=%08x addr=%09lx (off=%03lx) data=%08x\n"
-              "  RTL pc=%08x addr=%09lx (off=%03lx) data=%08x\n",
-              (uint32_t)i.pc, (unsigned long)i.addr, (unsigned long)(i.addr&0xfff), (uint32_t)i.data,
-              (uint32_t)r.pc, (unsigned long)r.addr, (unsigned long)(r.addr&0xfff), (uint32_t)r.data);
+              "  ISS pc=%08x addr=%09lx data=%016llx\n"
+              "  RTL pc=%08x addr=%09lx data=%016llx\n",
+              (uint32_t)i.pc, (unsigned long)i.addr, (unsigned long long)i.data,
+              (uint32_t)r.pc, (unsigned long)r.addr, (unsigned long long)r.data);
       g_store_diverged = true; return;
     }
     g_iss_stores.pop_front(); g_rtl_stores.pop_front();
