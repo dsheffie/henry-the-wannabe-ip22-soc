@@ -161,7 +161,9 @@ module henry_soc
    wire w_is_dev  = w_is_mc | w_is_hpc3 | w_is_ioc;
    wire w_is_load = (c_req_opcode == 5'd4);
 
-`ifdef VERILATOR
+`ifdef SCSI_CLOBBER_TRACE
+   // SCSI/DMA-clobber debug ([creq]/[dram], address-hardwired to 0x0841d/hpc3). Was
+   // under `ifdef VERILATOR so it fired on every sim run; gated behind its own define.
    // TEMP: trace the GLOBAL ORDER of the core's external stores (c_req is
    // one-outstanding, program order): descriptor cache-writeback (->DRAM @0x0841d)
    // vs uncached HPC3/SCSI command MMIO (->device).  Answers: does the descriptor
