@@ -26,8 +26,8 @@ START_PC  ?= 0xbfc00000      # FSBL reset vector (henry_arcs); one blob boots Li
 VFLAGS = -cc --exe -O3 \
          -Wno-fatal -Wno-WIDTH -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE \
          -Wno-UNUSED -Wno-BLKANDNBLK -Wno-PINMISSING \
-         -y $(RTL) -y $(R9999) +incdir+$(R9999) --top-module $(TOP) -Mdir obj_dir \
-         -CFLAGS "-I$(R9999) -DFAITHFUL_SCSI" \
+         -y $(RTL) -y $(R9999) +incdir+$(R9999) +define+ENABLE_STORE_CHECK --top-module $(TOP) -Mdir obj_dir \
+         -CFLAGS "-I$(R9999) -DFAITHFUL_SCSI -DSTORE_CHECK" \
          -o henry_tb
 
 # Depend on the r9999 core sources too (via -y $(R9999)), so a core-only change

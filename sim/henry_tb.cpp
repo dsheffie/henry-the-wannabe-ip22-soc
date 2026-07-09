@@ -42,6 +42,39 @@ namespace globals {
 static sparse_mem *g_ss_mem   = nullptr;   // golden ISS memory (own 4GB, PA-indexed)
 static state_t    *ss         = nullptr;   // golden checker state
 static bool        g_checker  = false;     // --checker enables the lockstep compare
+
+// ---- co-sim store-check (forward-ported from rv64core across the shared MIPS ancestor) ----
+// The golden ISS records committed stores (interpret.cc, program order); the RTL reports
+// each store cache-write via the wr_log DPI (l1d.sv).  Both streams are program-order, so
+// we drain+compare fronts -- the first mismatch is THE root store.  Compares pc/addr and
+// the low-32 data bits (endianness/partial-store robust).
+std::deque<store_rec>        g_iss_stores;          // defined here; extern in interpret.hh
+static std::deque<store_rec> g_rtl_stores;
+static bool                  g_store_diverged = false;
+extern "C" void wr_log(long long pc, int rob_ptr, unsigned long long addr,
+                       unsigned long long data, int is_atomic) {
+  (void)rob_ptr; (void)is_atomic;
+  if(g_checker) g_rtl_stores.emplace_back((uint64_t)pc, addr, data);
+}
+static void drain_store_check() {
+  while(!g_iss_stores.empty() && !g_rtl_stores.empty()) {
+    store_rec &i = g_iss_stores.front(), &r = g_rtl_stores.front();
+    // The ISS now translates via the ported full TLB (tlb_probe_ro), so both addrs are
+    // REAL PAs -- compare the full address + low-32 data (catches wrong-PAGE stores too).
+    bool ok = ((uint32_t)i.pc) == ((uint32_t)r.pc)
+              && i.addr == r.addr
+              && ((uint32_t)i.data) == ((uint32_t)r.data);
+    if(!ok) {
+      fprintf(stderr, "[STORE-CHECK] ROOT STORE DIVERGENCE\n"
+              "  ISS pc=%08x addr=%09lx (off=%03lx) data=%08x\n"
+              "  RTL pc=%08x addr=%09lx (off=%03lx) data=%08x\n",
+              (uint32_t)i.pc, (unsigned long)i.addr, (unsigned long)(i.addr&0xfff), (uint32_t)i.data,
+              (uint32_t)r.pc, (unsigned long)r.addr, (unsigned long)(r.addr&0xfff), (uint32_t)r.data);
+      g_store_diverged = true; return;
+    }
+    g_iss_stores.pop_front(); g_rtl_stores.pop_front();
+  }
+}
 #ifdef HENRY_TB_GO_DEBUG
 static const bool  g_go_a0_trace = getenv("GO_A0_TRACE") != nullptr; // diagnostic a0-corruption window trace
 #endif
@@ -875,6 +908,8 @@ int main(int argc, char **argv) {
       if(tb->took_irq) raise_int(ss, (uint32_t)tb->epc);   // IRQ: jump ISS to vector
       if(tb->retire_valid)
         checker_step(tb->retire_pc, tb->retire_reg_valid, tb->retire_reg_ptr, tb->retire_reg_data);
+      drain_store_check();
+      if(g_store_diverged) { fprintf(stderr, "[STORE-CHECK] stopping at root store\n"); break; }
       if(tb->retire_two_valid)
         checker_step(tb->retire_two_pc, tb->retire_reg_two_valid, tb->retire_reg_two_ptr, tb->retire_reg_two_data);
     }
