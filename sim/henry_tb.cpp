@@ -56,6 +56,21 @@ extern "C" void wr_log(long long pc, int rob_ptr, unsigned long long addr,
   (void)rob_ptr; (void)is_atomic;
   if(g_checker) g_rtl_stores.emplace_back((uint64_t)pc, addr, data);
 }
+
+// RTL TLB-write mirror: itlb.sv fires this DPI on every TLBWI/TLBWR (tlb_entry_in_valid),
+// passing the entry index + the installed EntryHi/EntryLo0/EntryLo1 (already packed into
+// the ISS's CP0 bit layout) + the RTL pagemask.  We BUFFER it and apply it to ss->tlb[]
+// AFTER checker_step (so it overrides the ISS's own tlbwr, which can drift).  Keeps the
+// golden ISS's 48-entry TLB bit-identical to the RTL's, closing the kseg2 TLB-desync class.
+extern void iss_apply_tlb_write(state_t *s, int idx, uint64_t ehi, uint64_t elo0, uint64_t elo1, uint32_t pm);
+struct pend_tlb_t { int idx; uint64_t ehi, elo0, elo1; uint32_t pm; };
+static std::deque<pend_tlb_t> g_pend_tlb;   // FIFO: wirepda installs several wired entries
+                                            // back-to-back; a single-entry buffer dropped the
+                                            // clobbered write -> the ISS missed the wired PDA.
+extern "C" void tlb_wr_log(int entry, long long ehi, long long elo0, long long elo1, int pm) {
+  if(!g_checker) return;
+  g_pend_tlb.push_back({ entry, (uint64_t)ehi, (uint64_t)elo0, (uint64_t)elo1, (uint32_t)pm << 13 });
+}
 static void drain_store_check() {
   while(!g_iss_stores.empty() && !g_rtl_stores.empty()) {
     store_rec &i = g_iss_stores.front(), &r = g_rtl_stores.front();
@@ -181,6 +196,84 @@ static void load_checkpoint(const char *path) {
           path, (uint32_t)g_ckpt.pc, g_ckpt.num_pages, (unsigned long long)g_ckpt.icnt);
 }
 
+// Preamble-resume test: load a .cimg (ckpt2preamble.py output = [u32 num][u32 pa,4096B]..)
+// into g_mem (mirrors the ARM PS writing DRAM), + the golden ISS's mem if present.  NO
+// DPI state seeding -- the arcs 'preamble' blob restores regs/CP0/TLB itself, exactly as
+// it will on silicon.  Validates the preamble reproduces the DPI checkpoint resume.
+static void load_cimg(const char *path) {
+  FILE *f = fopen(path, "rb");
+  if(!f) { fprintf(stderr, "cannot open cimg %s\n", path); exit(1); }
+  uint64_t base_icnt = 0; if(fread(&base_icnt, 8, 1, f) != 1) { fprintf(stderr, "bad cimg\n"); exit(1); }
+  g_ckpt.icnt = base_icnt;   // so --verify computes the window length correctly
+  uint32_t n = 0; if(fread(&n, 4, 1, f) != 1) { fprintf(stderr, "bad cimg\n"); exit(1); }
+  uint32_t loaded = 0;
+  for(uint32_t i = 0; i < n; i++) {
+    uint32_t va = 0; uint8_t data[4096];
+    if(fread(&va, 4, 1, f) != 1 || fread(data, 1, 4096, f) != 4096) break;
+    bool bad=false; uint32_t off = fpga_map(va, &bad);
+    if(!bad) { memcpy(g_mem + off, data, 4096); loaded++; }
+    if(ss) memcpy(ss->mem.get_raw_ptr(va), data, 4096);
+  }
+  fclose(f);
+  fprintf(stderr, "[cimg] loaded %u/%u pages from %s (g_mem%s)\n", loaded, n, path, ss?"+ISS":"");
+}
+
+// ---- echo-free validation --------------------------------------------------
+// Compare the RTL's committed memory (g_mem) against an INDEPENDENT interp_mips
+// checkpoint (ckpt_Y) that was NEVER seeded from the RTL.  Seed the co-sim from
+// ckpt_X, run the RTL forward icnt(Y)-icnt(X) retired instructions, then call this:
+// if g_mem matches ckpt_Y, the RTL -- driven through the window with all the syncs
+// active -- reproduced the oracle's memory, so the TLB/DMA syncs aren't masking a
+// bug.  Mismatches are exactly the RTL-vs-oracle divergences the syncs could hide.
+// (ss->mem is compared too, but it's fed by the RTL, so it's only a cross-check.)
+static const char *g_verify_path = nullptr;
+static uint64_t    g_verify_target = 0;   // retired count at which to run the compare
+static uint64_t    g_verify_icnt_y = 0;
+static int64_t     g_rf[32] = {0};        // RTL architectural regfile shadow (seed + retire)
+static void verify_against_checkpoint(const char *path) {
+  FILE *f = fopen(path, "rb");
+  if(!f) { fprintf(stderr, "[verify] cannot open %s\n", path); return; }
+  cp_header h;
+  if(fread(&h, 1, sizeof(h), f) != sizeof(h) || h.magic != CKPT_MAGIC) {
+    fprintf(stderr, "[verify] bad checkpoint %s\n", path); fclose(f); return; }
+  uint32_t rtl_ok=0, rtl_bad=0, iss_ok=0, iss_bad=0, shown=0;
+  for(uint32_t i = 0; i < h.num_pages; i++) {
+    cp_page p;
+    if(fread(&p, 1, sizeof(p), f) != sizeof(p)) break;
+    bool bad=false; uint32_t off = fpga_map(p.va, &bad);
+    if(!bad) {
+      if(memcmp(g_mem + off, p.data, 4096) == 0) rtl_ok++;
+      else {
+        rtl_bad++;
+        if(shown < 10) for(int b=0;b<4096;b+=4) if(memcmp(g_mem+off+b, p.data+b, 4)) {
+          fprintf(stderr,"[verify] RTL!=oracle pa=%08x+%03x: g_mem=%02x%02x%02x%02x oracle=%02x%02x%02x%02x\n",
+            p.va, b, g_mem[off+b],g_mem[off+b+1],g_mem[off+b+2],g_mem[off+b+3],
+            p.data[b],p.data[b+1],p.data[b+2],p.data[b+3]); shown++; break; }
+      }
+    }
+    if(ss) { uint8_t *q = ss->mem.get_raw_ptr(p.va);
+             if(memcmp(q, p.data, 4096)==0) iss_ok++; else iss_bad++; }
+  }
+  fclose(f);
+  fprintf(stderr, "[verify] vs %s (oracle icnt=%llu): RTL pages MATCH=%u MISMATCH=%u | ISS match=%u mismatch=%u\n",
+          path, (unsigned long long)h.icnt, rtl_ok, rtl_bad, iss_ok, iss_bad);
+}
+
+// Compute the verify target (window length) from g_verify_path + the base icnt
+// (g_ckpt.icnt, set by load_checkpoint OR load_cimg).  Shared by both resume paths.
+static void setup_verify() {
+  if(!g_verify_path) return;
+  FILE *vf = fopen(g_verify_path, "rb"); cp_header vh;
+  if(vf && fread(&vh, 1, sizeof(vh), vf) == sizeof(vh) && vh.magic == CKPT_MAGIC && vh.icnt > g_ckpt.icnt) {
+    g_verify_icnt_y = vh.icnt;
+    g_verify_target = vh.icnt - g_ckpt.icnt;
+    fprintf(stderr, "[verify] will compare g_mem vs %s after %llu retired insns (icnt %llu -> %llu)\n",
+            g_verify_path, (unsigned long long)g_verify_target,
+            (unsigned long long)g_ckpt.icnt, (unsigned long long)vh.icnt);
+  } else { fprintf(stderr, "[verify] bad/earlier verify ckpt -- disabled\n"); g_verify_path = nullptr; }
+  if(vf) fclose(vf);
+}
+
 // DPI seeds consumed by rf4r2w / fp_regfile (and, once added, exec/tlb) at reset.
 extern "C" long long loadgpr(int regid)  { return g_have_ckpt ? g_ckpt.gpr[regid & 31] : 0; }
 extern "C" long long loadfpr(int regid)  { return g_have_ckpt ? (long long)g_ckpt.cpr1[regid & 31] : 0; }
@@ -233,9 +326,18 @@ extern "C" long long loadtlb(int entry, int field) {  /* 0=hi 1=lo0 2=lo1 3=page
 // Lockstep co-sim checker (mirrors r9999/top.cc): seed the golden ISS from the
 // checkpoint, then on each RTL retire step the ISS and compare the retired reg.
 // ---------------------------------------------------------------------------
+// A checkpoint stores pc as interp's (32-bit va2pa) pc, ZERO-extended for kseg
+// addresses (kseg0 0x8801964c -> 0x00000000_8801964c).  The RTL decodes the full
+// 64-bit VA, where that is xuseg (mapped) -> a spurious TLB miss on resume.  Sign-
+// extend a compat-32 pc (high32==0) so kseg0/1/2/3 resolve; leave a true n64 pc
+// (high32!=0) alone.  [reference_32b_to_64b_bugs]
+static inline uint64_t ckpt_pc_sext(uint64_t pc) {
+  return ((pc >> 32) == 0) ? (uint64_t)(int64_t)(int32_t)pc : pc;
+}
+
 static void seed_checker() {
   if(!ss || !g_have_ckpt) return;
-  ss->pc = (state_t::reg_t)g_ckpt.pc;
+  ss->pc = (state_t::reg_t)ckpt_pc_sext((uint64_t)g_ckpt.pc);
   ss->hi = (state_t::reg_t)g_ckpt.hi;  ss->lo = (state_t::reg_t)g_ckpt.lo;
   for(int i = 0; i < 32; i++) {
     ss->gpr[i]     = (state_t::reg_t)g_ckpt.gpr[i];
@@ -295,6 +397,21 @@ static bool is_device_load(uint32_t vpc) {
   return (pa >= 0x1f000000u) || (ea >= 0xa0000000u && ea < 0xc0000000u);
 }
 
+extern uint64_t g_iss_last_ld_va;   // set by the ISS's va_translate on each load
+// Like is_device_load, but for a DELAY-SLOT load that already executed: its base reg
+// may be clobbered by a load-to-base (lwu v0,off(v0)), so re-decoding gpr[rs] gives the
+// wrong address.  Use the VA the ISS actually translated for this load instead.
+static bool ds_is_device_load(uint32_t vpc) {
+  if(vpc < 0x80000000u || vpc >= 0xc0000000u) return false;
+  uint8_t *p = ss->mem.get_raw_ptr(vpc & 0x1fffffffu);
+  uint32_t insn = (uint32_t(p[0])<<24)|(uint32_t(p[1])<<16)|(uint32_t(p[2])<<8)|uint32_t(p[3]);
+  uint32_t op = insn >> 26;
+  if(!((op >= 0x20 && op <= 0x27) || op == 0x1a || op == 0x1b || op == 0x37)) return false;
+  uint32_t ea = (uint32_t)g_iss_last_ld_va;
+  uint32_t pa = (ea >= 0x80000000u) ? (ea & 0x1fffffffu) : ea;
+  return (pa >= 0x1f000000u) || (ea >= 0xa0000000u && ea < 0xc0000000u);
+}
+
 // Compare the ISS's architected result for a retired insn against the RTL, then
 // trust the RTL value (keeps the ISS locked; also covers device-MMIO loads).
 static void chk_compare(uint32_t vpc, bool rrv, int rrp, uint64_t rrd, bool devload) {
@@ -320,21 +437,32 @@ static void chk_compare(uint32_t vpc, bool rrv, int rrp, uint64_t rrd, bool devl
 static void checker_step(uint64_t rpc, bool rrv, int rrp, uint64_t rrd) {
   if(!ss || ss->brk) return;
   uint32_t vpc = (uint32_t)rpc;
+  { static const char *ct = getenv("CHKTRACE");           // debug: dump [lo,lo+120) checker steps
+    static const uint64_t ctlo = ct ? strtoull(ct, 0, 0) : 0;
+    if(ct && g_chk_insns >= ctlo && g_chk_insns < ctlo + 120)
+      fprintf(stderr, "[chk %llu] RTL=%08x ISS=%08x rrv=%d rrp=%2d rrd=%016llx  ISSk0=%08x issCause=%08x EPC=%08x badv=%08x\n",
+              (unsigned long long)g_chk_insns, vpc, (uint32_t)ss->pc, rrv, rrp,
+              (unsigned long long)rrd, (uint32_t)ss->gpr[26], (uint32_t)ss->cpr0[CPR0_CAUSE],
+              (uint32_t)ss->cpr0[CPR0_EPC], (uint32_t)ss->cpr0[CPR0_BADVADDR]); }
   if(g_expect_ds && vpc == g_ds_pc) {        // delay slot the ISS already executed
     g_expect_ds = false;
-    chk_compare(vpc, rrv, rrp, rrd, is_device_load(vpc));  // best-effort (post-exec base)
+    chk_compare(vpc, rrv, rrp, rrd, is_device_load(vpc) || ds_is_device_load(vpc));  // delay-slot: base may be clobbered
     return;
   }
   g_expect_ds = false;
-  // Mapped execution (user / TLB-translated, pc outside kseg0/kseg1): the 1:1
-  // va2pa ISS reads the wrong physical memory, so it cannot validly execute it.
-  // Trust the RTL wholesale (no check) and keep the register file synced; the
-  // ISS resumes checking when the RTL returns to kseg0 (where bad istack lives).
-  if(vpc < 0x80000000u || vpc >= 0xc0000000u) {
-    ss->pc = (state_t::reg_t)(int64_t)rpc;
-    if(rrv && rrp != 0) ss->gpr[rrp] = (state_t::reg_t)rrd;
-    g_chk_mapped++;
-    return;
+  // Mapped execution (pc outside kseg0/kseg1: userspace or kseg2/kseg3).  Historically
+  // the 1:1 va2pa ISS could not validly execute it (wrong physical memory) so the
+  // checker trusted the RTL wholesale -- but then STORES done in mapped code never
+  // reached the ISS's memory, and later kseg0 loads read stale data (real divergences
+  // downstream).  With the real-TLB ISS the ISS can execute mapped code, keeping its
+  // memory in sync.  NOMAPSKIP=1 lets the ISS execute mapped code (default: old skip).
+  { static const bool no_mapskip = getenv("NOMAPSKIP") != nullptr;
+    if(!no_mapskip && (vpc < 0x80000000u || vpc >= 0xc0000000u)) {
+      ss->pc = (state_t::reg_t)(int64_t)rpc;
+      if(rrv && rrp != 0) ss->gpr[rrp] = (state_t::reg_t)rrd;
+      g_chk_mapped++;
+      return;
+    }
   }
   bool resynced = false;
   if((uint32_t)ss->pc != vpc) {              // control-flow (PC) divergence
@@ -655,7 +783,7 @@ static void mon_poll(void) {
 }
 
 int main(int argc, char **argv) {
-  std::string kernel, arcs, ckpt_file;
+  std::string kernel, arcs, ckpt_file, cimg_file;
   uint64_t max_cyc = 120000000ull;
   uint64_t max_icnt = 0;   // --maxicnt: stop after this many retired insns (0 = unlimited)
   uint32_t start_pc = 0;   // fake-BIOS: start in the arcs boot stub (skip C++ handoff)
@@ -679,10 +807,12 @@ int main(int argc, char **argv) {
     else if(a == "--rx" && i+1 < argc)     rx_str = argv[++i];
     else if(a == "--disk" && i+1 < argc)   g_scsi_disk.open_image(argv[++i]);
     else if(a == "--checkpoint" && i+1 < argc) ckpt_file = argv[++i];
+    else if(a == "--cimg" && i+1 < argc)   cimg_file = argv[++i];
+    else if(a == "--verify-ckpt" && i+1 < argc) g_verify_path = argv[++i];
     else if(a == "--checker")              g_checker = true;
   }
   std::vector<uint8_t> rx_bytes(rx_str.begin(), rx_str.end());
-  if(kernel.empty() && ckpt_file.empty()) { fprintf(stderr, "usage: %s {--kernel <elf> | --checkpoint <file>} [--arcs <blob>] [--maxcyc N]\n", argv[0]); return 1; }
+  if(kernel.empty() && ckpt_file.empty() && cimg_file.empty()) { fprintf(stderr, "usage: %s {--kernel <elf> | --checkpoint <file> | --cimg <file> --arcs <preamble>} [--maxcyc N]\n", argv[0]); return 1; }
 
   g_mem = (uint8_t*)mmap(nullptr, MEM_SIZE, PROT_READ|PROT_WRITE,
                          MAP_PRIVATE|MAP_ANONYMOUS|MAP_NORESERVE, -1, 0);
@@ -692,8 +822,10 @@ int main(int argc, char **argv) {
   // (PA-indexed) memory, matching the interp's va2pa output.
   if(g_checker) {
     g_ss_mem = new sparse_mem();
+    g_ss_mem->route_devices = true;   // IP22 System Memory Alias (PA<512KB -> DRAM 0x08000000)
     ss = new state_t(*g_ss_mem);
     initState(ss);
+    g_iss_tlb_ext = true;   // ISS TLB is written solely by the RTL mirror (below)
     fprintf(stderr, "[checker] golden ISS created\n");
   }
 
@@ -705,7 +837,18 @@ int main(int argc, char **argv) {
     // from g_ckpt via DPI at reset. Skips the (hours-long) boot entirely.
     load_checkpoint(ckpt_file.c_str());
     entry = kentry = (uint32_t)g_ckpt.pc;
+    for(int i = 0; i < 32; i++) g_rf[i] = g_ckpt.gpr[i];   // seed RTL regfile shadow
     seed_checker();
+    setup_verify();
+  } else if(!cimg_file.empty()) {
+    // silicon-style resume: .cimg pages -> g_mem (ARM's job), + the 'preamble' arcs blob
+    // (ckpt2preamble.py) restores regs/CP0/TLB and ERETs to the checkpoint PC.  NO DPI.
+    load_cimg(cimg_file.c_str());
+    if(arcs.empty()) { fprintf(stderr, "--cimg needs --arcs <preamble.bin>\n"); return 1; }
+    load_blob(arcs.c_str(), arcs_addr);   // preamble @0x1fc00000 (reset vector fetches it)
+    entry = kentry = start_pc ? start_pc : 0xbfc00000u;
+    setup_verify();   // g_ckpt.icnt was set by load_cimg; target offset by the preamble below
+    fprintf(stderr, "[cimg] preamble-resume: RTL boots @0x%08x, preamble installs state\n", (uint32_t)entry);
   } else {
   entry = load_elf_be32(kernel.c_str());
   kentry = entry;                  // real kernel entry (trace starts here)
@@ -727,7 +870,7 @@ int main(int argc, char **argv) {
 
   // checkpoint PC is a full 64-bit VA (n64 user code @ 0x1_xxxxxxxx); don't truncate.
   uint64_t resume_pc64 = ckpt_file.empty() ? (uint64_t)(int64_t)(int32_t)entry
-                                           : (uint64_t)g_ckpt.pc;
+                                           : ckpt_pc_sext((uint64_t)g_ckpt.pc);
 
   // Fresh-boot checker: ISS memory was seeded by load_elf_be32/load_blob above;
   // start it at the same entry the RTL resumes from (checker_step re-syncs the pc
@@ -857,6 +1000,34 @@ int main(int argc, char **argv) {
       deadlock = true; halted = true;
     }
 
+    if(tb->retire_valid && tb->retire_reg_valid) g_rf[tb->retire_reg_ptr & 31] = tb->retire_reg_data;
+    if(tb->retire_two_valid && tb->retire_reg_two_valid) g_rf[tb->retire_reg_two_ptr & 31] = tb->retire_reg_two_data;
+    { static const char *pe = getenv("PREAMBLE_PC");   // preamble-resume: report first hit of the ckpt PC
+      static const uint32_t pc = pe ? (uint32_t)strtoull(pe,0,0) : 0;
+      static bool hit = false;
+      if(pc && !hit && tb->retire_valid && (uint32_t)tb->retire_pc == pc) {
+        hit = true;
+        if(g_verify_path) g_verify_target += retired;   // don't count the preamble's own insns
+        fprintf(stderr, "[preamble] REACHED ckpt pc=%08x after %llu retired (state restored; verify@%llu)\n",
+                pc, (unsigned long long)retired, (unsigned long long)g_verify_target);
+      } }
+    if(g_verify_path && retired >= g_verify_target) {
+      fprintf(stderr, "[verify] reached %llu retired insns @cyc=%llu rtl_pc=%016llx -- comparing\n",
+              (unsigned long long)retired, (unsigned long long)cyc, (unsigned long long)tb->retire_pc);
+      verify_against_checkpoint(g_verify_path);
+      break;
+    }
+    { static const bool sd = getenv("SPINDBG") != nullptr;   // trace the 0x880e1b40 poll loop
+      static int sn = 0;
+      if(sd && tb->retire_valid && (uint32_t)tb->retire_pc == 0x880e1b40 && (sn++ & 0x3fff) == 0) {
+        uint32_t a2 = (uint32_t)g_rf[6];
+        auto rd = [&](uint32_t va)->uint32_t { uint32_t pa=(va>=0x80000000u&&va<0xc0000000u)?(va&0x1fffffff):va;
+          bool bad=false; uint32_t o=fpga_map(pa,&bad); return bad?0xbadf00du:be32(g_mem+o); };
+        fprintf(stderr, "[spin] cyc=%llu a2=%08x [a2+0]=%08x [a2+16]=%08x [a2+128]=%08x  gp=%08x ra=%08x\n",
+                (unsigned long long)cyc, a2, rd(a2), rd(a2+16), rd(a2+128),
+                (uint32_t)g_rf[28], (uint32_t)g_rf[31]);
+      } }
+
     // ---- full-GPR snapshot at the near-NULL store fault. go SIGSEGVs at
     // `sw zero,0(v0)` (delay slot @0x120024dd4, EPC=branch 0x120024dd0),
     // v0 = a5(r9) + ((s2(r18)+s0(r16))<<2). a5 committed-good, so the index or a
@@ -909,9 +1080,23 @@ int main(int argc, char **argv) {
       if(tb->retire_valid)
         checker_step(tb->retire_pc, tb->retire_reg_valid, tb->retire_reg_ptr, tb->retire_reg_data);
       drain_store_check();
-      if(g_store_diverged) { fprintf(stderr, "[STORE-CHECK] stopping at root store\n"); break; }
+      if(g_store_diverged) {
+        static const bool no_sc_stop = getenv("NOSTORECHECK") != nullptr;
+        fprintf(stderr, "[STORE-CHECK] store divergence\n");
+        if(!no_sc_stop) break;
+        g_store_diverged = false;   // shotgun: keep the GPR/PC checker running the full window
+      }
       if(tb->retire_two_valid)
         checker_step(tb->retire_two_pc, tb->retire_reg_two_valid, tb->retire_reg_two_ptr, tb->retire_reg_two_data);
+      // Apply the RTL's TLBWI/TLBWR writes (lossless FIFO) -- the SOLE writer of the ISS TLB
+      // (the ISS's own tlbwi/tlbwr are suppressed via g_iss_tlb_ext), so the two 48-entry TLBs
+      // stay bit-identical.  A single-entry buffer dropped back-to-back wirepda writes -> the
+      // ISS missed the wired PDA entry -> spurious refill; the queue fixes it.
+      while(ss && !g_pend_tlb.empty()) {
+        const pend_tlb_t &p = g_pend_tlb.front();
+        iss_apply_tlb_write(ss, p.idx, p.ehi, p.elo0, p.elo1, p.pm);
+        g_pend_tlb.pop_front();
+      }
     }
 
     // ---- go a0-corruption trace (approach B checkpoint; diagnostic) ----
@@ -1087,6 +1272,19 @@ int main(int argc, char **argv) {
           g_pending_rsp.completion = SCSI_DONE_COMPLETE;
           g_pending_rsp.scsi_status = ST_SELECT_TRANSFER_SUCCESS; g_active = false;
         }
+        g_pending_rsp.residual = 0; post_rsp();
+      }
+      else if(g_stream_pos >= g_total && (g_pos + g_chunk >= g_total)) {
+        // SHORT READ: all data streamed on the final chunk, but the descriptor
+        // byte-count exceeds it (e.g. INQUIRY: 36 bytes into a 64-byte BC), so the
+        // engine stalls in S_R_DISK and never pulses dma_done.  Post the completion
+        // now so the shim's ((scsi_rsp_seq==r_req_seq) & dma_rd_stalled) branch aborts
+        // the stalled engine -- otherwise CIP|BSY stay set (aux=0x30) and the driver
+        // hangs forever (later wedging wd93reset's CIP-wait poll).  Matches the
+        // non-FAITHFUL path's post-on-drain, which this rewrite dropped.
+        g_pos = g_total; g_streaming = false; g_active = false;
+        g_pending_rsp.completion = SCSI_DONE_COMPLETE;
+        g_pending_rsp.scsi_status = ST_SELECT_TRANSFER_SUCCESS;
         g_pending_rsp.residual = 0; post_rsp();
       }
 #else

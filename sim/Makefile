@@ -26,17 +26,29 @@ START_PC  ?= 0xbfc00000      # FSBL reset vector (henry_arcs); one blob boots Li
 VFLAGS = -cc --exe -O3 \
          -Wno-fatal -Wno-WIDTH -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE \
          -Wno-UNUSED -Wno-BLKANDNBLK -Wno-PINMISSING \
-         -y $(RTL) -y $(R9999) +incdir+$(R9999) +define+ENABLE_STORE_CHECK --top-module $(TOP) -Mdir obj_dir \
+         -y $(RTL) -y $(R9999) +incdir+$(R9999) +define+ENABLE_STORE_CHECK +define+INSN_PACED_COUNT --top-module $(TOP) -Mdir obj_dir \
          -CFLAGS "-I$(R9999) -DFAITHFUL_SCSI -DSTORE_CHECK" \
          -o henry_tb
 
-# Depend on the r9999 core sources too (via -y $(R9999)), so a core-only change
-# (e.g. a CP0/exec.sv edit) triggers a rebuild instead of silently running a
-# stale binary.
-obj_dir/henry_tb: $(RTL)/henry_soc.sv $(RTL)/mc.sv $(RTL)/hpc3.sv $(RTL)/ioc.sv $(RTL)/int3.sv henry_tb.cpp $(wildcard $(R9999)/*.sv $(R9999)/*.vh)
+# obj_dir/.verilated is defined first below, so pin the default goal to the binary.
+.DEFAULT_GOAL := obj_dir/henry_tb
+
+# Two-phase build so a golden-ISS .cc/.hh edit rebuilds WITHOUT re-verilating:
+#  1. obj_dir/.verilated -- re-run Verilator only when the RTL/testbench STRUCTURE
+#     changes (RTL *.sv, the r9999 *.sv/*.vh, or this Makefile).  Verilator emits
+#     obj_dir/V$(TOP).mk, whose compiles carry -MMD (-> per-.o .d dependency files).
+#  2. obj_dir/henry_tb -- ALSO depends on the golden-ISS sources (henry_tb.cpp +
+#     INTERP_CC + r9999 *.hh), so an interpret.cc / sparse_mem.hh edit FIRES the rule;
+#     the sub-make's -MMD deps then recompile exactly the changed .o and relink.
+#     (Previously those files were not prerequisites, so `make` silently ran a stale
+#     binary -- a core .cc/.hh edit never landed without a `make clean`.)
+obj_dir/.verilated: $(RTL)/henry_soc.sv $(RTL)/mc.sv $(RTL)/hpc3.sv $(RTL)/ioc.sv $(RTL)/int3.sv $(wildcard $(R9999)/*.sv $(R9999)/*.vh) Makefile
 	# Pass the golden-ISS .cc to Verilator's --exe so it compiles them (RTL-agnostic)
 	# alongside henry_tb.cpp into obj_dir/*.o.
 	$(VERILATOR) $(VFLAGS) $(RTL)/henry_soc.sv henry_tb.cpp $(INTERP_CC)
+	@touch $@
+
+obj_dir/henry_tb: obj_dir/.verilated henry_tb.cpp $(INTERP_CC) $(wildcard $(R9999)/*.hh)
 	# LTO dropped from the COMPILES (per dsheffie) -- the clang-14/16 mismatch +
 	# ar-archive relink was the whole build headache; clang-16 is forced end-to-end
 	# so a core-only edit reliably lands via a plain `make`.  The LINK, however,

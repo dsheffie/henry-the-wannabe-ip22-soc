@@ -106,34 +106,60 @@ static inline bool scsi_arm_poll(Driver *d, scsi_disk *disk, uint8_t *dram) {
   req.dest = tld & 0xff; req.lun = (tld >> 8) & 0xff; req.to_device = (tld >> 16) & 1;
   req.xfer_len = 0;
 
+  /* --- Chunked-DMA resume-from-pos (Option A) ---------------------------------
+   * IRIX arms the HPC3 DMA chain for FEWER bytes than the full SCSI command's
+   * length, then re-issues SEL_ATN_XFER for each subsequent chunk (interp_mips
+   * select_and_transfer/pause_transfer).  We carry {buf,pos,total} across
+   * doorbells: a doorbell arriving mid-transfer (g_active && g_pos<g_total) is a
+   * RESUME of the same command -- reuse the already-read buf, scsi_move only the
+   * NEXT chunk into the fresh chain at req.nbdp, and if data remains post a chunk
+   * PAUSE (scsi_status 0x49 data-in / 0x48 data-out).  The shim's FAITHFUL_SCSI
+   * path then raises INTRQ with phase 0x46 (count exhausted) but NOT command-
+   * complete, so IRIX reprograms the DMA + resumes.  Mirrors the henry_tb.cpp
+   * beat-engine path; single-chunk commands (Linux, control) still complete in
+   * one pass (g_pos reaches g_total immediately), so that path is unchanged. */
+  static std::vector<uint8_t> g_buf;
+  static size_t   g_pos = 0, g_total = 0;
+  static bool     g_active = false, g_to_dev = false;
+  static uint64_t g_wr_lba = 0;
+
   scsi_rsp_t rsp;
-  std::vector<uint8_t> buf;
-  bool to_dev = false; uint64_t wr_lba = 0;
-  scsi_service_run(&req, &rsp, disk, buf, to_dev, wr_lba);
+  bool resume = g_active && g_pos < g_total;      /* mid-transfer doorbell = resume */
+  if(!resume) {                                   /* NEW command: decode + read disk */
+    g_buf.clear();
+    scsi_service_run(&req, &rsp, disk, g_buf, g_to_dev, g_wr_lba);
+    g_total = g_buf.size(); g_pos = 0;
+    g_active = (rsp.scsi_status == ST_SELECT_TRANSFER_SUCCESS) && !g_buf.empty();
+  } else {                                        /* RESUME: same buf, fresh chain */
+    rsp.scsi_status = ST_SELECT_TRANSFER_SUCCESS; rsp.tgt_status = TGT_GOOD;
+  }
+  rsp.seq = seq; rsp.residual = 0;
 
   uint32_t moved = 0;
-  if(rsp.scsi_status == ST_SELECT_TRANSFER_SUCCESS && !buf.empty()) {
+  if(g_active) {
     moved = scsi_move(scsi_arm_mem, dram, req.nbdp,
-                      buf.data(), (uint32_t)buf.size(), to_dev);
-    if(to_dev) {                                /* WRITE: buf now holds DRAM data */
-      size_t nb = moved / 512;
+                      g_buf.data() + g_pos, (uint32_t)(g_total - g_pos), g_to_dev);
+    if(g_to_dev) {                                /* WRITE: commit this chunk's blocks */
+      size_t base = g_pos / 512, nb = moved / 512;
       for(size_t b = 0; b < nb; b++)
-        disk->block_write(wr_lba + b, buf.data() + b * 512);
+        disk->block_write(g_wr_lba + base + b, g_buf.data() + g_pos + b * 512);
     }
-    rsp.residual = (uint32_t)buf.size() - moved;
+    g_pos += moved;
+    if(g_pos < g_total) rsp.scsi_status = g_to_dev ? 0x48 : 0x49;  /* CHUNK PAUSE */
+    else                g_active = false;                          /* whole command done */
   }
 
   /* IRIX root-mount debug: log every serviced SCSI command + its outcome. */
-  fprintf(stderr, "[cdb] seq=%u op=0x%02x cdb=%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x "
+  fprintf(stderr, "[cdb] seq=%u %s op=0x%02x cdb=%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x "
                   "dest=%u lun=%u to_dev=%d wr_lba=%llu status=0x%02x tgt=0x%02x "
-                  "bufsz=%u moved=%u nbdp=0x%08x\n",
-          req.seq, (unsigned)req.cdb[0],
+                  "pos=%zu/%zu moved=%u nbdp=0x%08x\n",
+          req.seq, resume ? "RESUME" : "NEW", (unsigned)req.cdb[0],
           (unsigned)req.cdb[0],(unsigned)req.cdb[1],(unsigned)req.cdb[2],(unsigned)req.cdb[3],
           (unsigned)req.cdb[4],(unsigned)req.cdb[5],(unsigned)req.cdb[6],(unsigned)req.cdb[7],
           (unsigned)req.cdb[8],(unsigned)req.cdb[9],
-          (unsigned)req.dest, (unsigned)req.lun, (int)to_dev, (unsigned long long)wr_lba,
+          (unsigned)req.dest, (unsigned)req.lun, (int)g_to_dev, (unsigned long long)g_wr_lba,
           (unsigned)rsp.scsi_status, (unsigned)rsp.tgt_status,
-          (unsigned)buf.size(), (unsigned)moved, req.nbdp);
+          g_pos, g_total, (unsigned)moved, req.nbdp);
   fflush(stderr);
 
   __sync_synchronize();                         /* DRAM writes visible before completion */
