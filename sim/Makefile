@@ -29,6 +29,15 @@ VFLAGS = -cc --exe -O3 \
          -y $(RTL) -y $(R9999) +incdir+$(R9999) +define+ENABLE_STORE_CHECK +define+INSN_PACED_COUNT --top-module $(TOP) -Mdir obj_dir \
          -CFLAGS "-I$(R9999) -DFAITHFUL_SCSI -DSTORE_CHECK" \
          -o henry_tb
+# `make BIG_L2=1` -> 1MB sim-only L2 (LG_L2_NUM_SETS=16) to shake out bugs the tiny
+# 16KB direct-mapped L2 was masking; leaves the FPGA build at 16KB.
+ifdef BIG_L2
+VFLAGS += +define+BIG_SIM_L2
+endif
+# `make UNCACHED=1` -> force ALL D-side data traffic uncached (coherence litmus test)
+ifdef UNCACHED
+VFLAGS += +define+FORCE_UNCACHED
+endif
 
 # obj_dir/.verilated is defined first below, so pin the default goal to the binary.
 .DEFAULT_GOAL := obj_dir/henry_tb

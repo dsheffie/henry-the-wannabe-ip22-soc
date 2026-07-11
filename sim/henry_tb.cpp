@@ -18,6 +18,8 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <map>
+#include <algorithm>
 #include <sys/mman.h>
 #include "scsi_service.h"   // host-side SCSI disk service (henry_scsi.h contract)
 #include <sys/stat.h>
@@ -70,6 +72,83 @@ static std::deque<pend_tlb_t> g_pend_tlb;   // FIFO: wirepda installs several wi
 extern "C" void tlb_wr_log(int entry, long long ehi, long long elo0, long long elo1, int pm) {
   if(!g_checker) return;
   g_pend_tlb.push_back({ entry, (uint64_t)ehi, (uint64_t)elo0, (uint64_t)elo1, (uint32_t)pm << 13 });
+}
+// L1D->L2 writeback watch (DESCWATCH): log dirty-line writebacks to the SCSI descriptor line
+// -> tells us if the L1D already holds the corrupted line (L1D bug) vs the L2 corrupting it.
+extern "C" void l1d_wb_log(unsigned long long pa, unsigned long long data_lo, unsigned long long data_hi) {
+  if(!g_checker) return;
+  static const bool dw = getenv("DESCWATCH") != nullptr;
+  if(!dw) return;
+  uint32_t la = (uint32_t)(pa & 0x0ffffff0ull);
+  static int n = 0;
+  if(la == 0x003e4000u || la == 0x083e4000u || n++ < 12)   /* +first 12 = does the DPI fire at all? */
+    fprintf(stderr, "[l1dwb] pa=%08llx lo=%016llx hi=%016llx\n", pa, data_lo, data_hi);
+}
+static uint64_t g_cur_cyc = 0;                 // updated each loop iteration (declared early for the DPIs)
+
+// TIP: commit-stall attribution (ported from rv64core top.cc). Every cycle, charge
+// 1.0 to the ROB-head PC when nothing retires (the head is the stall), or split the
+// cycle among the retiree(s). tip[pc] = total cycles spent at/waiting-on that PC ->
+// the top PCs are exactly where the pipeline burns time. Gated by env TIP.
+static std::map<uint32_t,double> g_tip;
+static void tip_dump(const char *tag) {
+  if(g_tip.empty()) { return; }
+  std::vector<std::pair<uint32_t,double>> v(g_tip.begin(), g_tip.end());
+  std::sort(v.begin(), v.end(), [](const std::pair<uint32_t,double>&a,
+                                   const std::pair<uint32_t,double>&b){ return a.second > b.second; });
+  double tot = 0.0;
+  for(size_t i = 0; i < v.size(); i++) { tot += v[i].second; }
+  fprintf(stderr, "[tip] === %s  total=%.0f cyc  distinct_pcs=%zu ===\n", tag, tot, v.size());
+  for(size_t i = 0; i < v.size() && i < 20; i++) {
+    fprintf(stderr, "[tip]   pc=%08x  %12.0f cyc  (%5.1f%%)\n",
+            v[i].first, v[i].second, 100.0 * v[i].second / tot);
+  }
+}
+// scsi_dma engine trace (SCSIDMADBG): every chain start / descriptor read / mem write, so we
+// can see whether the engine's r_bp (write target) walks onto the descriptor's own address.
+extern "C" void scsi_dma_log(int kind, unsigned long long a, unsigned long long b,
+                             unsigned long long c, unsigned long long d) {
+  if(!g_checker) return;
+  static const bool dbg = getenv("SCSIDMADBG") != nullptr;
+  if(!dbg) return;
+  if(kind == 2)
+    fprintf(stderr, "[dma-go]   cyc=%llu nbdp=%08llx to_dev=%llu\n", (unsigned long long)g_cur_cyc, a, b);
+  else if(kind == 0)
+    fprintf(stderr, "[dma-desc] cyc=%llu nbdp=%08llx -> bp=%08llx bc=%08llx dp=%08llx\n",
+            (unsigned long long)g_cur_cyc, a, b, c, d);
+  else if(kind == 1)
+    fprintf(stderr, "[dma-wr]   cyc=%llu bp=%08llx cnt=%llu data=%016llx%016llx\n",
+            (unsigned long long)g_cur_cyc, a, b, d, c);
+  else
+    fprintf(stderr, "[dma-st]   cyc=%llu state=%llu nbdp=%08llx bp=%08llx cnt=%llu\n",
+            (unsigned long long)g_cur_cyc, a, b, c, d);
+}
+// L2 line tracer (L2DBG): full 16-byte descriptor line at each L2 boundary.
+// side 0 = L1D->L2 store/writeback IN, 1 = L2->DRAM eviction OUT, 2 = L2 fill from DRAM.
+// Descriptor {BP,BC,DP} is big-endian in DRAM; d0 packs bytes 0..7 little-endian, so
+// BP = bswap32(low32(d0)), BC = bswap32(high32(d0)).
+extern "C" void l2_line_log(int side, unsigned long long pa, unsigned long long d0,
+                            unsigned long long d1, int op, int mask) {
+  static const bool l2dbg = getenv("L2DBG") != nullptr;
+  if(!l2dbg) return;
+  const char *sn = (side == 0) ? "L1->L2 " : (side == 1) ? "L2->DRAM" : "fill    ";
+  uint32_t bp = __builtin_bswap32((uint32_t)d0), bc = __builtin_bswap32((uint32_t)(d0 >> 32));
+  uint32_t dp = __builtin_bswap32((uint32_t)d1);
+  fprintf(stderr, "[l2line] cyc=%llu %s pa=%08llx op=%d mask=%04x  d0=%016llx d1=%016llx  BP=%08x BC=%08x DP=%08x\n",
+          (unsigned long long)g_cur_cyc, sn, pa, op, (unsigned)mask, d0, d1, bp, bc, dp);
+}
+// L2 CHECK_VALID_AND_TAG decision for the descriptor line: did the op hit? is the
+// held line dirty? what does it hold?  Reveals why a MEM_WB fails to drop a stale copy.
+extern "C" void l2_chk_log(unsigned long long pa, int whit, int wvalid, int wdirty,
+                           int op, unsigned long long d0lo, unsigned long long d0hi) {
+  static const bool l2dbg = getenv("L2DBG") != nullptr;
+  if(!l2dbg) return;
+  static const char *opn[32] = {0};
+  opn[4]="LW"; opn[7]="SW"; opn[15]="SD"; opn[24]="INVL"; opn[26]="WB"; opn[27]="CHWB"; opn[28]="CHWBINV"; opn[29]="CHINV";
+  const char *on = (op>=0 && op<32 && opn[op]) ? opn[op] : "?";
+  uint32_t bp = __builtin_bswap32((uint32_t)d0lo), bc = __builtin_bswap32((uint32_t)(d0lo >> 32));
+  fprintf(stderr, "[l2chk ] cyc=%llu pa=%08llx op=%-3s(%d) hit=%d valid=%d dirty=%d  held: BP=%08x BC=%08x\n",
+          (unsigned long long)g_cur_cyc, pa, on, op, whit, wvalid, wdirty, bp, bc);
 }
 static void drain_store_check() {
   while(!g_iss_stores.empty() && !g_rtl_stores.empty()) {
@@ -126,7 +205,6 @@ static uint8_t *g_mem = nullptr;
 
 // timer-IRQ trace: core.sv calls log_timer_irq() (DPI) once per timer interrupt
 // taken; we stamp it with the current sim cycle.  Queryable via monitor `timer`.
-static uint64_t g_cur_cyc = 0;                 // updated each loop iteration
 static std::vector<uint64_t> g_timer_irq_cyc;  // cycle of every timer IRQ taken
 extern "C" void log_timer_irq() { g_timer_irq_cyc.push_back(g_cur_cyc); }
 
@@ -417,6 +495,18 @@ static bool ds_is_device_load(uint32_t vpc) {
 static void chk_compare(uint32_t vpc, bool rrv, int rrp, uint64_t rrd, bool devload) {
   if(!rrv || rrp == 0) return;
   if((uint64_t)ss->gpr[rrp] != rrd) {
+    if(vpc == 0x880099d0u) {  /* wd93dma_flush BC load: dump RTL g_mem vs ISS g_ss_mem @ a2's PA */
+      uint32_t pa = (uint32_t)((uint64_t)ss->gpr[6] & 0x1fffffffu);   /* kseg0 a2 -> PA */
+      uint32_t base = pa & ~0xfu; bool bad=false; uint32_t off = fpga_map(base, &bad);
+      uint8_t *q = ss->mem.get_raw_ptr(base);
+      fprintf(stderr, "[wd93] a2=%016llx pa=%08x ISS_v0=%llx RTL_v0=%llx\n  RTL g_mem[%08x]=",
+              (unsigned long long)(uint64_t)ss->gpr[6], pa, (unsigned long long)ss->gpr[rrp],
+              (unsigned long long)rrd, base);
+      for(int i=0;i<16;i++) fprintf(stderr, "%02x%s", g_mem[off+i], (i%4==3)?" ":"");
+      fprintf(stderr, "\n  ISS g_ss[%08x]=", base);
+      for(int i=0;i<16;i++) fprintf(stderr, "%02x%s", q[i], (i%4==3)?" ":"");
+      fprintf(stderr, "\n");
+    }
     if(g_settle > 0 || devload || chk_suppress(vpc, rrp)) g_chk_copsupp++;
     else {
       if(g_chk_diverge < 200)
@@ -929,6 +1019,7 @@ int main(int argc, char **argv) {
   uint64_t req_addr = 0; uint32_t req_op = 0; uint16_t req_mask = 0;
   uint32_t req_sd[4] = {0,0,0,0};
   bool req_bad = false, req_is_halt = false;
+  uint32_t req_owner = 0;   // arbiter grant latched at accept: 0=CPU 1=DMA
   /* RANDOM per-request memory latency (shmoo -> randomized): each request draws a
    * latency in [MEM_LAT_MIN,MEM_LAT_MAX], seeded by MEM_SEED, so a single boot
    * explores many load-timing alignments (mimics the FPGA's non-determinism to
@@ -1002,6 +1093,32 @@ int main(int argc, char **argv) {
 
     if(tb->retire_valid && tb->retire_reg_valid) g_rf[tb->retire_reg_ptr & 31] = tb->retire_reg_data;
     if(tb->retire_two_valid && tb->retire_reg_two_valid) g_rf[tb->retire_reg_two_ptr & 31] = tb->retire_reg_two_data;
+
+    { // PCHASH: rolling FNV-1a over retired PCs (older retire_pc, then younger
+      // retire_two_pc), matched to interp_mips's per-icnt hash to find the first
+      // RTL/ISS PC divergence.  Independent of --checker.
+      static const bool g_pchash = getenv("PCHASH") != nullptr;
+      if(g_pchash) {
+        static uint64_t h = 1469598103934665603ULL, n = 0;
+        static const char *pd = getenv("PCDUMP");   // "lo:hi" -> raw "P <pc>" for structural diff
+        static uint64_t pd_lo = 0, pd_hi = 0; static bool pd_init = false;
+        if(!pd_init) { pd_init = true; if(pd) sscanf(pd, "%lu:%lu", &pd_lo, &pd_hi); }
+        if(tb->retire_valid) {
+          h = (h ^ (uint32_t)tb->retire_pc) * 1099511628211ULL; n++;
+          if((n & 0xffff) == 0)
+            fprintf(stderr, "[pchash] icnt=%llu hash=%016llx pc=%08x\n",
+                    (unsigned long long)n, (unsigned long long)h, (uint32_t)tb->retire_pc);
+          if(pd && n >= pd_lo && n < pd_hi) fprintf(stderr, "P %08x\n", (uint32_t)tb->retire_pc);
+        }
+        if(tb->retire_two_valid) {
+          h = (h ^ (uint32_t)tb->retire_two_pc) * 1099511628211ULL; n++;
+          if((n & 0xffff) == 0)
+            fprintf(stderr, "[pchash] icnt=%llu hash=%016llx pc=%08x\n",
+                    (unsigned long long)n, (unsigned long long)h, (uint32_t)tb->retire_two_pc);
+          if(pd && n >= pd_lo && n < pd_hi) fprintf(stderr, "P %08x\n", (uint32_t)tb->retire_two_pc);
+        }
+      }
+    }
     { static const char *pe = getenv("PREAMBLE_PC");   // preamble-resume: report first hit of the ckpt PC
       static const uint32_t pc = pe ? (uint32_t)strtoull(pe,0,0) : 0;
       static bool hit = false;
@@ -1370,8 +1487,8 @@ int main(int argc, char **argv) {
         req_addr = (uint64_t)tb->mem_req_addr & MEM_MASK;
         req_bad  = false;
       }
-      req_op   = tb->mem_req_opcode;
-      req_mask = tb->mem_req_mask;
+      req_op    = tb->mem_req_opcode;
+      req_mask  = tb->mem_req_mask;
       for(int i = 0; i < 4; i++) req_sd[i] = tb->mem_req_store_data[i];
       { int lat = MEM_LAT_MIN + (int)(memlat_next() % MEM_LAT_SPAN);   /* random per request */
         reply_cyc = (int64_t)cyc + ((req_op == 4) ? lat : 2*lat); }
@@ -1390,6 +1507,15 @@ int main(int argc, char **argv) {
         }
       }
       else if(req_op == 7) {                  // store (byte mask) -- ONLY opcode 7
+        static const bool descwatch = getenv("DESCWATCH") != nullptr;
+        if(descwatch) {
+          uint32_t la = (uint32_t)((req_addr & MEM_MASK) & 0x0ffffff0u);
+          if(la == 0x003e4000u || la == 0x083e4000u || req_sd[0] == 0x883e4800u)
+            fprintf(stderr, "[descwr] cyc=%llu owner=%s addr=%08llx mask=%04x d=%08x %08x %08x %08x\n",
+                    (unsigned long long)cyc, req_owner ? "DMA" : "CPU",
+                    (unsigned long long)(req_addr & MEM_MASK),
+                    (unsigned)req_mask, req_sd[0], req_sd[1], req_sd[2], req_sd[3]);
+        }
         for(int i = 0; i < 16; i++) {
           if((req_mask >> i) & 1) {
             uint64_t a = (req_addr + i) & MEM_MASK;
@@ -1418,7 +1544,18 @@ int main(int argc, char **argv) {
       prev_epc = tb->epc; prev_badv = tb->badvaddr; exc_prints++;
     }
     prev_sr = tb->status_reg;
+    { static const bool g_do_tip = getenv("TIP") != nullptr;   // commit-stall attribution
+      if(g_do_tip) {
+        if(tb->retire_valid || tb->retire_two_valid) {
+          double total = (double)(tb->retire_valid ? 1 : 0) + (double)(tb->retire_two_valid ? 1 : 0);
+          if(tb->retire_valid) { g_tip[(uint32_t)tb->retire_pc] += 1.0 / total; }
+          if(tb->retire_two_valid) { g_tip[(uint32_t)tb->retire_two_pc] += 1.0 / total; }
+        }
+        else { g_tip[(uint32_t)tb->dbg_head_pc] += 1.0; }   // stalled: charge the ROB head
+      }
+    }
     if(cyc && (cyc % (1UL<<24)) == 0) {
+      tip_dump("periodic");
       fprintf(stderr, "[tb] cyc %llu  retired %llu  last_pc 0x%llx  head_pc 0x%llx  "
               "cause=%u epc=0x%llx badv=0x%llx sr=0x%08x irq=%u\n",
               (unsigned long long)cyc, (unsigned long long)retired,
@@ -1429,6 +1566,7 @@ int main(int argc, char **argv) {
     if(tb->got_bad_addr) { printf("\n[tb] got_bad_addr at cycle %llu\n", (unsigned long long)cyc); }
   }
 
+  tip_dump("final");
   fprintf(stderr, "[tb] final: retired %llu  last_pc 0x%llx  head_pc 0x%llx  "
           "cause=%u epc=0x%llx badv=0x%llx sr=0x%08x irq=%u\n",
           (unsigned long long)retired, (unsigned long long)last_pc,
