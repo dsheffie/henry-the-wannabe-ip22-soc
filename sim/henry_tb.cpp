@@ -44,6 +44,8 @@ namespace globals {
 static sparse_mem *g_ss_mem   = nullptr;   // golden ISS memory (own 4GB, PA-indexed)
 static state_t    *ss         = nullptr;   // golden checker state
 static bool        g_checker  = false;     // --checker enables the lockstep compare
+static uint32_t    g_chk_gate_pc = 0;      // preamble-resume: start lockstep at this ckpt pc
+static bool        g_chk_active_gate = true; // on for normal boot; off (gated) when resuming
 
 // ---- co-sim store-check (forward-ported from rv64core across the shared MIPS ancestor) ----
 // The golden ISS records committed stores (interpret.cc, program order); the RTL reports
@@ -873,7 +875,7 @@ static void mon_poll(void) {
 }
 
 int main(int argc, char **argv) {
-  std::string kernel, arcs, ckpt_file, cimg_file;
+  std::string kernel, arcs, ckpt_file, cimg_file, iss_seed_file;
   uint64_t max_cyc = 120000000ull;
   uint64_t max_icnt = 0;   // --maxicnt: stop after this many retired insns (0 = unlimited)
   uint32_t start_pc = 0;   // fake-BIOS: start in the arcs boot stub (skip C++ handoff)
@@ -900,6 +902,7 @@ int main(int argc, char **argv) {
     else if(a == "--cimg" && i+1 < argc)   cimg_file = argv[++i];
     else if(a == "--verify-ckpt" && i+1 < argc) g_verify_path = argv[++i];
     else if(a == "--checker")              g_checker = true;
+    else if(a == "--iss-seed" && i+1 < argc) iss_seed_file = argv[++i];
   }
   std::vector<uint8_t> rx_bytes(rx_str.begin(), rx_str.end());
   if(kernel.empty() && ckpt_file.empty() && cimg_file.empty()) { fprintf(stderr, "usage: %s {--kernel <elf> | --checkpoint <file> | --cimg <file> --arcs <preamble>} [--maxcyc N]\n", argv[0]); return 1; }
@@ -934,6 +937,15 @@ int main(int argc, char **argv) {
     // silicon-style resume: .cimg pages -> g_mem (ARM's job), + the 'preamble' arcs blob
     // (ckpt2preamble.py) restores regs/CP0/TLB and ERETs to the checkpoint PC.  NO DPI.
     load_cimg(cimg_file.c_str());
+    if(g_checker && !iss_seed_file.empty()) {   // seed the golden ISS regs/CP0/TLB, then gate
+      FILE *sf = fopen(iss_seed_file.c_str(), "rb");
+      if(sf && fread(&g_ckpt, 1, sizeof(g_ckpt), sf) == sizeof(g_ckpt) && g_ckpt.magic == CKPT_MAGIC) {
+        g_have_ckpt = true; seed_checker();
+        g_chk_gate_pc = (uint32_t)g_ckpt.pc; g_chk_active_gate = false;
+        fprintf(stderr, "[iss-seed] ISS seeded from %s; lockstep gated until pc=%08x\n", iss_seed_file.c_str(), g_chk_gate_pc);
+      } else fprintf(stderr, "[iss-seed] FAILED to read %s\n", iss_seed_file.c_str());
+      if(sf) fclose(sf);
+    }
     if(arcs.empty()) { fprintf(stderr, "--cimg needs --arcs <preamble.bin>\n"); return 1; }
     load_blob(arcs.c_str(), arcs_addr);   // preamble @0x1fc00000 (reset vector fetches it)
     entry = kentry = start_pc ? start_pc : 0xbfc00000u;
@@ -1094,6 +1106,44 @@ int main(int argc, char **argv) {
     if(tb->retire_valid && tb->retire_reg_valid) g_rf[tb->retire_reg_ptr & 31] = tb->retire_reg_data;
     if(tb->retire_two_valid && tb->retire_reg_two_valid) g_rf[tb->retire_reg_two_ptr & 31] = tb->retire_reg_two_data;
 
+#ifdef HENRY_TB_TRACE
+    { /* RTLTRACE=<file>: per-retired-insn "pc reg val" (interp valt format) for
+       * offline diff vs interp --restore --valt/--pctraceout. Starts after
+       * RTLTRACE_PC (the ckpt pc) first retires; RTLTRACE_N caps the line count.
+       * reg = -1 unless a non-r0 GPR was written (matches interp's changed-reg
+       * convention). RTLTRACE_USERONLY = only pc<0x80000000; RTLTRACE_KTLB also
+       * captures the locore TLB handlers. Build with -DHENRY_TB_TRACE to enable
+       * (off by default -- this is the co-sim retire-trace infra). */
+      static const char *tf = getenv("RTLTRACE");
+      static FILE *rf = tf ? fopen(tf, "w") : nullptr;
+      static const uint32_t startpc = getenv("RTLTRACE_PC") ? (uint32_t)strtoull(getenv("RTLTRACE_PC"),0,0) : 0;
+      static const uint64_t cap = getenv("RTLTRACE_N") ? strtoull(getenv("RTLTRACE_N"),0,0) : 40000000ULL;
+      static const bool useronly = getenv("RTLTRACE_USERONLY") != nullptr;  /* emit only pc<0x80000000 */
+      static const bool ktlb = getenv("RTLTRACE_KTLB") != nullptr;  /* also capture kernel TLB-handler ranges */
+      static bool armed = (startpc == 0);
+      static uint64_t emitted = 0;
+      auto emit1 = [&](uint32_t pc, bool rv, int rp, uint64_t rd) {
+        /* emit userspace (pc<0x80000000) always; with RTLTRACE_KTLB also emit the
+         * exception vectors + locore TLB handlers, so a full boot records the PTE
+         * the tlb_mod handler loads at 0x88013d20 and whether it takes the V=0
+         * SEGV path (0x88013e20). Without RTLTRACE_USERONLY/KTLB, emit everything. */
+        bool khandler = (pc >= 0x80000000u && pc < 0x80000240u) ||
+                        (pc >= 0x88002000u && pc < 0x88015000u);
+        if(useronly && pc >= 0x80000000u && !(ktlb && khandler)) return;
+        int reg = (rv && (rp & 31)) ? (rp & 31) : -1;
+        fprintf(rf, "%x %d %llx\n", pc, reg, (unsigned long long)(reg<0?0:rd)); emitted++;
+      };
+      if(rf && emitted < cap) {
+        if(tb->retire_valid) {
+          if(!armed && (uint32_t)tb->retire_pc == startpc) armed = true;
+          if(armed) emit1((uint32_t)tb->retire_pc, tb->retire_reg_valid, tb->retire_reg_ptr, tb->retire_reg_data);
+        }
+        if(tb->retire_two_valid && armed && emitted < cap)
+          emit1((uint32_t)tb->retire_two_pc, tb->retire_reg_two_valid, tb->retire_reg_two_ptr, tb->retire_reg_two_data);
+      }
+    }
+#endif // HENRY_TB_TRACE
+
     { // PCHASH: rolling FNV-1a over retired PCs (older retire_pc, then younger
       // retire_two_pc), matched to interp_mips's per-icnt hash to find the first
       // RTL/ISS PC divergence.  Independent of --checker.
@@ -1186,7 +1236,12 @@ int main(int argc, char **argv) {
     }
 
     // ---- lockstep co-sim checker (mirrors r9999/top.cc:686-800) ----
-    if(g_checker && ss) {
+    if(g_checker && ss && !g_chk_active_gate && tb->retire_valid && (uint32_t)tb->retire_pc == g_chk_gate_pc) {
+      g_chk_active_gate = true;   // preamble-resume: lockstep starts at the ckpt PC (skip preamble)
+      seed_checker();             // RE-SEED the ISS at the ckpt state now (undo any boot-seed during the preamble)
+      fprintf(stderr, "[checker] lockstep ACTIVE + ISS re-seeded at ckpt pc=%08x\n", g_chk_gate_pc);
+    }
+    if(g_checker && ss && g_chk_active_gate) {
       ss->cpr0[CPR0_COUNT] = (uint32_t)tb->cp0_count;      // keep mfc0 $9 in sync
       // Track the RTL's exception CP0 regs so the ISS's handler control-flow
       // follows the RTL (the co-sim scope is GPRs/data, not CP0 modeling).
