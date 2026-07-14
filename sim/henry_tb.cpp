@@ -31,6 +31,7 @@
 // ---- lockstep co-sim checker: r9999's embedded interp as the golden model ----
 #include "interpret.hh"
 #include "loadelf.hh"
+#include "inst_record.hh"   // boost retire_trace format (matches interp_mips / mips-analyzer)
 // The interp objects reference these globals (defined in r9999/top.cc, which we
 // don't link); provide them here so the ISS objects resolve.
 namespace globals {
@@ -44,6 +45,27 @@ namespace globals {
 static sparse_mem *g_ss_mem   = nullptr;   // golden ISS memory (own 4GB, PA-indexed)
 static state_t    *ss         = nullptr;   // golden checker state
 static bool        g_checker  = false;     // --checker enables the lockstep compare
+
+// RETIRETRACE=<file>: emit a boost retire_trace (mips-analyzer CFG format) of every
+// retired instruction (both superscalar slots), scoped by retire count [LO,HI) to bound
+// memory.  The instruction bytes come from the ISS image via the mirrored TLB (code is
+// identical in RTL & ISS; only DATA diverges), so this is a faithful RTL execution trace
+// independent of any checker alignment.  Needs --checker (ss populated).
+static retire_trace g_rt;
+static const char  *g_rt_file = nullptr;
+static uint64_t     g_rt_lo = 0, g_rt_hi = 0, g_rt_ifail = 0, g_rt_cap = 0;
+static bool         g_rt_useronly = false;   // RETIRETRACE_USERONLY: only pc<0x80000000 (o32 code)
+static bool         g_rt_trig_user = false;  // RETIRETRACE_TRIG_USER: start on first o32 entry, then trace all
+static bool         g_rt_armed = false;
+static inline void rt_emit(uint32_t vpc) {
+  if(g_rt_useronly && vpc >= 0x80000000u) return;          // skip kernel (idle/delay/paging noise)
+  uint32_t pa = 0;
+  uint32_t inst = iss_fetch_inst(ss, (uint64_t)vpc, &pa);   // zero-extend: tlb_probe_ro handles kseg0/mapped
+  if(inst == 0) g_rt_ifail++;                               // ISS-TLB lag on a mapped PC (best-effort)
+  /* key on the VIRTUAL pc (never 0) so the analyzer never sees address 0; keeping both
+   * traces virtual-keyed also avoids ISS-TLB physical-translation drift in the window. */
+  g_rt.get_records().emplace_back((uint64_t)vpc, (uint64_t)vpc, inst);
+}
 // RTL exception context latched each cycle (used by checker_step's exception sync).
 // tb->cause is the 5-bit ExcCode (0=Int/async, 1=Mod, 2=TLBL, 3=TLBS, ...).
 static uint32_t    g_rtl_cause = 0;
@@ -1018,6 +1040,12 @@ int main(int argc, char **argv) {
     else if(a == "--checker")              g_checker = true;
     else if(a == "--iss-seed" && i+1 < argc) iss_seed_file = argv[++i];
   }
+  g_rt_file = getenv("RETIRETRACE");                                          // boost retire_trace out
+  if(getenv("RETIRETRACE_LO")) g_rt_lo = strtoull(getenv("RETIRETRACE_LO"), 0, 0);  // retire-count window
+  if(getenv("RETIRETRACE_HI")) g_rt_hi = strtoull(getenv("RETIRETRACE_HI"), 0, 0);
+  g_rt_useronly = getenv("RETIRETRACE_USERONLY") != nullptr;                  // only o32 userspace pc
+  g_rt_trig_user = getenv("RETIRETRACE_TRIG_USER") != nullptr;                // arm on first o32 entry
+  if(getenv("RETIRETRACE_N")) g_rt_cap = strtoull(getenv("RETIRETRACE_N"), 0, 0);  // max records
   std::vector<uint8_t> rx_bytes(rx_str.begin(), rx_str.end());
   if(kernel.empty() && ckpt_file.empty() && cimg_file.empty()) { fprintf(stderr, "usage: %s {--kernel <elf> | --checkpoint <file> | --cimg <file> --arcs <preamble>} [--maxcyc N]\n", argv[0]); return 1; }
 
@@ -1221,6 +1249,22 @@ int main(int argc, char **argv) {
 
     if(tb->retire_valid && tb->retire_reg_valid) g_rf[tb->retire_reg_ptr & 31] = tb->retire_reg_data;
     if(tb->retire_two_valid && tb->retire_reg_two_valid) g_rf[tb->retire_reg_two_ptr & 31] = tb->retire_reg_two_data;
+
+    if(g_rt_file && ss) {
+      // trigger: arm on the first o32 (userspace) retire, then trace EVERYTHING (user+kernel)
+      // so the full o32 lifecycle -- syscalls, faults, teardown -- is captured.  The o32-entry
+      // code event aligns RTL vs interp despite the delayloop icnt-skew.
+      if(g_rt_trig_user && !g_rt_armed &&
+         ((tb->retire_valid && (uint32_t)tb->retire_pc < 0x80000000u) ||
+          (tb->retire_two_valid && (uint32_t)tb->retire_two_pc < 0x80000000u)))
+        g_rt_armed = true;
+      bool win = retired >= g_rt_lo && (g_rt_hi == 0 || retired < g_rt_hi)
+                 && (g_rt_cap == 0 || g_rt.get_records().size() < g_rt_cap);
+      if((!g_rt_trig_user || g_rt_armed) && win) {
+        if(tb->retire_valid)     rt_emit((uint32_t)tb->retire_pc);
+        if(tb->retire_two_valid) rt_emit((uint32_t)tb->retire_two_pc);
+      }
+    }
 
     { /* PRFAULT_PROBE=<file>: comprehensive capture, hypothesis-agnostic. Keep a
        * ring of the last N retired (pc,reg,data); when IRIX's trap sees prfault
@@ -1863,6 +1907,13 @@ int main(int argc, char **argv) {
                         : halted ? "halted (magic-halt store)" : "reached max cycles");
   for(uint64_t pa : dump_pas) dump_pa(pa);
   if(trace) { fclose(trace); fprintf(stderr, "[tb] wrote retired-PC trace to %s\n", trace_file.c_str()); }
+  if(g_rt_file && !g_rt.empty()) {
+    std::ofstream ofs(g_rt_file, std::ios::binary);
+    boost::archive::binary_oarchive oa(ofs);
+    oa << g_rt;
+    fprintf(stderr, "[retiretrace] wrote %zu records to %s (%llu inst-fetch fails)\n",
+            g_rt.get_records().size(), g_rt_file, (unsigned long long)g_rt_ifail);
+  }
   delete tb;
   return 0;
 }

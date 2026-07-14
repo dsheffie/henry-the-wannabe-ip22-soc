@@ -67,6 +67,7 @@ obj_dir/henry_tb: obj_dir/.verilated henry_tb.cpp $(INTERP_CC) $(wildcard $(R999
 	# a plain link fails "file format not recognized".
 	$(MAKE) CXX="clang++-16" LINK="clang++-16 -flto" \
 	        OPT_FAST="-O2" OPT_GLOBAL="-O2" OPT_SLOW="-O1" \
+	        LDLIBS="-lboost_serialization" \
 	        -C obj_dir -f V$(TOP).mk henry_tb
 
 .PHONY: build run clean
