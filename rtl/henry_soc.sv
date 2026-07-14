@@ -88,6 +88,7 @@ module henry_soc
    output logic [31:0]           status_reg,
    output logic [`M_WIDTH-1:0]   badvaddr,
    output logic [4:0]            cause,
+   output logic [7:0]            cause_ip,
    output logic                  took_irq,
    // retire register writeback taps (64-bit-address-bug localization)
    output logic [4:0]            retire_reg_ptr,
@@ -233,7 +234,7 @@ module henry_soc
       .l2_cache_accesses(), .l2_cache_hits(),
       .got_break(got_break), .got_ud(got_ud), .got_bad_addr(got_bad_addr),
       .core_state(core_state), .l1i_state(l1i_state), .l1d_state(l1d_state), .l2_state(l2_state), .l2_rsp_state(l2_rsp_state),
-      .inflight(inflight), .epc(epc), .status_reg(status_reg), .badvaddr(badvaddr), .cause(cause),
+      .inflight(inflight), .epc(epc), .status_reg(status_reg), .badvaddr(badvaddr), .cause(cause), .cause_ip(cause_ip),
       .l1i_flush_done(), .l1d_flush_done(), .l2_flush_done(),
       .took_irq(took_irq), .cp0_count(cp0_count),
       .dbg_head_pc(dbg_head_pc), .dbg_head_status(dbg_head_status), .dbg_head_fetch_cycle(), .dbg_head_alloc_cycle(),

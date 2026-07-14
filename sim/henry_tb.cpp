@@ -44,6 +44,13 @@ namespace globals {
 static sparse_mem *g_ss_mem   = nullptr;   // golden ISS memory (own 4GB, PA-indexed)
 static state_t    *ss         = nullptr;   // golden checker state
 static bool        g_checker  = false;     // --checker enables the lockstep compare
+// RTL exception context latched each cycle (used by checker_step's exception sync).
+// tb->cause is the 5-bit ExcCode (0=Int/async, 1=Mod, 2=TLBL, 3=TLBS, ...).
+static uint32_t    g_rtl_cause = 0;
+static uint32_t    g_rtl_cause_ip = 0;   // RTL Cause.IP[7:0] pending bits, for correct ISS ISR dispatch
+static uint32_t    g_rtl_epc = 0;        // RTL exception EPC, for the async-interrupt entry EPC only
+static uint64_t    g_rtl_badv  = 0;
+static int         g_tlb_delta_shown = 0;  // cap the [TLB-DELTA] log
 static uint32_t    g_chk_gate_pc = 0;      // preamble-resume: start lockstep at this ckpt pc
 static bool        g_chk_active_gate = true; // on for normal boot; off (gated) when resuming
 
@@ -71,7 +78,43 @@ struct pend_tlb_t { int idx; uint64_t ehi, elo0, elo1; uint32_t pm; };
 static std::deque<pend_tlb_t> g_pend_tlb;   // FIFO: wirepda installs several wired entries
                                             // back-to-back; a single-entry buffer dropped the
                                             // clobbered write -> the ISS missed the wired PDA.
+// most-recent retiring PC (updated each cycle in the main loop). TLBDUP prints it
+// so a duplicate's CREATING write is attributed to its handler: eutlbmiss/utlbmiss
+// (~0x880147xx, a blind tlbwr on a REFILL => spurious miss on a resident VA = root)
+// vs tlbdropin (~0x88002dxx, tlbp-then-tlbwi) vs kmissnxt (~0x880145xx).
+static uint64_t g_cur_retire_pc = 0;
 extern "C" void tlb_wr_log(int entry, long long ehi, long long elo0, long long elo1, int pm) {
+  { /* TLBDUP: MIPS makes 2 entries matching the same VA UNDEFINED ("very bad
+     * things"). Mirror the 48 entries and, after each write, scan for a duplicate
+     * of the just-written one (same VPN2[39:13] + R[63:62], and ASID[7:0] equal OR
+     * both pages Global). A hit = the RTL/kernel created a duplicate -> the store
+     * can hit a stale D=0 copy while the D=1 update lands elsewhere -> Modify loop. */
+    static const bool tdup = getenv("TLBDUP") != nullptr;
+    if(tdup && entry >= 0 && entry < 48) {
+      static uint64_t m_ehi[48]={0}, m_elo0[48]={0}, m_elo1[48]={0}; static bool m_wr[48]={false};
+      auto vpn2 = [](uint64_t e){ return (e >> 13) & 0x7ffffffULL; };
+      auto rfld = [](uint64_t e){ return (e >> 62) & 0x3ULL; };
+      auto asid = [](uint64_t e){ return e & 0xffULL; };
+      auto glob = [](uint64_t l0, uint64_t l1){ return (l0 & 1ULL) && (l1 & 1ULL); };
+      static uint64_t n_wr = 0; n_wr++;
+      auto vld = [](uint64_t l0, uint64_t l1){ return ((l0 >> 1) & 1) || ((l1 >> 1) & 1); };  /* V bit either page */
+      m_ehi[entry]=(uint64_t)ehi; m_elo0[entry]=(uint64_t)elo0; m_elo1[entry]=(uint64_t)elo1; m_wr[entry]=true;
+      for(int j = 0; j < 48; j++) {
+        if(j == entry || !m_wr[j]) continue;
+        bool va_match = (vpn2(m_ehi[j]) == vpn2((uint64_t)ehi)) && (rfld(m_ehi[j]) == rfld((uint64_t)ehi));
+        bool as_match = (asid(m_ehi[j]) == asid((uint64_t)ehi)) ||
+                        (glob(m_elo0[j],m_elo1[j]) && glob((uint64_t)elo0,(uint64_t)elo1));
+        /* only DANGEROUS duplicates: at least one page valid in BOTH slots (an all-invalid
+         * placeholder pair never matches a real access -> harmless TLB-init idiom). */
+        if(va_match && as_match && vld((uint64_t)elo0,(uint64_t)elo1) && vld(m_elo0[j],m_elo1[j]))
+          fprintf(stderr, "[TLBDUP] wr#%llu creator_pc=%08llx DUP vpn2=%llx r=%llu: entry %d (ehi=%llx elo0=%llx elo1=%llx) == entry %d (ehi=%llx elo0=%llx elo1=%llx)\n",
+                  (unsigned long long)n_wr, (unsigned long long)g_cur_retire_pc,
+                  (unsigned long long)vpn2((uint64_t)ehi), (unsigned long long)rfld((uint64_t)ehi),
+                  entry, (unsigned long long)ehi, (unsigned long long)elo0, (unsigned long long)elo1,
+                  j, (unsigned long long)m_ehi[j], (unsigned long long)m_elo0[j], (unsigned long long)m_elo1[j]);
+      }
+    }
+  }
   if(!g_checker) return;
   g_pend_tlb.push_back({ entry, (uint64_t)ehi, (uint64_t)elo0, (uint64_t)elo1, (uint32_t)pm << 13 });
 }
@@ -558,21 +601,61 @@ static void checker_step(uint64_t rpc, bool rrv, int rrp, uint64_t rrd) {
   }
   bool resynced = false;
   if((uint32_t)ss->pc != vpc) {              // control-flow (PC) divergence
-    // Classify. An exception-vector target = the RTL took an exception the 1:1 ISS
-    // doesn't model (async timer IRQ; or a TLB/AdEL it can't see) -- usually benign.
-    // A MAIN-LINE divergence (both in normal code, different PC) = a real wrong-PC
-    // bug: bad eret target, mis-resolved branch, or a spurious/missed exception.
     bool exc_entry = (vpc==0x80000000u || vpc==0x80000080u || vpc==0x80000100u ||
                       vpc==0x80000180u || (vpc>=0xbfc00200u && vpc<=0xbfc00480u));
-    static int shown = 0;
-    if(shown < 200) {
-      fprintf(stderr, "[checker] PC-DIVERGE ISS=%08x RTL=%08x %s after %llu checked\n",
-              (uint32_t)ss->pc, vpc, exc_entry ? "[exc-entry]" : "[MAIN-LINE!]",
-              (unsigned long long)g_chk_insns);
-      shown++;
+    if(exc_entry) {
+      // The RTL vectored.  ASYNC (timer/device IRQ) = general vector (0x180 / bfc0x380)
+      // with ExcCode 0.  Everything else is SYNCHRONOUS -- caused by the faulting
+      // instruction the ISS is about to execute (ss->pc): TLB refill (0x000/0x080),
+      // TLB-Invalid/Modify/syscall/... (0x180 with ExcCode!=0).
+      bool is_async = ((vpc==0x80000180u || (vpc>=0xbfc00200u && vpc<=0xbfc00480u))
+                       && g_rtl_cause == 0);
+      if(is_async) {
+        // Take the interrupt in the ISS: EPC = the interrupted instruction (ss->pc),
+        // then snap to the exact RTL vector.  Fall through to execMips the vector's
+        // first instruction + compare (clean lockstep, no trust window).
+        raise_int(ss, g_rtl_epc, g_rtl_cause_ip);   // exact RTL exception EPC at entry
+        ss->pc = (state_t::reg_t)(int64_t)rpc;
+      } else {
+        // SYNCHRONOUS fault: let the ISS execute the faulting instruction and check it
+        // faults to the SAME vector.  If the ISS does NOT fault (or vectors elsewhere)
+        // while the RTL did, the RTL's TLB/exception logic disagrees with the golden
+        // model -- a real RTL bug (the IRIX o32 crash class).  dsheffie: poke TLB deltas.
+        uint32_t fpc = (uint32_t)ss->pc;
+        execMips(ss);
+        g_chk_insns++;
+        if((uint32_t)ss->pc == vpc) {
+          // ISS agrees -- same fault, same vector.  Fall through: execMips runs the
+          // vector's first instruction and compares (stay locked, no trust window).
+        } else {
+          if(g_tlb_delta_shown < 400) {
+            fprintf(stderr, "[TLB-DELTA] fpc=%08x  RTL vectored %08x (cause=%u badv=%016llx)  but ISS->%08x  chk#%llu\n",
+                    fpc, vpc, g_rtl_cause, (unsigned long long)g_rtl_badv,
+                    (uint32_t)ss->pc, (unsigned long long)g_chk_insns);
+            g_tlb_delta_shown++;
+          }
+          ss->pc = (state_t::reg_t)(int64_t)rpc;  // snap to RTL, trust while state re-converges
+          // The RTL took a fault the ISS did NOT (e.g. a CACHE op on a mapped addr, which
+          // the ISS models as a NOP).  The ISS never ran set_exc_pc, so its EPC is stale;
+          // seed it with the RTL's fault EPC ONCE so the RTL's refill/exception handler
+          // (now run under trust) reads the right EPC + erets correctly.  This is the
+          // exception-entry EPC seed that the removed continuous force-sync used to cover.
+          ss->cpr0[14] = g_rtl_epc; ss->cpr0_64[14] = g_rtl_epc;
+          g_chk_resync++; resynced = true; g_settle = 16;
+        }
+      }
+    } else {
+      // MAIN-LINE (non-exception) PC divergence: a real wrong-PC bug (bad eret target,
+      // mis-resolved branch, spurious/missed exception) or accumulated staleness.
+      static int shown = 0;
+      if(shown < 200) {
+        fprintf(stderr, "[checker] PC-DIVERGE ISS=%08x RTL=%08x [MAIN-LINE!] after %llu checked\n",
+                (uint32_t)ss->pc, vpc, (unsigned long long)g_chk_insns);
+        shown++;
+      }
+      ss->pc = (state_t::reg_t)(int64_t)rpc;
+      g_chk_resync++; resynced = true; g_settle = 16;
     }
-    ss->pc = (state_t::reg_t)(int64_t)rpc;   // re-sync onto RTL control flow
-    g_chk_resync++; resynced = true; g_settle = 16;  // let the reg file re-converge
   }
   if(g_settle > 0) g_settle--;
   bool devload = is_device_load(vpc);        // classify BEFORE execMips (pre-load base)
@@ -919,6 +1002,7 @@ int main(int argc, char **argv) {
     ss = new state_t(*g_ss_mem);
     initState(ss);
     g_iss_tlb_ext = true;   // ISS TLB is written solely by the RTL mirror (below)
+    g_iss_os_mode = true;   // SYSCALL/BREAK trap to 0x180 like the RTL (not halt) -- IRIX userspace
     fprintf(stderr, "[checker] golden ISS created\n");
   }
 
@@ -1032,6 +1116,7 @@ int main(int argc, char **argv) {
   uint32_t req_sd[4] = {0,0,0,0};
   bool req_bad = false, req_is_halt = false;
   uint32_t req_owner = 0;   // arbiter grant latched at accept: 0=CPU 1=DMA
+  uint32_t req_phys  = 0;   // 29-bit GUEST phys latched at accept (for the ISS-mem mirror)
   /* RANDOM per-request memory latency (shmoo -> randomized): each request draws a
    * latency in [MEM_LAT_MIN,MEM_LAT_MAX], seeded by MEM_SEED, so a single boot
    * explores many load-timing alignments (mimics the FPGA's non-determinism to
@@ -1093,7 +1178,7 @@ int main(int argc, char **argv) {
     tb->eval();                              // posedge (FIFO advances if pop)
     if(drain) { putchar(drain_ch); mon_console_out(drain_ch); }
 
-    if(tb->retire_valid) { retired++; last_pc = tb->retire_pc; last_retire_cyc = cyc; }
+    if(tb->retire_valid) { retired++; last_pc = tb->retire_pc; last_retire_cyc = cyc; g_cur_retire_pc = tb->retire_pc; }
     else if(NO_RETIRE_LIMIT && (cyc - last_retire_cyc) > NO_RETIRE_LIMIT) {
       fprintf(stderr, "[tb] NO-RETIRE WATCHDOG: %llu cycles with no retirement "
               "(cyc=%llu retired=%llu last_pc=0x%llx head_pc=0x%08x head_status=0x%02x). WEDGED.\n",
@@ -1105,6 +1190,88 @@ int main(int argc, char **argv) {
 
     if(tb->retire_valid && tb->retire_reg_valid) g_rf[tb->retire_reg_ptr & 31] = tb->retire_reg_data;
     if(tb->retire_two_valid && tb->retire_reg_two_valid) g_rf[tb->retire_reg_two_ptr & 31] = tb->retire_reg_two_data;
+
+    { /* PRFAULT_PROBE=<file>: comprehensive capture, hypothesis-agnostic. Keep a
+       * ring of the last N retired (pc,reg,data); when IRIX's trap sees prfault
+       * RETURN A SIGNAL (retire 0x880f30fc `beqz a5,...` with a5(=r9,n32)!=0 ==
+       * the fault it could NOT resolve -> SIGSEGV), dump the ring + a5(signal)/
+       * s4(faultaddr,r20)/s1(proc,r17). The ring holds prfault's whole execution
+       * + its VM-state loads, so we can see WHY it failed regardless of theory.
+       * Fires only on a prfault failure (rare) -> tiny; last dump = the coredump. */
+      static const char *pf_name = getenv("PRFAULT_PROBE");
+      static const uint64_t RN = 400000;
+      static uint32_t *r_pc = pf_name ? new uint32_t[RN] : nullptr;
+      static int8_t   *r_rg = pf_name ? new int8_t[RN]   : nullptr;
+      static uint64_t *r_dt = pf_name ? new uint64_t[RN] : nullptr;
+      static uint64_t r_i = 0;
+      static FILE *pf = pf_name ? fopen(pf_name, "w") : nullptr;
+      static uint64_t n_fail = 0;
+      if(pf) {
+        auto rec = [&](uint32_t pc, bool rv, int rp, uint64_t rd){
+          r_pc[r_i%RN] = pc; r_rg[r_i%RN] = (rv && (rp&31)) ? (rp&31) : -1;
+          r_dt[r_i%RN] = rd; r_i++; };
+        if(tb->retire_valid)     rec((uint32_t)tb->retire_pc, tb->retire_reg_valid, tb->retire_reg_ptr, tb->retire_reg_data);
+        if(tb->retire_two_valid) rec((uint32_t)tb->retire_two_pc, tb->retire_reg_two_valid, tb->retire_reg_two_ptr, tb->retire_reg_two_data);
+        bool hit_trig = (tb->retire_valid && (uint32_t)tb->retire_pc == 0x880f30fcu)
+                     || (tb->retire_two_valid && (uint32_t)tb->retire_two_pc == 0x880f30fcu);
+        if(hit_trig && (g_rf[9] & 0xffffffffull) != 0) {
+          n_fail++;
+          fprintf(pf, "\n=== PRFAULT-FAIL #%llu cyc=%llu  a5/signal=%lld  s4/faultaddr=%llx  s1/proc=%llx  (last %llu retires) ===\n",
+                  (unsigned long long)n_fail, (unsigned long long)cyc, (long long)g_rf[9],
+                  (unsigned long long)g_rf[20], (unsigned long long)g_rf[17],
+                  (unsigned long long)(r_i < RN ? r_i : RN));
+          uint64_t start = (r_i > RN) ? (r_i - RN) : 0;
+          for(uint64_t k = start; k < r_i; k++)
+            fprintf(pf, "%x %d %llx\n", r_pc[k%RN], (int)r_rg[k%RN], (unsigned long long)r_dt[k%RN]);
+          fflush(pf);
+        }
+      }
+    }
+
+    { /* BADVA_PROBE: on each new cause-2/3 (TLB L/S) fault, re-derive the faulting
+       * EA = base_reg + offset from the load/store at EPC (delay-slot aware) and
+       * compare to the RTL's BadVAddr at 8KB granularity -- exactly IRIX's
+       * badva_isbogus test (0x880f6f30). A mismatch => the RTL's hardware BadVAddr
+       * (or the base reg) disagrees with the instruction => IRIX SIGSEGVs. Logs
+       * only on mismatch, so it's tiny. Reads insn only for kseg0/1 EPC. */
+      static const bool bvp = getenv("BADVA_PROBE") != nullptr;
+      static uint64_t prev_key = ~0ull;
+      if(bvp) {
+        uint32_t cause = (uint32_t)tb->cause;
+        uint64_t key = (tb->epc << 6) ^ (uint64_t)cause ^ (tb->badvaddr << 20);
+        if((cause == 2 || cause == 3) && key != prev_key) {
+          prev_key = key;
+          uint32_t epc = (uint32_t)tb->epc;
+          uint64_t badv = tb->badvaddr;
+          auto rdi = [&](uint32_t va, bool *ok)->uint32_t {
+            if(va >= 0x80000000u && va < 0xc0000000u) { bool bad=false; uint32_t o=fpga_map(va & 0x1fffffffu, &bad); *ok=!bad; return bad?0:be32(g_mem+o); }
+            *ok=false; return 0; };
+          bool ok=false; uint32_t insn = rdi(epc, &ok);
+          uint32_t fpc = epc;
+          if(ok) {
+            uint32_t op = insn >> 26;
+            bool is_br = (op==0 && ((insn&0x3f)==8 || (insn&0x3f)==9)) /* jr/jalr */
+                       || op==1 /* regimm b* */ || (op>=2 && op<=7) || (op>=0x14 && op<=0x17);
+            if(is_br) { bool ok2=false; uint32_t d=rdi(epc+4,&ok2); if(ok2){ insn=d; fpc=epc+4; } }
+            op = insn >> 26;
+            bool is_mem = (op>=0x20 && op<=0x2e) || op==0x30 || op==0x31 || op==0x34
+                       || op==0x35 || op==0x37 || op==0x38 || op==0x39 || op==0x3c || op==0x3d || op==0x3f;
+            if(is_mem) {
+              int base = (insn >> 21) & 31;
+              int64_t off = (int64_t)(int16_t)(insn & 0xffff);
+              uint64_t ea = (uint64_t)g_rf[base] + off;
+              if((ea & ~0x1fffull) != (badv & ~0x1fffull)) {
+                static const char *rn[32]={"r0","at","v0","v1","a0","a1","a2","a3","a4","a5","a6","a7","t0","t1","t2","t3","s0","s1","s2","s3","s4","s5","s6","s7","t8","t9","k0","k1","gp","sp","s8","ra"};
+                fprintf(stderr, "[BADVA] cyc=%llu MISMATCH cause=%u epc=%08x fpc=%08x insn=%08x base=%s(%016llx) off=%lld => ea=%016llx  vs RTL badv=%016llx  (diff=%lld)\n",
+                        (unsigned long long)cyc, cause, epc, fpc, insn, rn[base],
+                        (unsigned long long)g_rf[base], (long long)off,
+                        (unsigned long long)ea, (unsigned long long)badv, (long long)(ea - badv));
+              }
+            }
+          }
+        }
+      }
+    }
 
 #ifdef HENRY_TB_TRACE
     { /* RTLTRACE=<file>: per-retired-insn "pc reg val" (interp valt format) for
@@ -1245,10 +1412,29 @@ int main(int argc, char **argv) {
       ss->cpr0[CPR0_COUNT] = (uint32_t)tb->cp0_count;      // keep mfc0 $9 in sync
       // Track the RTL's exception CP0 regs so the ISS's handler control-flow
       // follows the RTL (the co-sim scope is GPRs/data, not CP0 modeling).
-      ss->cpr0[14] = (uint32_t)tb->epc;      ss->cpr0_64[14] = tb->epc;        // EPC
-      ss->cpr0[12] = tb->status_reg;                                           // Status
+      // DO NOT continuously force EPC: tb->epc is the core's EXCEPTION EPC (frozen at
+      // fault time), NOT the CP0 EPC register.  A handler that does `mtc0 EPC` to set a
+      // nested/context-switch return address (e.g. TLBL in dnlc_enter_fast -> reschedule
+      // -> return to sthread_launch) updates the CP0 EPC, but forcing ss EPC=tb->epc each
+      // cycle CLOBBERS that restore -> the ISS erets to the stale fault PC (the chk#16.1M
+      // wall).  The ISS self-manages EPC via its own set_exc_pc (sync faults) + raise_int
+      // (async) + mtc0/eret -- same as Status below.  (was: ss->cpr0[14]=tb->epc)
+      g_rtl_epc = (uint32_t)tb->epc;   // still tracked, for raise_int's async entry EPC
+      // NOTE: do NOT force Status here -- the ISS must see its OWN pre-fault EXL so
+      // exc_vector picks the refill vector (0x000/0x080) vs general (0x180) correctly.
+      // (Forcing EXL=1 post-fault made the ISS pick 0x180 -> false TLB-DELTAs.)  The
+      // ISS self-manages Status via mtc0/eret; its exceptions set BadVAddr/EPC too.
       ss->cpr0[8]  = (uint32_t)tb->badvaddr; ss->cpr0_64[8]  = tb->badvaddr;   // BadVAddr
-      if(tb->took_irq) raise_int(ss, (uint32_t)tb->epc);   // IRQ: jump ISS to vector
+      g_rtl_cause  = (uint32_t)tb->cause;    g_rtl_badv = tb->badvaddr;         // exc ctx for checker_step
+      g_rtl_cause_ip = (uint32_t)tb->cause_ip;                                   // real IP bits for raise_int
+      // Continuously mirror Cause.IP[7:0] (bits 15:8) from the RTL's w_ip: the ISS
+      // only models the software IP bits (its own mtc0 Cause) and never the timer/
+      // device bits, so an ISR that re-reads Cause.IP to dispatch would diverge.
+      // Preserve the ISS's own ExcCode/BD (only overwrite the IP field).
+      ss->cpr0[13] = (ss->cpr0[13] & ~0x0000ff00u) | (((uint32_t)tb->cause_ip & 0xffu) << 8);
+      // IRQ + synchronous exceptions are now taken inside checker_step at the vector
+      // retire (clean lockstep + TLB-exception-delta detection), not via a premature
+      // raise_int on the took_irq commit cycle.
       if(tb->retire_valid)
         checker_step(tb->retire_pc, tb->retire_reg_valid, tb->retire_reg_ptr, tb->retire_reg_data);
       drain_store_check();
@@ -1532,6 +1718,7 @@ int main(int argc, char **argv) {
     if(tb->mem_req_valid && !prev_mem_req_valid && reply_cyc == -1) {  // accept on 0->1 edge only
       uint32_t phys = (uint32_t)tb->mem_req_addr & 0x1fffffffu;  // 29-bit phys to the AXI master
       req_is_halt = (phys == HALT_PA);
+      req_phys    = phys;                       // latch guest-PA for the checker ISS-mem mirror
       if(FPGA_ADDRESS_MAP) {
         req_addr = fpga_map(phys, &req_bad);
         if(req_bad)
@@ -1578,6 +1765,15 @@ int main(int argc, char **argv) {
             if(req_is_halt && by)
               halted = true;
             g_mem[a] = by;
+            /* Checker: keep the golden ISS memory RTL-authoritative for CONTENT.
+             * req_owner is a dead stub (no RTL owner signal), so we cannot tell DMA
+             * from CPU writes here -- but mirroring ALL opcode-7 writes is safe: a
+             * CPU-store divergence is caught by drain_store_check's queue value-compare
+             * (pc+addr+data) BEFORE this mirror, and DMA payload is deterministic disk
+             * content that cannot mask the TLB/context-switch bug.  This closes the DMA
+             * co-sim gap (disk-loaded code/data the ISS otherwise never sees). */
+            if(g_checker && g_ss_mem)
+              *g_ss_mem->get_raw_ptr((uint64_t)req_phys + i) = by;
           }
         }
       }
