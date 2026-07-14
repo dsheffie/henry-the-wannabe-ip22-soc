@@ -209,6 +209,37 @@ static void drain_store_check() {
               "  RTL pc=%08x addr=%09lx data=%016llx\n",
               (uint32_t)i.pc, (unsigned long)i.addr, (unsigned long long)i.data,
               (uint32_t)r.pc, (unsigned long)r.addr, (unsigned long long)r.data);
+      // Dump both store streams (depth + first entries) so the divergence context is
+      // visible: is one side a phantom (extra store) the other never made, or a value
+      // mismatch at the same pc?  Look for where the streams re-converge.
+      fprintf(stderr, "  [queues] ISS depth=%zu  RTL depth=%zu\n", g_iss_stores.size(), g_rtl_stores.size());
+      for(size_t k = 0; k < 8 && k < g_iss_stores.size(); k++)
+        fprintf(stderr, "    ISS[%zu] pc=%08x addr=%09lx data=%016llx\n", k,
+                (uint32_t)g_iss_stores[k].pc, (unsigned long)g_iss_stores[k].addr, (unsigned long long)g_iss_stores[k].data);
+      for(size_t k = 0; k < 8 && k < g_rtl_stores.size(); k++)
+        fprintf(stderr, "    RTL[%zu] pc=%08x addr=%09lx data=%016llx\n", k,
+                (uint32_t)g_rtl_stores[k].pc, (unsigned long)g_rtl_stores[k].addr, (unsigned long long)g_rtl_stores[k].data);
+      // TLB-DUMP: dump the ISS TLB (mirrored from the RTL's tlbwi/tlbwr) for every entry
+      // covering the fault VA, so a store/translate divergence can be compared against the
+      // matched entry's V/D/PFN (duplicate entries, mismatched D, or a drifted mapping).
+      { uint32_t fva = (uint32_t)g_rtl_badv;
+        uint32_t fvpn2 = fva >> 13;
+        fprintf(stderr, "[TLB-DUMP] fault VA=%08x vpn2=%07x va12(odd)=%u curASID=%02x\n",
+                fva, fvpn2, (fva>>12)&1, (unsigned)(ss->cpr0[10] & 0xff));
+        for(int t=0; t<48; t++) {
+          uint64_t ehi=ss->tlb[t].entry_hi, e0=ss->tlb[t].entry_lo0, e1=ss->tlb[t].entry_lo1;
+          uint64_t pm=(ss->tlb[t].page_mask)&0x1ffe000ULL;
+          uint64_t vpnMask=(~(uint64_t)(pm|0x1fffULL))&0x000000ffffffe000ULL;
+          bool covers=(((uint64_t)fva)&vpnMask)==(ehi&vpnMask);      // pagemask-aware coverage of the fault VA
+          uint32_t vpn=(uint32_t)((ehi>>13)&0x7ffffffULL);
+          if(covers)                                                  // ALL entries covering 0x0fbdbc3c (incl. large pages)
+            fprintf(stderr, "  [%2d]*COVERS pm=%07x vpn=%07x asid=%02x g=%u|%u v=%u|%u d=%u|%u pfn=%06x|%06x\n",
+                    t, (unsigned)(ss->tlb[t].page_mask), vpn, (unsigned)(ehi&0xff),
+                    (unsigned)(e0&1),(unsigned)(e1&1),(unsigned)((e0>>1)&1),(unsigned)((e1>>1)&1),
+                    (unsigned)((e0>>2)&1),(unsigned)((e1>>2)&1),
+                    (unsigned)((e0>>6)&0xffffff),(unsigned)((e1>>6)&0xffffff));
+        }
+      }
       g_store_diverged = true; return;
     }
     g_iss_stores.pop_front(); g_rtl_stores.pop_front();
