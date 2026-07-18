@@ -72,7 +72,7 @@ module hpc3
            19'h60018: x = 32'h01000000; // ds1386 day-of-week  (1)
            19'h60020: x = 32'h01000000; // ds1386 date         (1st)
            19'h60024: x = 32'h01000000; // ds1386 month        (January)
-           19'h60028: x = 32'h00000000; // ds1386 year         (BCD 00 = 2000)
+           19'h60028: x = 32'h90000000; // ds1386 year (BCD 90). IRIX rtodc() decodes year=1940+bcd (bcd<45 adds 30): bcd 90>=45 -> 2030. 2030 is AFTER the ~2026-06 /var/sysgen mtimes, so IRIX reconfigures ONCE then skips it every later boot.
            19'h6002c: x = 32'h00000000; // ds1386 command/status (not busy)
            default:   x = 32'd0;     // unmodeled HPC3 read regs -> 0 (gap)
          endcase
