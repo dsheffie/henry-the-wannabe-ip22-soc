@@ -78,3 +78,9 @@ run: obj_dir/henry_tb
 
 clean:
 	rm -rf obj_dir
+
+# mipsmon: ncurses TCP monitor/console client for the mips-axi mon.cc server
+# (default localhost:2323).  Deploy the source to the board's ~/axilite-mips
+# and `make mipsmon` there too.
+mipsmon: mipsmon.cc
+	$(CXX) -O2 -Wall mipsmon.cc -o mipsmon -lncurses
