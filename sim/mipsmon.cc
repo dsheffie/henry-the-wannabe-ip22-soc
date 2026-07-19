@@ -28,6 +28,7 @@
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <netdb.h>
+#include <csignal>
 
 static const size_t MAX_SCROLLBACK = 20000;
 static const size_t MAX_HISTORY    = 500;
@@ -43,6 +44,13 @@ static bool g_raw = false;                /* RAW char-passthrough mode */
 static const char *g_host = "localhost", *g_port = "2323";
 
 static WINDOW *g_out = nullptr, *g_status = nullptr, *g_in = nullptr;
+
+/* Safety net for Ctrl-C pass-through: raw() should stop the terminal from turning
+ * Ctrl-C into SIGINT (so it arrives as byte 0x03 below), but if some pty/ssh/tmux
+ * setup still raises SIGINT, catch it here instead of dying and forward 0x03 to the
+ * session from the main loop. */
+static volatile sig_atomic_t g_sigint = 0;
+static void on_sigint(int) { g_sigint = 1; }
 
 static void push_line(const std::string &s) {
   g_lines.push_back(s);
@@ -162,8 +170,14 @@ int main(int argc, char **argv) {
   freeaddrinfo(res);
   fcntl(s, F_SETFL, O_NONBLOCK);
 
+  signal(SIGINT, on_sigint);   /* don't let a stray SIGINT kill us -- forward it (below) */
+
   initscr();
-  cbreak();
+  raw();       /* not cbreak(): raw() disables ISIG so Ctrl-C (0x03), Ctrl-\ (0x1c)
+                * etc. are delivered as bytes to wgetch() instead of raising SIGINT/
+                * SIGQUIT and killing mipsmon.  Ctrl-C is then passed through to the
+                * underlying session; mipsmon's own control keys are still handled
+                * explicitly below (Ctrl-\ quit, Ctrl-] mon, Ctrl-R mode, ...). */
   noecho();
   keypad(stdscr, TRUE);
   nonl();
@@ -181,6 +195,13 @@ int main(int argc, char **argv) {
 
   bool running = true;
   while(running) {
+    if(g_sigint) {                 /* SIGINT slipped through raw() -- forward it, don't die */
+      g_sigint = 0;
+      send_byte(s, 0x03);
+      g_input.clear();
+      g_hist_idx = -1;
+      g_scroll = 0;
+    }
     int ch = wgetch(stdscr);
     if(ch != ERR) {
       if(ch == KEY_PPAGE) {
@@ -203,6 +224,11 @@ int main(int argc, char **argv) {
         }
         else if(ch == 0x0c) {                      /* Ctrl-L  redraw */
           clearok(g_out, TRUE);
+        }
+        else if(ch == 0x03) {                      /* Ctrl-C  pass through to the session */
+          send_byte(s, 0x03);                      /* SCC Rx gets the interrupt char... */
+          g_input.clear();                         /* ...and, like a shell, drop the LINE-mode edit */
+          g_hist_idx = -1;
         }
         else if(g_raw) {
           if(ch == KEY_ENTER || ch == '\n' || ch == '\r') { send_byte(s, '\r'); }
