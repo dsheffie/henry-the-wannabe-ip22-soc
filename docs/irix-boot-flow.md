@@ -129,8 +129,8 @@ Boot-progress **LEDs** (`set_leds`), the **sleep/wakeup** machinery (`slpinit`, 
 
 On top of the pfdat, **`meminit`** stands up the VM system: free-page pools, large-page pools (`lpage_init`), and reserves. **`init_kheap`** brings up the kernel heap; **`kvpalloc`** — the workhorse virtual-page allocator (page coloring via `color_validation`/`pfd_set_vcolor`, reserve, dequeue) — and **`kmem_avail`** start servicing allocations. `tlbinfo_init` sets up TLB management (wired count, random bound, ASIDs).
 
-!!! danger "Henry/RTL gotcha — the boot blocker"
-    The allocator helper under **`kmem_avail`** computes a kseg0/xkphys pointer with the 64-bit idiom from Phase 3. The r9999 RTL **truncated the upper 32 bits**, handing `bzero` a kuseg address (`0x0838e000`) instead of `0x8838e000` → TLB fault → panic. This is the current IRIX-on-RTL blocker (MAME_QUESTIONS Q6 round-2).
+!!! danger "Henry/RTL gotcha — a former boot blocker (now fixed)"
+    The allocator helper under **`kmem_avail`** computes a kseg0/xkphys pointer with the 64-bit idiom from Phase 3. The r9999 RTL **truncated the upper 32 bits**, handing `bzero` a kuseg address (`0x0838e000`) instead of `0x8838e000` → TLB fault → panic. This *was* the IRIX-on-RTL blocker (MAME_QUESTIONS Q6 round-2); it has since been **fixed** — IRIX now boots past it to userspace on FPGA silicon.
 
 ## Phase 10 — Zones, credentials & kernel threads
 

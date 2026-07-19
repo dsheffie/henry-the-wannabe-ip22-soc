@@ -122,4 +122,4 @@ See [Methodology](methodology.md) for the broader MAME-oracle recipe.
   `fpu_i2f.sv` / `fpu_f2f.sv` (converts), `uop.vh` (FP uop set incl. `FP_UNIMPL` / div / sqrt E-trap),
   `exec.sv` (FR/CU1/FCSR + FP issue), `decode_mips.sv` (COP1 decode, FR=0 force, CU1 gate). Validated by
   `tests/fpu/*` (co-sim clean + directed), an FPU Linux boot to `/init`, and a double self-test on henry
-  silicon; FP-complete synth WNS +0.235 ns @ 100 MHz.
+  silicon; the FP-complete branch is synthesized separately (not the default synth path) and meets timing @ 100 MHz.

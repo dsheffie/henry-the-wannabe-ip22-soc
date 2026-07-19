@@ -1,6 +1,6 @@
 ---
 title: Cache, coherence & TLB
-status: draft (MAME-validated)
+status: draft (MAME-validated; silicon-refined 2026-07 — see the hidden-L2 DMA section)
 ---
 
 # Cache, coherence & TLB
@@ -70,6 +70,14 @@ Two independent coherence axes, both software-managed:
     writeback on `Hit-Invalidate-D` (DMA-in). See the routing table below. Not building snoop logic is a
     genuine **simplification**, not a shortcut.
 
+    > ⚠️ **Refined by silicon (2026-07): still no *snoops*, but there IS a second obligation.** Because
+    > r9999 has a **hidden L2** (unlike the real Indy), executing the *primary* cache ops isn't enough —
+    > IRIX's DMA invalidates never reach the L2, so DMA reads go stale. The answer is *not* to build
+    > snoop hardware (we tried — it corrupts); it's to make r9999 report **`Config.SC=0`** so IRIX issues
+    > its **secondary** (`cache_sel=11`) invalidates, and to honor those SD ops against the L2 (8-beat,
+    > 128 B → 8×16 B, inclusive of L1D). That keeps the "software coherence, no snoops" model intact —
+    > it just requires honoring the L2 ops IRIX is currently *told not to issue*. See the hidden-L2 section.
+
     Snoops would only ever be needed if Henry went **multiprocessor** (multiple r9999 cores sharing memory) or
     chose to model **coherent DMA hardware** to spare IRIX the flushes — neither is in scope, and the latter
     would diverge from the real IP22.
@@ -101,7 +109,12 @@ D-Hit-Invalidate dropping the line without writeback. Field decode of the op reg
 
 **Four primary-cache ops = 99.94%.** Secondary/L2 ops are ~0 (just a 6-hit probe). This Indy has no
 L2 visible to software (`Config.SC=1`), so the ~30 static `cache_sel=2/3` code sites never execute —
-**no L2 modeling needed**.
+**no L2 modeling needed** *on the real Indy*.
+
+> ⚠️ **True for the real Indy, NOT for r9999.** r9999 *has* a hidden L2 but still reports `Config.SC=1`,
+> so IRIX skips those secondary (`cache_sel=2/3`) ops — which is exactly why the L2 is never invalidated
+> and DMA reads go stale. The fix (`SC=0`) is to make IRIX **start** issuing the SD ops so r9999 can
+> invalidate its L2. See [r9999's hidden L2 and the DMA-coherence gap](#r9999s-hidden-l2-and-the-dma-coherence-gap-silicon-2026-07).
 
 **Decode/handling obligations:**
 - Decode the full op field; **privilege-check** (`cache` is kernel/CU0-only → user mode raises
@@ -124,6 +137,116 @@ L2 visible to software (`Config.SC=1`), so the ~30 static `cache_sel=2/3` code s
 
 D-cache ops are **NOP-safe while I/O stays backdoored** (no snoop logic, no incoherent DMA behind L1d).
 If real incoherent DMA is ever added, honor the invalidate-vs-writeback distinction — especially `0x11`.
+
+> ⚠️ **This "NOP-safe" conclusion is now SUPERSEDED on silicon.** It held for the *real Indy* (which
+> has **no** L2 — `Config.SC=1` is truthful there) analyzed in MAME. **r9999 diverges: it has a real,
+> transparent 128 KB L2 that IRIX cannot see**, and with real SCSI DMA behind it (henry silicon), the
+> D-cache ops are **NOT** NOP-safe — the L2 silently serves stale DMA data. See the next section.
+
+## r9999's hidden L2 and the DMA-coherence gap (silicon, 2026-07)
+
+> **⚠️ UPDATE (2026-07): this gap is now CLOSED in RTL — no `SC=0` and no snoop needed.** `l1d.sv`
+> forwards a D-side `Hit-Invalidate` (`MEM_INVL`) to the **L2 unconditionally — even on an L1D miss**
+> ("scrub the L2 copy, DMA-in drop"; `l1d.sv` ~2138–2145), and pushes `Hit-Writeback-Invalidate`
+> through to DRAM via `MEM_WB`. So IRIX's primary-only `dma_cache_inv` (an L1 `Hit-Invalidate` under
+> `Config.SC=1`) **does** reach and invalidate the hidden L2 — the 128 KB L2 boots IRIX clean on
+> silicon. The `SC=0` / snoop / head-of-ROB-fence / NOCACHE forensics below are retained as history;
+> the shipped fix was this CACHE-op forwarding. (A DMA snoop and an `ENABLE_L2_NOCACHE` bypass exist
+> in RTL but are **OFF by default**.)
+
+> **The single most important divergence from the real IP22.** r9999 has a **transparent write-back
+> L2** (128 KB, **16-byte lines**, `LG_L2_NUM_SETS=13`) between L1 and DRAM. The real Indy has **no L2**
+> and says so (`Config.SC=1`). r9999 **also** reports `Config.SC=1` (`exec.sv` sets `Config=0x0002e4b3`),
+> so IRIX believes there is no secondary cache — but the L2 is physically there, caching lines the
+> kernel doesn't know it must invalidate. On silicon with the real SCSI DMA path, this is a genuine
+> **non-coherent-DMA bug** the MAME/real-Indy analysis above could never see (real Indy: no L2 → nothing
+> to go stale).
+
+### The bug it causes
+
+IRIX 6.5 boots on henry silicon to the kernel banner, "coming up", and reconfigure — then **every
+`/etc/rc2` o32 process dies with `Memory fault(coredump)`** (and `cc`'s backend bus-errors during the
+kernel reconfigure). Root cause: **R10000-class speculative non-coherent DMA**. The OOO core
+speculatively pulls a DMA read-buffer line into cache; the SCSI DMA overwrites DRAM behind it; IRIX
+never invalidates the **hidden L2** copy (see below); a later read gets the stale line → bad pointer →
+fault. **Proven in `interp_mips`:** a spec-fill cache model reproduces it (16 stale reads → boot dies);
+adding a coherent-DMA invalidate → 0 stale reads, clean. The on-disk image is **not** corrupted
+(rsync `--checksum` identical to pristine) — the corruption is purely *live* in-memory stale reads.
+
+### Why IRIX never invalidates the L2 — confirmed in IRIX's own binary (Ghidra)
+
+Decompiling the extracted IRIX kernel objects (`~/code/iris/IP22boot/*.o`, unstripped N32/DWARF) settled
+this definitively. `kernel.o :: __dcache_inval`:
+
+```c
+scache_size = *(uint *)(zero + -0x5d50);        // the detected secondary-cache size
+if (scache_size != 0 && flag == 0) {            // ONLY if a secondary cache exists:
+    cacheOp(0x03, addr);   // Index_WB_Invalidate_SD   (cache_sel=11 = Secondary Data)
+    cacheOp(0x17, addr);   // Hit_WB_Invalidate_SD
+    cacheOp(0x13, addr);   // Hit_Invalidate_SD    <-- THE L2 INVALIDATE
+    // stride 0x80 (128-byte secondary line)
+}
+// else -> primary-cache ops only  (r9999's case, because scache_size == 0)
+```
+
+So **IRIX has a complete, correct secondary-cache invalidate path** — it just gates it on
+`scache_size != 0`. Because r9999 reports `Config.SC=1`, `config_cache`/`size_2nd_cache` set
+`scache_size = 0`, so `__dcache_inval` runs **primary-only** and the L2 is **never** invalidated.
+
+**And IRIX genuinely tries to sync its DMA buffers** — `dksc.o` (the SCSI disk driver) does the
+textbook, even R10000-*speculation-safe* pattern:
+
+```c
+if (read)  dki_dcache_inval(buf, len);   // PRE-DMA invalidate
+else       dki_dcache_wb(buf, len);      // PRE-DMA writeback (DMA-out)
+dk_sendcmd(...);  dk_chkcond(...);        // issue DMA + wait for completion
+if (read)  dki_dcache_inval(buf, len);   // POST-DMA invalidate (the speculation-safe flush!)
+```
+
+Every one of those calls flows into `__dcache_inval` → primary-only → **misses the L2**. IRIX is doing
+the *right* software; r9999 just hid the cache it needs to reach.
+
+### The secondary-cache probe (what `SC=0` must satisfy)
+
+`config_cache` → `size_2nd_cache` is **PRId-dispatched** and reads `Config`/`PRId`:
+- **R4600** (`imp 0x2000`): reads an IP22 system register `0xbfa00034` for the secondary size.
+- **R4600 `0x2300` variant**: `Config`-based (SC bit + size field) **plus** a cache-aliasing probe
+  (`cache 0x08/0x09/0x0b` = `Index_Store/Load_Tag_SD` + tag reads).
+- **R4000/R4400**: `Config`-based secondary detect (simpler — no IP22-register / aliasing probe).
+
+Then `_r4600sc_enable_scache` writes `Config`/`TagLo` (`mtc0`) to turn it on. **Line size is hard-coded
+128 B** (`config_cache` does `li 127 -> scache_linemask`; the op loops use immediate `128`/`0x7f`
+strides) — **not** detected, so it can't be reconfigured to r9999's 16 B; the RTL must bridge it.
+
+### ⚠️ PRId mismatch (RTL vs ISS)
+
+- **RTL / silicon: `PRID_R4400` = 0x00000440** (`machine.vh:216`).
+- **`interp_mips` golden ISS: `PRID_R4600` = 0x2020** (`interpret.hh:389`).
+
+**Silicon presents R4400**, so it takes the **simpler `Config`-based** secondary-detect path (not the
+R4600 `0xbfa00034`/aliasing probe). This mismatch also means the co-sim checker has been comparing an
+R4600 ISS to an R4400 core — worth fixing regardless.
+
+### Fix options + silicon results (all attempted this session)
+
+| approach | idea | silicon result |
+|---|---|---|
+| **`SC=0` (principled)** | Advertise the L2 as an R4x00 secondary cache (flip `Config.SC=0`, satisfy the R4400 probe) + an **8-beat SD-op handler** (128 B / 16 B → drop/WB 8 lines, inclusive of L1D). Enables IRIX's *own* correct+speculation-safe invalidates to reach the L2. | **Not yet built** (~days). The right fix. |
+| DMA→L2 snoop | Arbiter emits a snoop on each DMA store → L2 invalidates the line. | **Corrupted** silicon (over-invalidated live/dirty lines; new `xfs_da_do_buf` alerts). Reverted. Its `snoop_addr`/RAM-latency were racy; discard-even-dirty threw away live data. |
+| Head-of-ROB fence | Serialize every cached load/store to ROB head (no speculative fill). `l1d.sv ENABLE_MEM_HEAD_SERIALIZE`. | **Partial**: reconfigure-death → ran *all* of rc2 (S30→S99), but residual `xfs`/loader-not-found remained. A fill path still speculates (port-2/replay/L1I?). |
+| Tiny L2 (`LG_L2_NUM_SETS=2`) | 4-line L2, ~no retention. | `cc` **bus-error** at reconfigure — **confounded**: a 4-line L2 inclusive of a bigger L1D is itself broken. Not it. |
+| NOCACHE bypass | `l1d.sv/machine.vh ENABLE_L2_NOCACHE`: route data ops (opcode <24) straight to DRAM so the L2 holds **nothing** (no inclusivity confound); keep `MEM_WB`/`MEM_INVL` (≥24) on real handlers. | under test. Definitive: boots clean → L2 was the reservoir; still crashes → stale data is in the L1D. |
+
+**Key insight across all four:** they *substitute* for a coherence mechanism IRIX **already has and
+wants to use**. `SC=0` is the only one that lets IRIX invalidate the L2 with its own already-correct
+(and inclusive-of-L1D, so it covers whichever cache holds the stale line) secondary ops.
+
+### Artifacts
+
+- **Ghidra decompiles** (Java `DecompDump` script — Ghidra 12.1 needs Java, not PyGhidra):
+  `~/code/iris/{kernel,dksc,wd93,scsi,scsiha,hpc3plp}_decomp.c`.
+- IRIX kernel objects: `~/code/iris/IP22boot/*.o` (unstripped, DWARF). Disassemble with
+  `mips-linux-gnu-objdump -d -EB`.
 
 ## TLB
 

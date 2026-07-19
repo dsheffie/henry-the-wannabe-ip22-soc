@@ -88,16 +88,21 @@ sim/synth timing hazard, or (as here) IRIX wedging somewhere MAME never reaches 
 *on the running part*. The workflow that cracked the IRIX `bad istack` panic:
 
 **1. Freeze the pipeline at the offending instruction (core.sv).** Reuse the single-step gate: a
-breakpoint/watchpoint that latches a "hit" flop and folds it into `w_step_ok`, so the core **stops retiring
-without a reset** — the register file and DRAM stay coherent at the moment of interest.
+**driver-programmable** breakpoint + store watchpoint (`bp_pc`/`bp_wp_addr`/`bp_wp_val` from AXI
+`slv_reg9-11`, guarded by `` `ifdef ENABLE_DEBUG_WATCHPOINT ``) that latches a "hit" flop and folds it into
+`w_step_ok`, so the core **stops retiring without a reset** — the register file and DRAM stay coherent at the
+moment of interest. Because the trap PC/addr/value are ports, moving the breakpoint no longer needs a re-synth.
 
 ```verilog
-// PC breakpoint: freeze after retiring BP_PC.  VALUE watchpoint: freeze after a
-// retiring insn writes a target value into a target reg (here $29/sp).
-wire w_wp_match = bp_enable &
-  ((retire_reg_valid     & (retire_reg_ptr==5'd29) & ((retire_reg_data[31:0]&WP_MASK)==WP_VAL)) |
-   (retire_reg_two_valid & (retire_reg_two_ptr==5'd29) & ((retire_reg_two_data[31:0]&WP_MASK)==WP_VAL)));
-wire w_step_ok = (r_single_step | r_bp_hit | r_wp_hit) ? t_step_edge : 1'b1;  // no step edge -> frozen
+// bp_pc / bp_wp_addr / bp_wp_val are DRIVER-PROGRAMMABLE input ports (slv_reg9-11) --
+// no re-synth to move the trap.  PC breakpoint: freeze after retiring bp_pc.  STORE
+// watchpoint: freeze after a retiring store of bp_wp_val to bp_wp_addr
+// (bp_wp_val==0xffffffff = wildcard: any store to that address).
+wire w_bp_match = bp_enable &
+  ((t_retire     & (t_rob_head.pc[31:0]      == bp_pc)) |
+   (t_retire_two & (t_rob_next_head.pc[31:0] == bp_pc)));
+wire w_wp_match = w_wp_data_here & ((bp_wp_val==32'hffffffff) | (core_store_data.data[31:0]==bp_wp_val));
+wire w_step_ok  = (r_single_step | r_bp_hit | r_wp_hit | r_fault_hit) ? t_step_edge : 1'b1;  // no step edge -> frozen
 ```
 
 - **Timing trap:** compare the *flopped* retire outputs (`retire_reg_data/ptr/valid`), **not** the
@@ -136,15 +141,18 @@ region. But reading that idle-sp global (`mem[0xFFFFA164]`) in the **ISS** retur
 `VEC_int`'s int-stack-only exit rejects it → panic. The ISS never hits it because with a working disk it
 mounts root and stays *busy*. **The value of the tooling wasn't finding a corruption — it was *definitively
 ruling one out*,** redirecting the hunt from the CPU to the SCSI/root-mount path. (Full trail:
-`~/.../memory/project_irix_boot.md`.)
+`~/.../memory/project_irix_boot.md`.) At the time this trap was a hardcoded `BP_PC` + sp-watchpoint compiled
+into the bitstream; it is now **driver-programmed** (`bp_pc`/`bp_wp_*` via `slv_reg9-11`), so the same hunt no
+longer costs a re-synth to move the breakpoint.
 
 **Reading FPGA timing/util after a probe:** the routed reports live in `…/<proj>.runs/impl_N/`
 (`*_timing_summary_routed.rpt` WNS, `*_utilization_placed.rpt`). Grep the *fresh* one — the
 `utilization_synth.rpt` is easy to misread if a prior run's copy is stale. Two knobs that bought timing
-margin for the probe on a 94%-LUT-full die: **ALU matrix scheduler 8→4** (`LG_INT_SCHED_ENTRIES 3→2` — not
-an area win since the FPU dominates the LUTs, but the O(N²) wakeup/select was *on the critical path*, so it
-was a real WNS win) and **L2 1024→8 lines** (a BRAM knob, no LUT/correctness impact — caches are
-non-inclusive so shrinking is safe).
+margin for the probe on a 94%-LUT-full die: shrinking the **ALU matrix scheduler 8→4**
+(`LG_INT_SCHED_ENTRIES 3→2`) — the O(N²) wakeup/select is *on the critical path*, so it's a real WNS lever
+(not an area win; the FPU dominates the LUTs) — **but that downsize proved buggy (mis-issue → replay) and was
+reverted, so the live config stays 8 entries (`LG_INT_SCHED_ENTRIES=3`)**; and **L2 1024→8 lines** (a BRAM
+knob, no LUT/correctness impact — caches are non-inclusive so shrinking is safe).
 
 ## Related work
 

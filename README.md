@@ -19,9 +19,10 @@ henry-the-wannabe-ip22-soc/
 │   ├── peripherals/ #   one spec per block: mc, ioc2, hpc3, gio64, vdma
 │   └── ...          #   architecture, cpu-integration, firmware-arcs, boot-and-console,
 │                    #   coherence-cache-tlb, methodology
-├── r9999/           # git submodule — the CPU core (+ its detailed MAME working notes)
-├── rtl/             # (future) peripheral RTL + the SoC top, instantiating r9999
-├── sim/             # (future) cosim/diff against MAME; per-block test harnesses
+├── r9999/           # git submodule — the CPU core (tracks clean origin/main)
+├── rtl/             # peripheral RTL (MC, HPC3, IOC2/SCC, RTC, ...) + the SoC top instantiating r9999
+├── sim/             # Verilator co-sim (henry_tb, ISS diff-checker) + mipsmon console client
+├── driver/          # on-board mips-axi driver (AXI-Lite control + shared-DRAM)
 └── mkdocs.yml
 ```
 
@@ -46,9 +47,11 @@ mkdocs build                 # static site → site/
 
 ## Status
 
-First-pass foundation in place: all five core peripheral specs (MC, IOC2, HPC3, GIO64, VDMA) plus the
-cross-cutting docs (architecture, CPU integration, firmware/ARCS, boot & console, cache/coherence/TLB,
-methodology), drawn from the SGI IP22 chip documents and validated against MAME. Not yet done: `dmux1`, the
-Newport graphics set, audio (HAL2), and the actual RTL/sim. The r9999-side detailed working notes
-(`IRIX_CPU_REQUIREMENTS.md`, `IRIX_KERNEL_GAPS.md`, `IP22_CHIP_REGISTERS.md`, `MAME_QUESTIONS.md`) live in the
-[`r9999/`](https://github.com/dsheffie/r9999) submodule.
+Henry **boots IRIX 6.5.22 on real FPGA silicon** (Ultra96-v2, Zynq UltraScale+): PROM/ARCS → IRIX kernel →
+SCSI DMA → the miniroot → IRIX userspace. The peripheral RTL (MC, HPC3, IOC2/SCC serial console, ds1386 RTC)
+plus an ARM/PS-serviced SCSI disk bridge (the driver walks the HPC3 descriptor chain in shared DRAM) are implemented, together with the Verilator co-sim harness
+(`sim/henry_tb`, with an in-sim ISS diff-checker). The [`docs/`](docs/) tree remains the platform spec,
+cross-validated against MAME. Still doc-only (not in the serial-console boot path): the Newport graphics set
+and audio (HAL2). The r9999-side detailed working notes (`IRIX_CPU_REQUIREMENTS.md`, `IRIX_KERNEL_GAPS.md`,
+`IP22_CHIP_REGISTERS.md`, `MAME_QUESTIONS.md`) live in the
+[`r9999/`](https://github.com/dsheffie/r9999) submodule (which now tracks a clean `origin/main`).

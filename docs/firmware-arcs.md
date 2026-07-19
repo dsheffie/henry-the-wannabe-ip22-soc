@@ -223,8 +223,10 @@ in **`peripherals/mc.md`** — implement those registers there; here is the hand
   size from the MSIZE table (`0b01111`=16 MB, `0b11111`=32 MB, …), `VLD` valid bit, `BNK` sub-banks.
 - Live golden values (16 MB Indy): `MEMCFG0=0x23200000` (hiBank base=0x20→`0x08000000`, MSIZE=0b00011=16 MB,
   VLD=1; loBank invalid), `MEMCFG1=0x00000000`, `CPU_MEMACC (0xd0)=0x11453433` (opaque DRAM timing — store/return).
-- For Henry's DRAM (e.g. 128 MB at `0x08000000`): set bank base `0x20`, widen MSIZE / add banks so the decoded
-  base+size cover `0x08000000–0x0fffffff`. Cross-check the decoded total against `physmem`/`maxmem`
+- For Henry's DRAM (256 MB at `0x08000000`): set bank base `0x20`, widen MSIZE / add banks so the decoded
+  base+size cover `0x08000000–0x17ffffff` (the arcs FSBL programs these MEMCFG regs at POST → `hinv` reports
+  256 MB; a single bank can be up to 256 MB, and the values are programmable without a re-synth). Cross-check the
+  decoded total against `physmem`/`maxmem`
   (`0x8832d1f0`/`0x8832d1f8`) after `szmem` runs, and against `_physmem_start = 0x08000000`.
 
 So memory-map correctness is an **MC peripheral** problem, not a firmware-data problem — keep the romvec
@@ -245,7 +247,7 @@ Checklist (everything big-endian):
    `OSLoad*`/`SystemPartition`/`root`.
 4. **Exception-vector area** — page 0 is real RAM; alias phys `0x0`/`0x80` to `0x08000000`/`0x08000080` (MC low
    alias). SPB sits just above at `0x1000`. The kernel installs its own GE/UTLB handlers early.
-5. **Enter `start` (`0x88005960`) with `a0=8, a1=0, a2=0`**, a clean GPR file, gp/sp = 0 (kernel sets them).
+5. **Enter `start` (`0x88005960`) with `a0=8 (argc), a1=argv, a2=envp`** (see the ✅ 2026-06-15 correction above — the earlier `a1=a2=0` was wrong), a clean GPR file, gp/sp = 0 (kernel sets them).
 
 **Not needed:** a live `GetMemoryDescriptor` (kernel reads MC MEMCFG — see above), live `GetTime` (kernel uses the
 CP0 Count/Compare timer for the scheduler tick), the config tree, or any file-I/O romvec entry (sash did all disk
@@ -268,7 +270,7 @@ I/O; Henry already loaded `/unix`).
 Source of truth: **`r9999/IRIX_CPU_REQUIREMENTS.md`** (P0-A/B/C, MAME-validated 2026-06-12) and the **ARCS section
 of `r9999/IP22_CHIP_REGISTERS.md`** (mined from `arcs_spec.pdf` ARC 1.2 + cross-checked vs MAME, 2026-06-14).
 
-- **P0-A — the handoff at `start` (0x88005960):** entry register state (`a0=8,a1=a2=0`, SR=0x30004801, clean
+- **P0-A — the handoff at `start` (0x88005960):** entry register state (`a0=8 (argc), a1=argv, a2=envp`, SR=0x30004801, clean
   GPRs), the verified `start` prologue, the SPB @ `0x1000` byte layout, the 35-entry FirmwareVector dump, and the
   13-entry PrivateVector dump.
 - **P0-B — who calls the romvec, and when:** breakpoint-tag every entry as sash/PROM `[s]` vs kernel `[K]`. Result:
@@ -281,6 +283,6 @@ of `r9999/IP22_CHIP_REGISTERS.md`** (mined from `arcs_spec.pdf` ARC 1.2 + cross-
   ARCS. Register layout / SIMM-size table / golden live values — see `peripherals/mc.md`. ⚠️ Earlier "size=base"
   reading corrected: `0x23200000` = base `0x20<<22=0x08000000`, MSIZE `0b00011` = 16 MB bank.
 
-⚠️ Other corrections folded in from `IP22_CHIP_REGISTERS.md`: the `a0=8/a1=0/a2=0` entry is the SGI sash→`/unix`
+⚠️ Other corrections folded in from `IP22_CHIP_REGISTERS.md`: the `a0=8/a1=argv/a2=envp` entry is the SGI sash→`/unix`
 handoff (NOT ARC `Main(argc,argv,envp)` — that's the ARC→sash convention Henry replaces); the romvec is 35 entries
 (`FirmwareVectorLength=0x8c`), not the 37 of the full ARC spec (TestUnicodeCharacter/GetDisplayStatus absent here).

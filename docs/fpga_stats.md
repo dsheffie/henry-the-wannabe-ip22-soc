@@ -13,6 +13,34 @@ fully-associative TLB CAM), and it is **route-dominated** (~63% route) -- so are
 reductions that shrink the TLB array tend to help WNS more than logic-level
 counting suggests. Newest block first.
 
+## 2026-07-19 -- r9999 2edef07 (submodule-on-main: 16 KB L1I+L1D, 128 KB L2, find_lowest_set_bit, programmable debug watchpoint)
+
+First synth after the `r9999` submodule was repointed at a **clean `origin/main`** (2edef07):
+**16 KB L1I + 16 KB L1D** (was 4 KB each; VIPT tag-widened so alias-safe above the 4 KB page),
+**128 KB write-back L2**, the `find_first_set` -> `find_lowest_set_bit` priority-encoder fix, and
+the driver-**programmable** debug breakpoint/store-watchpoint/fault-trap interface
+(`ENABLE_DEBUG_WATCHPOINT`, injected at build by `gen_mipscore.sh` via `SV2V_DEFINES`). Built with
+the watchpoint **ON**.
+
+| metric | value |
+|--------|-------|
+| WNS @ 100 MHz | **+0.096 ns** (all met, 0 failing endpoints; impl_11) |
+| Worst path | icache -> 48-way ITLB CAM -> `pa` (route-dominated, unchanged) |
+| CLB LUTs (post-route) | 52094 (73.83%) |
+| LUT as Memory (LUTRAM) | 1813 (6.30%) |
+| CLB Registers (FF) | 35665 (25.27%) |
+| Block RAM | 60.5 (28.01%) |
+| DSP | 43 (11.94%) |
+
+> The 4x L1 bump (4 KB -> 16 KB each) is the big structural delta vs the 2026-07-03 build below:
+> **Block RAM 25 -> 60.5** (the larger tag/data/predecode arrays), the point of the tag-widening
+> work that makes >4 KB VIPT L1 alias-safe. **CLB LUTs are *lower* than the last logged build**
+> (62320 -> 52094) thanks to the area-reduction work landed since (banked ROB, the
+> `find_lowest_set_bit` rewrite, clustered FP register file). **WNS +0.096 ns** holds on the same
+> route-bound ITLB-CAM path -- the micro-TLB in front of the JTLB remains the structural fix for
+> real margin. (The per-hierarchy LUT breakdown below is from the 2026-07-03 netlist; the
+> `find_first_set` row there is the pre-fix encoder, now `find_lowest_set_bit`.)
+
 ## 2026-07-03 -- 1fdc585 (mem-pipe CACHE hit-ops) -- WNS + full LUT breakdown by hierarchy
 
 | metric | value |
