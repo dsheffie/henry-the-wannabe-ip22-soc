@@ -46,6 +46,16 @@ cp "$ROOT"/r9999/*.vh "$BUILD"/ 2>/dev/null || true
 cp "$ROOT"/r9999/convert_sv_to_v.py "$BUILD"/
 
 echo "[gen_mipscore] $(ls "$BUILD"/*.sv | wc -l) .sv + $(ls "$BUILD"/*.vh 2>/dev/null | wc -l) .vh -> sv2v"
+
+# henry-specific sv2v -D defines, injected at build time so the r9999 submodule's
+# machine.vh can stay == origin/main (no committed ENABLE_DEBUG_WATCHPOINT -> the
+# on-silicon store-tracer/watchpoint interface is present as tied-off ports on main,
+# and turned ON here for henry's active bug-hunt builds).  Override via the env:
+#   SV2V_DEFINES= ./gen_mipscore.sh      # production: watchpoint OFF, ports tie to 0
+#   SV2V_DEFINES="ENABLE_DEBUG_WATCHPOINT FOO" ./gen_mipscore.sh   # add more
+: "${SV2V_DEFINES:=ENABLE_DEBUG_WATCHPOINT}"
+export SV2V_DEFINES
+echo "[gen_mipscore] sv2v extra defines: ${SV2V_DEFINES:-<none>}"
 ( cd "$BUILD" && python3 convert_sv_to_v.py )
 
 [ -s "$BUILD/mipscore.v" ] || { echo "[gen_mipscore] ERROR: empty mipscore.v (sv2v failed?)" >&2; exit 1; }
