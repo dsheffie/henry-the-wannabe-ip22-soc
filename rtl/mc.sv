@@ -8,7 +8,7 @@
 // `rdata`, per full word) and, when `is_store`, written (clocked).
 // -----------------------------------------------------------------------------
 module mc
-  #(parameter [31:0] MEMCFG0 = 32'h0000_2023)  // bank0 cfg as STORED (BE lw -> 0x23200000 = 16 MB)
+  #(parameter [31:0] MEMCFG0 = 32'h0000_203f)  // bank0 cfg as STORED (BE lw -> 0x3f200000: BVALID|RMASK=0x1f00|base0x20 -> (0x1f00+0x100)<<14 = 128 MB @ 0x08000000)
    (input  logic         clk,
     input  logic         reset,
     input  logic         sel,        // MC selected + a request this cycle

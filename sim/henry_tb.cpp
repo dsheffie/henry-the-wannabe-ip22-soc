@@ -22,6 +22,7 @@
 #include <algorithm>
 #include <sys/mman.h>
 #include "scsi_service.h"   // host-side SCSI disk service (henry_scsi.h contract)
+#include "enet_service.h"   // host-side ethernet tap service (enet_shim.sv contract)
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -52,19 +53,30 @@ static bool        g_checker  = false;     // --checker enables the lockstep com
 // identical in RTL & ISS; only DATA diverges), so this is a faithful RTL execution trace
 // independent of any checker alignment.  Needs --checker (ss populated).
 static retire_trace g_rt;
+static uint8_t     *g_mem = nullptr;         // RTL DRAM (PA-indexed, big-endian); mmap'd in main
 static const char  *g_rt_file = nullptr;
 static uint64_t     g_rt_lo = 0, g_rt_hi = 0, g_rt_ifail = 0, g_rt_cap = 0;
 static bool         g_rt_useronly = false;   // RETIRETRACE_USERONLY: only pc<0x80000000 (o32 code)
 static bool         g_rt_trig_user = false;  // RETIRETRACE_TRIG_USER: start on first o32 entry, then trace all
 static bool         g_rt_armed = false;
+static uint64_t     g_rt_ring = 0;           // RETIRETRACE_RING=N: keep only the last N records (crash lead-up)
+static uint32_t     g_rt_stop_pc = 0;        // RETIRETRACE_STOP=<pc>: write + stop when this pc retires
+static bool         g_rt_stopped = false;
 static inline void rt_emit(uint32_t vpc) {
   if(g_rt_useronly && vpc >= 0x80000000u) return;          // skip kernel (idle/delay/paging noise)
-  uint32_t pa = 0;
-  uint32_t inst = iss_fetch_inst(ss, (uint64_t)vpc, &pa);   // zero-extend: tlb_probe_ro handles kseg0/mapped
-  if(inst == 0) g_rt_ifail++;                               // ISS-TLB lag on a mapped PC (best-effort)
-  /* key on the VIRTUAL pc (never 0) so the analyzer never sees address 0; keeping both
-   * traces virtual-keyed also avoids ISS-TLB physical-translation drift in the window. */
+  uint32_t inst = 0;
+  /* Fetch the committed inst word straight from RTL DRAM for unmapped kseg0/kseg1 (pa = va&0x1fffffff).
+   * This needs NO ISS/TLB, so the trace runs WITHOUT --checker -- which is required here: --checker
+   * perturbs the RTL into a TLB-refill wedge at ~cyc 134M, long before the o32 crash at ~2.4B.
+   * Mapped userspace PCs (< 0x80000000) get inst=0 and are disassembled offline from the o32 binaries. */
+  if(vpc >= 0x80000000u && vpc < 0xc0000000u) {
+    uint32_t pa = vpc & 0x1fffffffu;
+    inst = ((uint32_t)g_mem[pa]<<24)|((uint32_t)g_mem[pa+1]<<16)|((uint32_t)g_mem[pa+2]<<8)|g_mem[pa+3];
+  }
+  if(inst == 0) g_rt_ifail++;                              // mapped PC (offline-disasm) or a real zero word
+  /* key on the VIRTUAL pc (never 0) so the analyzer never sees address 0. */
   g_rt.get_records().emplace_back((uint64_t)vpc, (uint64_t)vpc, inst);
+  if(g_rt_ring && g_rt.get_records().size() > g_rt_ring) g_rt.get_records().pop_front();  // ring: keep last N
 }
 // RTL exception context latched each cycle (used by checker_step's exception sync).
 // tb->cause is the 5-bit ExcCode (0=Int/async, 1=Mod, 2=TLBL, 3=TLBS, ...).
@@ -84,10 +96,38 @@ static bool        g_chk_active_gate = true; // on for normal boot; off (gated) 
 std::deque<store_rec>        g_iss_stores;          // defined here; extern in interpret.hh
 static std::deque<store_rec> g_rtl_stores;
 static bool                  g_store_diverged = false;
+static uint64_t              g_cur_cyc = 0;   // per-cycle snapshot for DPI callbacks (SHSTORE)
 extern "C" void wr_log(long long pc, int rob_ptr, unsigned long long addr,
                        unsigned long long data, int is_atomic) {
   (void)rob_ptr; (void)is_atomic;
   if(g_checker) g_rtl_stores.emplace_back((uint64_t)pc, addr, data);
+  // small-L1D derail: config_cache prologue dirty stack stores (sd ra/s0/s1/s2, 0x8800f6a8-b4).
+  // If these commit to the L1D with correct data but the epilogue reload reads 0 => the dirty
+  // line's writeback is LOST on eviction.  If they commit 0 / never fire => the store was dropped.
+  { uint32_t pp = (uint32_t)pc;
+    if(pp >= 0x8800f6a8u && pp <= 0x8800f6b4u)
+      fprintf(stderr, "[ccstore] cyc=%llu pc=%08x pa=%09lx data=%016llx\n",
+              (unsigned long long)g_cur_cyc, pp, (unsigned long)addr, (unsigned long long)data);
+  }
+  // SHSTORE: trace the /sbin/sh structure-build stores near the crash.  The crash load reads
+  // *(0x0e0981c4)=0 in the RTL vs 0x0e07bbc0 in golden.  If the RTL commits a store of data
+  // 0x0e07bbc0 (to the node-1b8 +12 slot) => memory holds it => LOAD bug; if that store is
+  // absent (or a 0 lands there) => LOST/WRONG STORE.  Log the +12 pointer stores + their PAs.
+  static const bool g_shstore = getenv("SHSTORE") != nullptr;
+  if(g_shstore && g_cur_cyc > 2800000000ull) {
+    uint32_t d = (uint32_t)data;
+    if(d==0x0e07bb40u || d==0x0e07bb70u || d==0x0e07bb90u || d==0x0e07bbc0u)
+      fprintf(stderr, "[shstore] cyc=%llu pc=%08x pa=%09lx data=%08x\n",
+              (unsigned long long)g_cur_cyc, (uint32_t)pc, (unsigned long)addr, d);
+    // CRASH-WORD store: ANY committed bcopy store to page-offset 0x1c0 (the sd covering the
+    // node-1b8 +12 field at ...1c4), regardless of data.  Commits with data 0e07bbc0 -> the sd
+    // landed (crash must be overwrite/coherence); commits with data 0 -> its ld returned 0
+    // (load bug / buffer=0); NEVER commits for a crashing page -> the sd was DROPPED.
+    if((addr & 0xfffu) == 0x1c0u && (uint32_t)pc >= 0x88018f00u && (uint32_t)pc <= 0x88019010u)
+      fprintf(stderr, "[shword] cyc=%llu pc=%08x pa=%09lx data=%016llx\n",
+              (unsigned long long)g_cur_cyc, (uint32_t)pc, (unsigned long)addr,
+              (unsigned long long)data);
+  }
 }
 
 // RTL TLB-write mirror: itlb.sv fires this DPI on every TLBWI/TLBWR (tlb_entry_in_valid),
@@ -143,6 +183,13 @@ extern "C" void tlb_wr_log(int entry, long long ehi, long long elo0, long long e
 // L1D->L2 writeback watch (DESCWATCH): log dirty-line writebacks to the SCSI descriptor line
 // -> tells us if the L1D already holds the corrupted line (L1D bug) vs the L2 corrupting it.
 extern "C" void l1d_wb_log(unsigned long long pa, unsigned long long data_lo, unsigned long long data_hi) {
+  // small-L1D derail: watch writebacks of the config_cache stack lines (0x82ec0f0 / 0x82ec100).
+  // If line 0x82ec100 writes back with 0x8813a100 in it => writeback FIRES (correct data) => the
+  // refill raced ahead of it (ordering hazard). If it NEVER appears => the dirty eviction dropped
+  // the writeback entirely (dirty-bit / eviction-logic bug).
+  if((pa & ~0xfull) == 0x082ec100ull || (pa & ~0xfull) == 0x082ec0f0ull)
+    fprintf(stderr, "[l1dwb-cc] cyc=%llu pa=%09llx lo=%016llx hi=%016llx\n",
+            (unsigned long long)g_cur_cyc, pa, data_lo, data_hi);
   if(!g_checker) return;
   static const bool dw = getenv("DESCWATCH") != nullptr;
   if(!dw) return;
@@ -151,7 +198,97 @@ extern "C" void l1d_wb_log(unsigned long long pa, unsigned long long data_lo, un
   if(la == 0x003e4000u || la == 0x083e4000u || n++ < 12)   /* +first 12 = does the DPI fire at all? */
     fprintf(stderr, "[l1dwb] pa=%08llx lo=%016llx hi=%016llx\n", pa, data_lo, data_hi);
 }
-static uint64_t g_cur_cyc = 0;                 // updated each loop iteration (declared early for the DPIs)
+
+// --- L1D/L1I line-lifecycle trace: who filled each line, and when was it invalidated? --------
+// l1d_fill / l1i_fill record, per (32B) line, the cycle + PC that brought the line into the
+// cache (the fill is SPECULATIVE if that PC was a wrong-path fetch or a speculatively-executed
+// load).  l1d_cacheop / l1i_flush record the last CACHE-op invalidate.  For the non-coherent
+// DMA bug the question is: for the crash line, does the last fill happen AFTER the DMA wrote
+// DRAM and with NO intervening invalidate?  fill_cyc > inval_cyc AND fill_cyc > dma_cyc =>
+// stale speculative refill.  Tracking BOTH caches answers L1D (data) vs L1I (code) reservoir.
+struct linerec { uint64_t fill_cyc, fill_pc, inval_cyc, inval_pc, fill_lo, fill_hi; };
+static std::map<uint64_t, linerec> g_l1d_lines;  // 32B line_pa -> lifecycle
+static std::map<uint64_t, linerec> g_l1i_lines;
+static uint64_t g_l1i_flush_cyc = 0;             // last whole-L1I flush (r9999 flushes all-at-once)
+// The crash word is /sbin/sh .data offset 0x1c4 -> the sd/ld covers the 8-aligned 0x1c0 word,
+// and source page offset == dest page offset, so the source crash line is any PA with
+// (pa & 0xfff)==0x1c0.  Filter the (high-volume) DPIs to that offset to get a clean timeline.
+static inline bool crashword(unsigned long long pa) { return (pa & 0xfffull) == 0x1c0ull; }
+extern "C" void l1d_fill(unsigned long long cyc, long long pc, unsigned long long pa,
+                         unsigned long long lo, unsigned long long hi) {
+  uint64_t line = pa & ~0x1full;
+  auto &r = g_l1d_lines[line];
+  r.fill_cyc = cyc; r.fill_pc = (uint64_t)pc; r.fill_lo = lo; r.fill_hi = hi;
+  // per-fill print is high-volume (every page's pgoff-0x1c0 fill); gate it behind its own
+  // env so a full 2.85e9-cyc run keeps only bcopyrd + inval1c0.  The MAP update above is
+  // unconditional -- it's what bcopyrd reads to report the resident line's fill history.
+  static const bool g = getenv("FILLTRACE") != nullptr;
+  if(g && crashword(pa))
+    fprintf(stderr, "[l1d.fill1c0] cyc=%llu pc=%09llx pa=%09llx lo=%016llx hi=%016llx\n",
+            (unsigned long long)cyc, (unsigned long long)pc, pa, lo, hi);
+}
+extern "C" void l1d_cacheop(unsigned long long cyc, long long pc, unsigned long long pa, int inval) {
+  if(!inval) return;
+  uint64_t line = pa & ~0x1full;
+  auto &r = g_l1d_lines[line];
+  r.inval_cyc = cyc; r.inval_pc = (uint64_t)pc;
+  static const bool g = getenv("BCOPYTRACE") != nullptr;
+  if(g && crashword(pa))
+    fprintf(stderr, "[l1d.inval1c0] cyc=%llu pc=%09llx pa=%09llx\n",
+            (unsigned long long)cyc, (unsigned long long)pc, pa);
+}
+extern "C" void l1i_fill(unsigned long long cyc, unsigned long long pa) {
+  uint64_t line = pa & ~0x1full;
+  auto &r = g_l1i_lines[line];
+  r.fill_cyc = cyc; r.fill_pc = pa;   // for the L1I the fetch pc IS the line addr
+}
+extern "C" void l1i_flush(unsigned long long cyc) {
+  g_l1i_flush_cyc = cyc;   // r9999 does whole-cache I-flush; mark every resident L1I line
+  for(auto &kv : g_l1i_lines) { kv.second.inval_cyc = cyc; kv.second.inval_pc = 0; }
+}
+extern "C" void dirtydrop(unsigned long long cyc, long long pc, unsigned long long pa, int by_refill) {
+  // a store's dirty=1 was suppressed by a concurrent dirty-clear -> the line looks clean.
+  // Always print for the config_cache prologue stores (the derail); else gate on env.
+  uint32_t p = (uint32_t)pc;
+  bool cc = (p >= 0x8800f6a8u && p <= 0x8800f6b4u);
+  static const bool g = getenv("DIRTYDROP") != nullptr;
+  if(!cc && !g) return;
+  fprintf(stderr, "[dirtydrop] cyc=%llu pc=%08x pa=%09llx clr_by=%s\n",
+          (unsigned long long)cyc, p, (unsigned long long)pa, by_refill ? "refill" : "inval");
+}
+extern "C" void rd_log(long long pc, unsigned long long addr, unsigned long long data, int hit) {
+  uint32_t p = (uint32_t)pc;
+  // small-L1D derail probe: config_cache epilogue stack reloads (0x8800f89c-a8).  hit=1 with
+  // wrong data => a resident line returns stale (forwarding/tag); hit=0 with wrong data =>
+  // the refill read stale DRAM (dirty-evict writeback lost / evict-then-reload race).
+  if(p >= 0x8800f89cu && p <= 0x8800f8a8u) {
+    uint64_t sline = addr & ~0x1full;
+    auto sf = g_l1d_lines.find(sline);
+    fprintf(stderr, "[stackrd]  cyc=%llu pc=%08x pa=%09llx hit=%d data=%016llx | fill_cyc=%llu fill_pc=%09llx fill_lo=%016llx fill_hi=%016llx inval_cyc=%llu inval_pc=%09llx\n",
+            (unsigned long long)g_cur_cyc, p, addr, hit, data,
+            (unsigned long long)(sf != g_l1d_lines.end() ? sf->second.fill_cyc : 0),
+            (unsigned long long)(sf != g_l1d_lines.end() ? sf->second.fill_pc : 0),
+            (unsigned long long)(sf != g_l1d_lines.end() ? sf->second.fill_lo : 0),
+            (unsigned long long)(sf != g_l1d_lines.end() ? sf->second.fill_hi : 0),
+            (unsigned long long)(sf != g_l1d_lines.end() ? sf->second.inval_cyc : 0),
+            (unsigned long long)(sf != g_l1d_lines.end() ? sf->second.inval_pc : 0));
+    return;
+  }
+  static const bool g = getenv("BCOPYTRACE") != nullptr;
+  if(!g || !crashword(addr)) return;   // only the bcopy read of the crash source word
+  uint64_t line = addr & ~0x1full;
+  auto f = g_l1d_lines.find(line);
+  // hit=1 => resident line; hit=0 => miss (fetching from DRAM).
+  // fill_cyc>inval_cyc => a fill happened AFTER the last CACHE-inval = speculative refill.
+  fprintf(stderr, "[bcopyrd]  cyc=%llu pc=%08x pa=%09llx hit=%d data=%016llx | fill_cyc=%llu fill_pc=%09llx fill_lo=%016llx fill_hi=%016llx inval_cyc=%llu inval_pc=%09llx\n",
+          (unsigned long long)g_cur_cyc, (uint32_t)pc, addr, hit, data,
+          (unsigned long long)(f != g_l1d_lines.end() ? f->second.fill_cyc : 0),
+          (unsigned long long)(f != g_l1d_lines.end() ? f->second.fill_pc : 0),
+          (unsigned long long)(f != g_l1d_lines.end() ? f->second.fill_lo : 0),
+          (unsigned long long)(f != g_l1d_lines.end() ? f->second.fill_hi : 0),
+          (unsigned long long)(f != g_l1d_lines.end() ? f->second.inval_cyc : 0),
+          (unsigned long long)(f != g_l1d_lines.end() ? f->second.inval_pc : 0));
+}
 
 // TIP: commit-stall attribution (ported from rv64core top.cc). Every cycle, charge
 // 1.0 to the ROB-head PC when nothing retires (the head is the stall), or split the
@@ -175,6 +312,18 @@ static void tip_dump(const char *tag) {
 // can see whether the engine's r_bp (write target) walks onto the descriptor's own address.
 extern "C" void scsi_dma_log(int kind, unsigned long long a, unsigned long long b,
                              unsigned long long c, unsigned long long d) {
+  // WATCHPA: ungated by --checker -- find whoever DMAs the /sbin/sh .data pointer 0x0e07bbc0
+  // into DRAM (there is NO CPU store to it -- static .data paged in via SCSI DMA).  kind==1 is
+  // a DMA memory write: a=bp(target PA), b=cnt, {c,d}=16B data.  Match 0e07bbc0 or its bswap
+  // (DRAM is big-endian, the packed word is byte-reversed).
+  { static const bool g_watchpa = getenv("WATCHPA") != nullptr;
+    if(g_watchpa && kind == 1) {
+      uint32_t w[4] = {(uint32_t)c, (uint32_t)(c>>32), (uint32_t)d, (uint32_t)(d>>32)};
+      for(int i = 0; i < 4; i++)
+        if(w[i] == 0x0e07bbc0u || w[i] == 0xc0bb070eu)
+          fprintf(stderr, "[watchpa-dma] cyc=%llu bp=%08llx cnt=%llu word%d data=%016llx%016llx\n",
+                  (unsigned long long)g_cur_cyc, a, b, i, d, c);
+    } }
   if(!g_checker) return;
   static const bool dbg = getenv("SCSIDMADBG") != nullptr;
   if(!dbg) return;
@@ -196,6 +345,17 @@ extern "C" void scsi_dma_log(int kind, unsigned long long a, unsigned long long 
 // BP = bswap32(low32(d0)), BC = bswap32(high32(d0)).
 extern "C" void l2_line_log(int side, unsigned long long pa, unsigned long long d0,
                             unsigned long long d1, int op, int mask) {
+  // WATCHPA: match the crash pointer 0x0e07bbc0 in any L2 line (fill from DRAM=side2 shows what
+  // DRAM holds at the crash line; L1->L2=side0 / evict=side1 show writebacks) -> pins the PA + the
+  // value the cache sees, splitting DRAM-content bug vs a load/L1 return bug.
+  { static const bool g_watchpa = getenv("WATCHPA") != nullptr;
+    if(g_watchpa) {
+      uint32_t w[4] = {(uint32_t)d0, (uint32_t)(d0>>32), (uint32_t)d1, (uint32_t)(d1>>32)};
+      for(int i = 0; i < 4; i++)
+        if(w[i] == 0x0e07bbc0u || w[i] == 0xc0bb070eu)
+          fprintf(stderr, "[watchpa-l2] cyc=%llu side=%d pa=%08llx word%d d0=%016llx d1=%016llx\n",
+                  (unsigned long long)g_cur_cyc, side, pa, i, d0, d1);
+    } }
   static const bool l2dbg = getenv("L2DBG") != nullptr;
   if(!l2dbg) return;
   const char *sn = (side == 0) ? "L1->L2 " : (side == 1) ? "L2->DRAM" : "fill    ";
@@ -299,7 +459,6 @@ static inline uint32_t fpga_map(uint32_t cpuaddr, bool *bad) {
   return t;
 }
 
-static uint8_t *g_mem = nullptr;
 
 // timer-IRQ trace: core.sv calls log_timer_irq() (DPI) once per timer interrupt
 // taken; we stamp it with the current sim cycle.  Queryable via monitor `timer`.
@@ -318,6 +477,14 @@ static uint8_t *scsi_mem(void * /*ctx*/, uint32_t phys, uint32_t len) {
   if(bad || (uint64_t)off + len > MEM_SIZE) return nullptr;
   return g_mem + off;
 }
+
+// ENET tap service (enet_shim.sv contract): TX doorbell (enet_tx_req_seq) -> assemble
+// the frame from the {BP,BC,DP} chain -> tap; RX free-run -> poll tap -> inject into the
+// guest RX ring.  Reuses scsi_mem (same FPGA address map as the descriptor walk).
+static enet_tap g_enet_tap;
+static uint32_t g_last_enet_tx_req_seq = 0, g_last_enet_rx_arm_seq = 0;
+static uint32_t g_enet_rx_nbdp = 0;          // service's current RX ring position
+static uint32_t g_enet_rx_rsp_seq = 0, g_enet_rx_crbdp = 0;
 
 // ---- core instrumentation/co-sim DPI hooks: stubbed (RTL-only run) ----
 // Declared extern "C" via Vhenry_soc__Dpi.h above, so these definitions get C
@@ -685,6 +852,36 @@ static void checker_step(uint64_t rpc, bool rrv, int rrp, uint64_t rrd) {
             fprintf(stderr, "[TLB-DELTA] fpc=%08x  RTL vectored %08x (cause=%u badv=%016llx)  but ISS->%08x  chk#%llu\n",
                     fpc, vpc, g_rtl_cause, (unsigned long long)g_rtl_badv,
                     (uint32_t)ss->pc, (unsigned long long)g_chk_insns);
+            // Code-fetch-divergence probe: if the RTL took a SYNCHRONOUS fault the ISS
+            // didn't, and both machines were at the SAME fetch PC, the likely cause is a
+            // stale RTL I-fetch (L1I holds a reused page's old line).  Dump the ISS's
+            // instruction word (its TLB view) and the RTL DRAM word at that PA: if both
+            // disagree with what the RTL decoded (e.g. RTL trapped SYSCALL=0x0000000c),
+            // the RTL fetched a stale line -> L1I code-coherence bug.
+            fprintf(stderr, "[FETCH-WINDOW] RTL_epc=%08llx  (dump VA fpc..fpc+8, ISS vs DRAM)\n",
+                    (unsigned long long)g_rtl_epc);
+            for(uint32_t off = 0; off <= 8; off += 4) {
+              uint32_t va = fpc + off, ppa = 0;
+              uint32_t iss_insn = iss_fetch_inst(ss, (uint64_t)(int64_t)(int32_t)va, &ppa);
+              const uint8_t *d = ((uint64_t)ppa + 4 <= MEM_SIZE) ? (g_mem + ppa) : nullptr;
+              uint32_t dram_insn = d ? ((uint32_t(d[0])<<24)|(uint32_t(d[1])<<16)|(uint32_t(d[2])<<8)|uint32_t(d[3])) : 0xdeadbeef;
+              fprintf(stderr, "   VA=%08x pa=%08x  ISS_insn=%08x  DRAM_insn=%08x%s\n",
+                      va, ppa, iss_insn, dram_insn, (dram_insn==0x0000000cu)?"  <-- SYSCALL":"");
+            }
+            { uint32_t ppa = 0;
+              uint32_t iss_insn = iss_fetch_inst(ss, (uint64_t)(int64_t)(int32_t)fpc, &ppa);
+              (void)iss_insn; (void)ppa;
+              // provenance of the (suspected stale) L1I line: when/which fetch-PC filled it,
+              // and whether any whole-L1I flush has dropped it since.
+              auto li = g_l1i_lines.find((uint64_t)ppa & ~0x1full);
+              if(li != g_l1i_lines.end())
+                fprintf(stderr, "[L1I-LINE]     pa=%08x  fill_cyc=%llu fill_pc=%09llx  last_iflush_cyc=%llu (line dropped since fill? %s)\n",
+                        ppa, (unsigned long long)li->second.fill_cyc, (unsigned long long)li->second.fill_pc,
+                        (unsigned long long)g_l1i_flush_cyc,
+                        (g_l1i_flush_cyc > li->second.fill_cyc) ? "yes" : "NO -> stale");
+              else
+                fprintf(stderr, "[L1I-LINE]     pa=%08x  no L1I fill recorded for this line\n", ppa);
+            }
             g_tlb_delta_shown++;
           }
           ss->pc = (state_t::reg_t)(int64_t)rpc;  // snap to RTL, trust while state re-converges
@@ -1034,6 +1231,7 @@ int main(int argc, char **argv) {
     else if(a == "--trace" && i+1 < argc)  trace_file = argv[++i];
     else if(a == "--rx" && i+1 < argc)     rx_str = argv[++i];
     else if(a == "--disk" && i+1 < argc)   g_scsi_disk.open_image(argv[++i]);
+    else if(a == "--enet-tap" && i+1 < argc) g_enet_tap.open_tap(argv[++i]);
     else if(a == "--checkpoint" && i+1 < argc) ckpt_file = argv[++i];
     else if(a == "--cimg" && i+1 < argc)   cimg_file = argv[++i];
     else if(a == "--verify-ckpt" && i+1 < argc) g_verify_path = argv[++i];
@@ -1046,6 +1244,8 @@ int main(int argc, char **argv) {
   g_rt_useronly = getenv("RETIRETRACE_USERONLY") != nullptr;                  // only o32 userspace pc
   g_rt_trig_user = getenv("RETIRETRACE_TRIG_USER") != nullptr;                // arm on first o32 entry
   if(getenv("RETIRETRACE_N")) g_rt_cap = strtoull(getenv("RETIRETRACE_N"), 0, 0);  // max records
+  if(getenv("RETIRETRACE_RING")) g_rt_ring = strtoull(getenv("RETIRETRACE_RING"), 0, 0);  // keep last N
+  if(getenv("RETIRETRACE_STOP")) g_rt_stop_pc = (uint32_t)strtoull(getenv("RETIRETRACE_STOP"), 0, 0);  // stop pc
   std::vector<uint8_t> rx_bytes(rx_str.begin(), rx_str.end());
   if(kernel.empty() && ckpt_file.empty() && cimg_file.empty()) { fprintf(stderr, "usage: %s {--kernel <elf> | --checkpoint <file> | --cimg <file> --arcs <preamble>} [--maxcyc N]\n", argv[0]); return 1; }
 
@@ -1250,7 +1450,35 @@ int main(int argc, char **argv) {
     if(tb->retire_valid && tb->retire_reg_valid) g_rf[tb->retire_reg_ptr & 31] = tb->retire_reg_data;
     if(tb->retire_two_valid && tb->retire_reg_two_valid) g_rf[tb->retire_reg_two_ptr & 31] = tb->retire_reg_two_data;
 
-    if(g_rt_file && ss) {
+    // SHLOOP: dump the /sbin/sh list-walk (0x0e005974..0x0e005998) reg dataflow near the crash.
+    // g_rf is post-retire, so at e005978 (lw v1,12(a1)) g_rf[3]=the loaded v1; a1=g_rf[5], a0=g_rf[4].
+    // Compare vs interp SHLOOP: same a1 + non-zero v1 => RTL load returned 0 (data bug); a1 diverges
+    // or an extra iteration => a1/a0 corruption.
+    {
+      static const bool g_shloop = getenv("SHLOOP") != nullptr;
+      if(g_shloop && cyc > 2800000000ull) {
+        uint32_t lp[2];
+        lp[0] = tb->retire_valid ? (uint32_t)tb->retire_pc : 0;
+        lp[1] = tb->retire_two_valid ? (uint32_t)tb->retire_two_pc : 0;
+        for(int k = 0; k < 2; k++) {
+          uint32_t rpc = lp[k];
+          if(rpc==0x0e005974 || rpc==0x0e005978 || rpc==0x0e00598c || rpc==0x0e005990 || rpc==0x0e005998) {
+            fprintf(stderr, "[shloop] cyc=%llu pc=%08x v0=%08x v1=%08x a0=%08x a1=%08x\n",
+                    (unsigned long long)cyc, rpc, (uint32_t)g_rf[2], (uint32_t)g_rf[3],
+                    (uint32_t)g_rf[4], (uint32_t)g_rf[5]);
+          }
+          // FIRST control-flow divergence loop @0x0e03ab50 (array walk).  s0=r16 (array ptr),
+          // v0=r2 (*s0 loaded @e03ab64), s1=r17.  RTL over-runs the NULL terminator vs golden.
+          if(rpc==0x0e03ab50 || rpc==0x0e03ab64 || rpc==0x0e03ab68) {
+            fprintf(stderr, "[shdiv] cyc=%llu pc=%08x s0=%08x v0=%08x s1=%08x a1=%08x\n",
+                    (unsigned long long)cyc, rpc, (uint32_t)g_rf[16], (uint32_t)g_rf[2],
+                    (uint32_t)g_rf[17], (uint32_t)g_rf[5]);
+          }
+        }
+      }
+    }
+
+    if(g_rt_file && !g_rt_stopped) {  // NB: no ss -- runs WITHOUT --checker (see rt_emit)
       // trigger: arm on the first o32 (userspace) retire, then trace EVERYTHING (user+kernel)
       // so the full o32 lifecycle -- syscalls, faults, teardown -- is captured.  The o32-entry
       // code event aligns RTL vs interp despite the delayloop icnt-skew.
@@ -1263,6 +1491,28 @@ int main(int argc, char **argv) {
       if((!g_rt_trig_user || g_rt_armed) && win) {
         if(tb->retire_valid)     rt_emit((uint32_t)tb->retire_pc);
         if(tb->retire_two_valid) rt_emit((uint32_t)tb->retire_two_pc);
+      }
+      // RETIRETRACE_STOP: the moment the crash PC (e.g. the SIGSEGV site) retires, the ring
+      // holds the last N records = the crash lead-up.  Write the archive NOW and stop capturing.
+      if(g_rt_stop_pc && !g_rt_stopped &&
+         ((tb->retire_valid && (uint32_t)tb->retire_pc == g_rt_stop_pc) ||
+          (tb->retire_two_valid && (uint32_t)tb->retire_two_pc == g_rt_stop_pc))) {
+        std::ofstream ofs(g_rt_file, std::ios::binary);
+        boost::archive::binary_oarchive oa(ofs);
+        oa << g_rt;
+        fprintf(stderr, "[retiretrace] STOP at pc=%08x cyc=%llu: wrote %zu records to %s (%llu ifail)\n",
+                g_rt_stop_pc, (unsigned long long)cyc, g_rt.get_records().size(), g_rt_file,
+                (unsigned long long)g_rt_ifail);
+        // quick eyeball: dump the tail (crash approach) so the faulting o32 PC is visible w/o the CFG tool
+        {
+          auto &recs = g_rt.get_records();
+          size_t n = recs.size(), from = n > 60 ? n - 60 : 0, i = 0;
+          for(auto it = recs.begin(); it != recs.end(); ++it, ++i) {
+            if(i < from) { continue; }
+            fprintf(stderr, "  [%zu] pc=%08x inst=%08x\n", i, (uint32_t)it->pc, it->inst);
+          }
+        }
+        g_rt_stopped = true;
       }
     }
 
@@ -1634,6 +1884,39 @@ int main(int argc, char **argv) {
       tb->scsi_rsp_tgt_status  = g_pending_rsp.tgt_status;
       tb->scsi_rsp_seq         = g_pending_rsp.seq;
     };
+    // ---- ENET tap service (enet_shim.sv contract) --------------------------------
+    if(g_enet_tap.ok()) {
+      // TX doorbell: assemble the frame from the descriptor chain and write the tap.
+      if(tb->enet_tx_req_seq != g_last_enet_tx_req_seq) {
+        g_last_enet_tx_req_seq = tb->enet_tx_req_seq;
+        enet_tx_run(scsi_mem, nullptr, tb->enet_tx_nbdp, g_enet_tap.fd);
+        tb->enet_tx_rsp_seq = tb->enet_tx_req_seq;    // echo -> shim clears ACTIVE + TX IRQ
+      }
+      // RX arm: (re)capture the ring head the driver just armed.
+      if(tb->enet_rx_arm_seq != g_last_enet_rx_arm_seq) {
+        g_last_enet_rx_arm_seq = tb->enet_rx_arm_seq;
+        g_enet_rx_nbdp = tb->enet_rx_nbdp;
+      }
+      // RX free-run: drain the tap (throttled), inject each frame into the ring.
+      if((cyc & 0x3ff) == 0 && g_enet_rx_nbdp) {
+        uint8_t fr[ENET_FRAME_MAX];
+        for(int k = 0; k < 8; k++) {
+          ssize_t n = ::read(g_enet_tap.fd, fr, sizeof(fr));
+          if(n < 14) break;
+          uint8_t sta[6];
+          for(int j = 0; j < 6; j++) sta[j] = (uint8_t)(tb->enet_station >> (8*(5-j)));
+          if(!enet_addr_filter((uint8_t)tb->enet_rx_cmd, sta, fr, (uint32_t)n)) continue;
+          uint32_t crbdp = g_enet_rx_crbdp;
+          if(enet_rx_inject(scsi_mem, nullptr, g_enet_rx_nbdp, fr, (uint32_t)n, crbdp)) {
+            g_enet_rx_crbdp = crbdp;
+            g_enet_rx_rsp_seq++;                       // -> shim raises RX IRQ
+          }
+        }
+      }
+    }
+    tb->enet_rx_rsp_seq = g_enet_rx_rsp_seq;
+    tb->enet_rx_crbdp   = g_enet_rx_crbdp;
+
     tb->scsi_beat_push = 0;
     if(g_scsi_disk.ok() && tb->scsi_req_seq != g_last_scsi_req_seq) {
       g_last_scsi_req_seq = tb->scsi_req_seq;
@@ -1760,7 +2043,11 @@ int main(int argc, char **argv) {
     }
     // programmable shim select->data delay (on the FPGA this is an AXI reg the ARM
     // sets; in sim drive a fixed value -- must be >= the SVC_DELAY service deferral).
-    tb->scsi_sel_delay = 8192;
+    // FASTDISK=<cyc>: shrink the SCSI sel->data phase delay to progress through
+    // demand-paging far faster (the delay only needs to clear the driver's flush
+    // ISSUE, not model realistic bus latency).  Default 8192.
+    static const char *g_fastdisk = getenv("FASTDISK");
+    tb->scsi_sel_delay = g_fastdisk ? (uint16_t)strtoul(g_fastdisk, 0, 0) : 8192;
     // 64-bit-address-bug probe: log every a0 (reg 4) writeback near the fault
     if(false && cyc > 35850000ull && cyc < 35870000ull) {
       if(tb->retire_valid && tb->retire_reg_ptr == 4)  // reg 4 = a0

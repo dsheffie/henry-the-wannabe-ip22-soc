@@ -117,11 +117,16 @@ module axi_is_the_worst_v1_0 #
    
    //outputs to axi slave
    wire [31:0] 					w_rvcontrol, w_resume_pc;
+   wire [31:0] 					w_bp_pc;   // driver-programmable breakpoint PC (slv_reg9)
+   wire [31:0] 					w_bp_wp_addr; // store-address watchpoint VA (slv_reg10)
+   wire [31:0] 					w_bp_wp_val;  // expected corrupt store value (slv_reg11)
 
    //inputs to axi slave
    wire [31:0] 					w_rvstatus, w_epc, w_badvaddr;
    wire [31:0]					w_states;
    wire [4:0]					w_cause;
+   wire [2:0]					w_dbg_frozen;
+   wire [31:0]					w_dbg_wp_data;
    wire [11:0]					w_trace_index;
    wire [31:0]					w_trace_data;
    wire [63:0]					w_dbg_head_pc;
@@ -249,7 +254,10 @@ module axi_is_the_worst_v1_0 #
    wire         w_scsi_beat_push, w_scsi_beat_full;
    wire [127:0] w_scsi_beat_data;
    wire [31:0]  w_scsi_dbg;          // shim debug viz (AXI PMU readback)
-   axi_is_the_worst_v1_0_S00_AXI # ( .C_S_AXI_DATA_WIDTH(C_S00_AXI_DATA_WIDTH), .C_S_AXI_ADDR_WIDTH(C_S00_AXI_ADDR_WIDTH)) 
+   // ---- ENET mailbox wires: henry_soc publishes tx_req/rx_arm; S00_AXI returns rsp/crbdp ----
+   wire [31:0]  w_enet_tx_req_seq, w_enet_tx_nbdp, w_enet_rx_arm_seq, w_enet_rx_nbdp;
+   wire [31:0]  w_enet_tx_rsp_seq, w_enet_rx_rsp_seq, w_enet_rx_crbdp;
+   axi_is_the_worst_v1_0_S00_AXI # ( .C_S_AXI_DATA_WIDTH(C_S00_AXI_DATA_WIDTH), .C_S_AXI_ADDR_WIDTH(C_S00_AXI_ADDR_WIDTH))
    axi_is_the_worst_v1_0_S00_AXI_inst (
 				       .controlreg(w_controlreg),
 				       .base(w_baseaddr),
@@ -267,6 +275,9 @@ module axi_is_the_worst_v1_0 #
 				       .scc_rx_full(w_scc_rx_full),
 				       .control(w_rvcontrol),
 				       .resume_pc(w_resume_pc),
+				       .bp_pc(w_bp_pc),
+				       .bp_wp_addr(w_bp_wp_addr),
+				       .bp_wp_val(w_bp_wp_val),
 				       .rvstatus(w_rvstatus),
 				       .states(w_states),
 				       .sgi_mode(w_sgi_mode),				       
@@ -274,6 +285,8 @@ module axi_is_the_worst_v1_0 #
 				       .status_reg(w_status_reg),
 				       .badvaddr(w_badvaddr),
 				       .cause(w_cause),
+				       .dbg_frozen(w_dbg_frozen),
+				       .dbg_wp_data(w_dbg_wp_data),
 				       .dbg_trace_data(w_trace_data),
 				       .dbg_trace_wptr(w_trace_wptr),
 				       .dbg_trace_index(w_trace_index),
@@ -338,6 +351,13 @@ module axi_is_the_worst_v1_0 #
 				       .scsi_beat_data(w_scsi_beat_data),
 				       .scsi_beat_full(w_scsi_beat_full),
 				       .scsi_dbg(w_scsi_dbg),
+				       .enet_tx_req_seq(w_enet_tx_req_seq),
+				       .enet_tx_nbdp(w_enet_tx_nbdp),
+				       .enet_rx_arm_seq(w_enet_rx_arm_seq),
+				       .enet_rx_nbdp(w_enet_rx_nbdp),
+				       .enet_tx_rsp_seq(w_enet_tx_rsp_seq),
+				       .enet_rx_rsp_seq(w_enet_rx_rsp_seq),
+				       .enet_rx_crbdp(w_enet_rx_crbdp),
 				       .S_AXI_ACLK(s00_axi_aclk),
 				       .S_AXI_ARESETN(s00_axi_aresetn),
 				       .S_AXI_AWADDR(s00_axi_awaddr),
@@ -471,6 +491,15 @@ module axi_is_the_worst_v1_0 #
      henrysoc0 (
 	   .clk(s00_axi_aclk),
 	   .reset(w_reset | w_rvcontrol[0]),
+	   // debug control: [31]=single_step(freeze) [30]=step-pulse [17]=bp_enable(arm fault-trap)
+	   // [18]=fault_clear(clear latch + re-arm + un-freeze).  Previously stubbed in henry_soc.
+	   .single_step(w_rvcontrol[31]),
+	   .step(w_rvcontrol[30]),
+	   .bp_enable(w_rvcontrol[17]),
+	   .fault_clear(w_rvcontrol[18]),
+	   .bp_pc(w_bp_pc),
+	   .bp_wp_addr(w_bp_wp_addr),
+	   .bp_wp_val(w_bp_wp_val),
 	   // SCC serial Rx driven by the ARM/PS via S00_AXI reg 0x3B (push) /
 	   // reg 0x3A bit8 (full). A pushed byte lands in the core's Rx FIFO and
 	   // raises the INT3 serial IRQ (IP2) inside henry_soc.
@@ -498,8 +527,10 @@ module axi_is_the_worst_v1_0 #
 
 	   .retire_reg_ptr(w_reg_ptr0),
 	   .retire_reg_data(w_reg_data0),
+	   .retire_reg_valid(w_reg_val0),
 	   .retire_reg_two_ptr(w_reg_ptr1),
 	   .retire_reg_two_data(w_reg_data1),
+	   .retire_reg_two_valid(w_reg_val1),
 	   .retire_valid(w_pc_valid),
 	   .retire_two_valid(w_pc2_valid),
 	   .retire_pc(w_pc),
@@ -515,6 +546,8 @@ module axi_is_the_worst_v1_0 #
 	   .status_reg(w_status_reg),
 	   .badvaddr(w_badvaddr),
 	   .cause(w_cause),
+	   .dbg_frozen(w_dbg_frozen),
+	   .dbg_wp_data(w_dbg_wp_data),
 	   .core_state(w_state),
 	   .l1i_state(w_istate),
 	   .l1d_state(w_dstate),
@@ -538,13 +571,22 @@ module axi_is_the_worst_v1_0 #
 	   .scsi_beat_push(w_scsi_beat_push),
 	   .scsi_beat_data(w_scsi_beat_data),
 	   .scsi_beat_full(w_scsi_beat_full),
-	   .scsi_dbg(w_scsi_dbg)
+	   .scsi_dbg(w_scsi_dbg),
+	   .enet_tx_req_seq(w_enet_tx_req_seq),
+	   .enet_tx_nbdp(w_enet_tx_nbdp),
+	   .enet_tx_rsp_seq(w_enet_tx_rsp_seq),
+	   .enet_rx_arm_seq(w_enet_rx_arm_seq),
+	   .enet_rx_nbdp(w_enet_rx_nbdp),
+	   .enet_rx_rsp_seq(w_enet_rx_rsp_seq),
+	   .enet_rx_crbdp(w_enet_rx_crbdp),
+	   .enet_station(),          // not routed to AXI v1 (IRIX filters); leave open
+	   .enet_rx_cmd(),
+	   .enet_dbg()
 	   );
 
    // tie-offs for status/debug taps henry_soc does not expose
    assign w_in_flush       = 1'b0;
-   assign w_reg_val0       = 1'b0;
-   assign w_reg_val1       = 1'b0;
+   // w_reg_val0/1 now driven by henrysoc0 (retire_reg_valid) -> GPR shadow updates -> readback works
    assign w_op             = 7'd0;
    assign w_op2            = 7'd0;
    assign w_branch_pc      = 32'd0;

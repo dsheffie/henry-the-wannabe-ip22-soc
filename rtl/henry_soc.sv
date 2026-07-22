@@ -26,6 +26,10 @@
 // MUTUALLY EXCLUSIVE with hpc3.sv `ENABLE_HPC3_DMA -- both claim the HPC3 DMA
 // channel window @0x10000.  Uncomment here AND comment ENABLE_HPC3_DMA in hpc3.sv.
 `define ENABLE_SCSI_SHIM 1
+// Seeq 8003 + HPC3 ENET DMA control shim (enet_shim.sv) for the host-served tap
+// ethernet path.  Shares the HPC3 window with scsi_shim (disjoint offsets);
+// ENET IRQ -> IOC2 local0 bit3.  Serviced by henry_tb (sim) / the ARM PS (FPGA).
+`define ENABLE_ENET_SHIM 1
 // Lower-level SCSI: the scsi_dma engine (a real ordered DRAM master) walks the
 // descriptor chain + moves data, replacing the host-service "offload the whole
 // transaction" backdoor.  Occupies arbiter master 1 (mutually exclusive with the
@@ -40,12 +44,21 @@
 `define ENABLE_SCSI_DMA 1
 
 module henry_soc
-  #(// MC MEMCFG0 (bank0 cfg) as STORED: BE lw -> bswap.  0x00002023 -> 0x23200000
-    // = 16 MB @ 0x08000000 (IRIX).  For 128 MB use 0x0000203f (-> 0x3f200000).
-    parameter [31:0] MEMCFG0 = 32'h0000_2023
+  #(// MC MEMCFG0 (bank0 cfg) as STORED: BE lw -> bswap.  0x0000203f -> 0x3f200000
+    // = 128 MB @ 0x08000000 (IRIX); was 0x00002023 -> 0x23200000 = 16 MB.
+    parameter [31:0] MEMCFG0 = 32'h0000_203f
     )
   (input  logic                  clk,
    input  logic                  reset,
+
+   // debug control (wired from the AXI control reg; previously stubbed off)
+   input  logic                  single_step,
+   input  logic                  step,
+   input  logic                  bp_enable,     // arms the resettable fault-trap
+   input  logic                  fault_clear,   // clear fault-trap latch + re-arm + un-freeze
+   input  logic [31:0]           bp_pc,         // driver-programmable breakpoint PC
+   input  logic [31:0]           bp_wp_addr,    // driver-programmable store-address watchpoint VA
+   input  logic [31:0]           bp_wp_val,     // expected corrupt store value (freeze-on)
 
    // SCC serial Rx: host/TB pushes a byte -> IOC2 SCC Rx FIFO -> INT3 serial IRQ (IP2)
    input  logic                  scc_rx_valid,
@@ -88,6 +101,8 @@ module henry_soc
    output logic [31:0]           status_reg,
    output logic [`M_WIDTH-1:0]   badvaddr,
    output logic [4:0]            cause,
+   output logic [2:0]            dbg_frozen,
+   output logic [31:0]           dbg_wp_data,
    output logic [7:0]            cause_ip,
    output logic                  took_irq,
    // retire register writeback taps (64-bit-address-bug localization)
@@ -132,7 +147,20 @@ module henry_soc
    output logic                  scsi_disk_wr_en,    // WRITE: engine produces a beat (v1: unused)
    output logic [127:0]          scsi_disk_wr_data,  // WRITE: mem -> disk beat
    output logic                  scsi_dma_done,      // engine finished the chain (TB sync)
-   output logic [31:0]           scsi_dbg            // shim debug viz (AXI PMU readback)
+   output logic [31:0]           scsi_dbg,           // shim debug viz (AXI PMU readback)
+   // ---- ENET shim mailbox (enet_shim.sv): Seeq 8003 + HPC3 ENET DMA channels ----
+   // FPGA: map to AXI-lite slv_regs; sim: henry_tb tap servicer.  (Tied off unless
+   // `ENABLE_ENET_SHIM.)  TX = guest-initiated doorbell; RX = service free-runs.
+   output logic [31:0]           enet_tx_req_seq,    // TX doorbell (++ per transmit)
+   output logic [31:0]           enet_tx_nbdp,       // TX descriptor-chain head (phys)
+   input  logic [31:0]           enet_tx_rsp_seq,    // echoes enet_tx_req_seq when sent
+   output logic [31:0]           enet_rx_arm_seq,    // ++ when guest arms rx_ctrl ACTIVE
+   output logic [31:0]           enet_rx_nbdp,       // RX ring head (phys)
+   input  logic [31:0]           enet_rx_rsp_seq,    // ++ by service per injected frame
+   input  logic [31:0]           enet_rx_crbdp,      // service-maintained current RX desc
+   output logic [47:0]           enet_station,       // programmed station MAC (for RX filter)
+   output logic [7:0]            enet_rx_cmd,        // Seeq RX command (match mode)
+   output logic [31:0]           enet_dbg            // ENET shim debug viz (AXI PMU readback)
    );
 
    localparam int unsigned DEV_LAT = 2;   // device response latency (cycles)
@@ -207,8 +235,13 @@ module henry_soc
       .ip4(w_int3_ip4),
       .ip5(w_int3_ip5),
       .ip6(w_int3_ip6),
-      .single_step(1'b0),
-      .step(1'b0),
+      .single_step(single_step),
+      .step(step),
+      .bp_enable(bp_enable),
+      .fault_clear(fault_clear),
+      .bp_pc(bp_pc),
+      .bp_wp_addr(bp_wp_addr),
+      .bp_wp_val(bp_wp_val),
       .in_flush_mode(),
       .resume(resume),
       .resume_pc(resume_pc),
@@ -234,7 +267,7 @@ module henry_soc
       .l2_cache_accesses(), .l2_cache_hits(),
       .got_break(got_break), .got_ud(got_ud), .got_bad_addr(got_bad_addr),
       .core_state(core_state), .l1i_state(l1i_state), .l1d_state(l1d_state), .l2_state(l2_state), .l2_rsp_state(l2_rsp_state),
-      .inflight(inflight), .epc(epc), .status_reg(status_reg), .badvaddr(badvaddr), .cause(cause), .cause_ip(cause_ip),
+      .inflight(inflight), .epc(epc), .status_reg(status_reg), .badvaddr(badvaddr), .cause(cause), .cause_ip(cause_ip), .dbg_frozen(dbg_frozen), .dbg_wp_data(dbg_wp_data),
       .l1i_flush_done(), .l1d_flush_done(), .l2_flush_done(),
       .took_irq(took_irq), .cp0_count(cp0_count),
       .dbg_head_pc(dbg_head_pc), .dbg_head_status(dbg_head_status), .dbg_head_fetch_cycle(), .dbg_head_alloc_cycle(),
@@ -397,6 +430,35 @@ module henry_soc
    assign w_sdma_abort = 1'b0;
 `endif
 
+   // ---- ENET control shim (Seeq 8003 + HPC3 ENET DMA channels); host-served tap ----
+   // Shares the HPC3 window sel; its rdata ORs into the HPC3 mux (disjoint offsets).
+   // ENET RX/TX channel IRQ -> IOC2 local0 bit3 (ENET) -> IP2.
+`ifdef ENABLE_ENET_SHIM
+   wire [127:0] w_rd_enet;
+   wire         w_enet_intrq;
+   enet_shim u_enet
+     (.clk(clk), .reset(reset),
+      .sel(w_dev_accept & w_is_hpc3), .is_store(~w_is_load),
+      .offs(c_req_addr[18:0]), .mask(c_req_mask), .wdata(c_req_store_data),
+      .rdata(w_rd_enet),
+      .enet_tx_req_seq(enet_tx_req_seq), .enet_tx_nbdp(enet_tx_nbdp),
+      .enet_tx_rsp_seq(enet_tx_rsp_seq),
+      .enet_rx_arm_seq(enet_rx_arm_seq), .enet_rx_nbdp(enet_rx_nbdp),
+      .enet_rx_rsp_seq(enet_rx_rsp_seq), .enet_rx_crbdp(enet_rx_crbdp),
+      .enet_station(enet_station), .enet_rx_cmd(enet_rx_cmd),
+      .enet_intrq(w_enet_intrq), .dbg(enet_dbg));
+`else
+   wire [127:0] w_rd_enet     = 128'd0;
+   wire         w_enet_intrq  = 1'b0;
+   assign enet_dbg            = 32'd0;
+   assign enet_tx_req_seq     = 32'd0;
+   assign enet_tx_nbdp        = 32'd0;
+   assign enet_rx_arm_seq     = 32'd0;
+   assign enet_rx_nbdp        = 32'd0;
+   assign enet_station        = 48'd0;
+   assign enet_rx_cmd         = 8'd0;
+`endif
+
    // ---- SCSI DMA engine: the ordered DRAM agent that walks the descriptor chain
    //      and moves data; disk side streams 16B beats to the TB/ARM disk media. ----
 `ifdef ENABLE_SCSI_DMA
@@ -449,7 +511,7 @@ module henry_soc
       .sel(w_dev_accept & w_is_ioc), .is_store(~w_is_load),
       .offs(c_req_addr[7:0]), .mask(c_req_mask), .wdata(c_req_store_data),
       .rdata(w_rd_int3),
-      .local0_src({5'd0, w_scsi_intrq, 1'b0}), .local1_src(8'd0),  // local0[1] = SCSI0
+      .local0_src({3'd0, w_enet_intrq, 1'b0, w_scsi_intrq, 1'b0}), .local1_src(8'd0),  // local0[3]=ENET [1]=SCSI0
       .map_src({2'd0, w_scc_rx_avail | w_scc_tx_int, 5'd0}),  // bit5 = Serial DUART (SCC Rx|Tx)
       .buserr(3'd0),
       .timer0_irq(w_ioc_timer0), .timer1_irq(1'b0),
@@ -457,7 +519,7 @@ module henry_soc
       .ip5(w_int3_ip5), .ip6(w_int3_ip6));
 
    wire [127:0] w_rd_ioc = w_rd_iocdev | w_rd_int3;
-   wire [127:0] w_dev_sel_rdata = w_is_mc ? w_rd_mc : (w_is_ioc ? w_rd_ioc : (w_rd_hpc3 | w_rd_scsi));
+   wire [127:0] w_dev_sel_rdata = w_is_mc ? w_rd_mc : (w_is_ioc ? w_rd_ioc : (w_rd_hpc3 | w_rd_scsi | w_rd_enet));
 
    always_ff @(posedge clk) begin
       if(reset) begin
