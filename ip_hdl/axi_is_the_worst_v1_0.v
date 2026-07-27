@@ -500,6 +500,8 @@ module axi_is_the_worst_v1_0 #
 	   .bp_pc(w_bp_pc),
 	   .bp_wp_addr(w_bp_wp_addr),
 	   .bp_wp_val(w_bp_wp_val),
+	   .bp_fault_only(w_rvcontrol[19]),   // [19]=freeze only on a fault at bp_pc
+	   .l2_nocache(w_rvcontrol[20]),   // [20]=L2 no-cache (set before go)
 	   // SCC serial Rx driven by the ARM/PS via S00_AXI reg 0x3B (push) /
 	   // reg 0x3A bit8 (full). A pushed byte lands in the core's Rx FIFO and
 	   // raises the INT3 serial IRQ (IP2) inside henry_soc.

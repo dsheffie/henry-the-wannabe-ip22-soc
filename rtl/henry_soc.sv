@@ -59,6 +59,8 @@ module henry_soc
    input  logic [31:0]           bp_pc,         // driver-programmable breakpoint PC
    input  logic [31:0]           bp_wp_addr,    // driver-programmable store-address watchpoint VA
    input  logic [31:0]           bp_wp_val,     // expected corrupt store value (freeze-on)
+   input  logic                  bp_fault_only, // freeze ONLY on a fault at bp_pc (ctrl bit19)
+   input  logic                  l2_nocache,    // set-before-go: L2 behaves as no-cache (ctrl bit20)
 
    // SCC serial Rx: host/TB pushes a byte -> IOC2 SCC Rx FIFO -> INT3 serial IRQ (IP2)
    input  logic                  scc_rx_valid,
@@ -242,6 +244,8 @@ module henry_soc
       .bp_pc(bp_pc),
       .bp_wp_addr(bp_wp_addr),
       .bp_wp_val(bp_wp_val),
+      .bp_fault_only(bp_fault_only),
+      .l2_nocache(l2_nocache),
       .in_flush_mode(),
       .resume(resume),
       .resume_pc(resume_pc),
