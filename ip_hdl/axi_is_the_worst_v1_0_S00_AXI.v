@@ -1410,7 +1410,9 @@ module axi_is_the_worst_v1_0_S00_AXI #
 	  //              arm=ctrl bit21, wptr rd 0x1C, overflow rd 0x26 bit11, ring @0x18000000).
 	  // 0x20260728 = + poison RD_BAD reads with 0xA5A5A5A5 (M00_AXI) so out-of-range
 	  //              (wild-pointer) reads are visible in the value, not silent 0.
-	  6'h3F   : reg_data_out <= 32'h20260728;
+	  // 0x20260729 = deep trace now uses the bit-packed varint CODEC (dram_trace):
+	  //              ~0.3 B/rec (~5x), fits the 64MB ring, ~5x less DRAM slowdown.
+	  6'h3F   : reg_data_out <= 32'h20260729;
 	  default : reg_data_out <= 0;
 	endcase
      end

@@ -2221,36 +2221,45 @@ int main(int argc, char **argv) {
             g_rt.get_records().size(), g_rt_file, (unsigned long long)g_rt_ifail);
   }
   if(g_trace_val) {
-    // Read the ring back from g_mem[0x18000000] and compare to the expected records
-    // computed from the ground-truth retire stream.  Beat layout (dram_trace.sv):
-    //   t_beat = {rec1, rec0}; rec = {from[31:0], to[31:0]}  (from high, to low)
-    //   store word0=to0 word1=from0 word2=to1 word3=from1, each little-endian in g_mem.
+    // Decode the bit-packed varint control-flow stream from g_mem[0x18000000] and
+    // compare the reconstructed userspace PC stream to the ground-truth (dram_trace.sv
+    // codec: 32-bit seed, then per retire '1'=seq else '0'+LEB128(zigzag(delta)); bits
+    // LSB-first).  Circular ring but the co-sim run is short -> no wrap, linear from BASE.
     const uint32_t BASE = 0x18000000u;
     uint32_t wbytes = tb->trace_ring_wptr;
-    size_t   nbeats = wbytes / 16;
-    auto le32 = [&](uint32_t a)->uint32_t {
-      return (uint32_t)g_mem[a] | ((uint32_t)g_mem[a+1]<<8) | ((uint32_t)g_mem[a+2]<<16) | ((uint32_t)g_mem[a+3]<<24); };
-    struct Rec { uint32_t from, to; };
-    std::vector<Rec> ring, exp;
-    for(size_t b = 0; b < nbeats; b++) {
-      uint32_t p = BASE + (uint32_t)(b*16);
-      ring.push_back({ le32(p+4),  le32(p+0)  });   // rec0 {from0, to0}
-      ring.push_back({ le32(p+12), le32(p+8)  });   // rec1 {from1, to1}
+    size_t bitpos = 0, maxbits = (size_t)wbytes * 8;
+    auto getbit = [&](void)->int {
+      if(bitpos >= maxbits) return -1;
+      int b = (g_mem[BASE + (bitpos>>3)] >> (bitpos&7)) & 1; bitpos++; return b; };
+    auto getbits = [&](int nb)->uint32_t {
+      uint32_t v=0; for(int i=0;i<nb;i++){ int b=getbit(); if(b<0) break; v |= ((uint32_t)b)<<i; } return v; };
+    auto getleb = [&](void)->uint64_t {
+      uint64_t u=0; int sh=0; while(1){ uint32_t by=getbits(8); u |= (uint64_t)(by&0x7f)<<sh; sh+=7;
+        if(!(by&0x80) || sh>63 || bitpos>=maxbits) break; } return u; };
+    std::vector<uint32_t> dec;
+    if(wbytes >= 4 && !g_trace_ref.empty()) {
+      uint32_t pc = getbits(32); dec.push_back(pc);          // seed
+      while(dec.size() < g_trace_ref.size() && bitpos < maxbits) {
+        int s = getbit(); if(s < 0) break;
+        if(s) pc = pc + 4;
+        else { uint64_t zz = getleb();
+               int64_t d = (zz & 1) ? -(int64_t)((zz+1)>>1) : (int64_t)(zz>>1);
+               pc = (uint32_t)(pc + 4 + d); }
+        dec.push_back(pc);
+      }
     }
-    for(size_t i = 1; i < g_trace_ref.size(); i++)
-      if(g_trace_ref[i] != g_trace_ref[i-1] + 4) exp.push_back({ g_trace_ref[i-1], g_trace_ref[i] });
-    size_t n = (exp.size() < ring.size()) ? exp.size() : ring.size();
+    size_t n = (dec.size() < g_trace_ref.size()) ? dec.size() : g_trace_ref.size();
     size_t mism = 0; long first = -1;
-    for(size_t i = 0; i < n; i++)
-      if(exp[i].from != ring[i].from || exp[i].to != ring[i].to) { mism++; if(first < 0) first = (long)i; }
-    fprintf(stderr, "\n[TRACE-VAL] ref_pcs=%zu expected_recs=%zu ring_recs=%zu (wptr=%u B) overflow=%d\n",
-            g_trace_ref.size(), exp.size(), ring.size(), wbytes, (int)tb->trace_overflow);
-    fprintf(stderr, "[TRACE-VAL] compared %zu recs: %zu mismatches%s\n",
-            n, mism, (mism == 0 && n > 0) ? "   ===> PASS" : (n == 0 ? "  (no records captured)" : "   ===> FAIL"));
+    for(size_t i = 0; i < n; i++) if(dec[i] != g_trace_ref[i]) { mism++; if(first < 0) first = (long)i; }
+    fprintf(stderr, "\n[TRACE-VAL] ref_pcs=%zu decoded_pcs=%zu (wptr=%u B, %.3f B/rec) overflow=%d\n",
+            g_trace_ref.size(), dec.size(), wbytes,
+            g_trace_ref.empty()?0.0:(double)wbytes/g_trace_ref.size(), (int)tb->trace_overflow);
+    fprintf(stderr, "[TRACE-VAL] compared %zu pcs: %zu mismatches%s\n",
+            n, mism, (mism == 0 && n > 0) ? "   ===> PASS" : (n == 0 ? "  (nothing decoded)" : "   ===> FAIL"));
     if(mism && first >= 0)
       for(long i = (first > 2 ? first-2 : 0); i <= first+2 && i < (long)n; i++)
-        fprintf(stderr, "   [%ld] exp{%08x->%08x} ring{%08x->%08x}%s\n",
-                i, exp[i].from, exp[i].to, ring[i].from, ring[i].to, (i == first) ? "  <<< first mismatch" : "");
+        fprintf(stderr, "   [%ld] ref=%08x dec=%08x%s\n",
+                i, g_trace_ref[i], dec[i], (i == first) ? "  <<< first mismatch" : "");
   }
 
   delete tb;
