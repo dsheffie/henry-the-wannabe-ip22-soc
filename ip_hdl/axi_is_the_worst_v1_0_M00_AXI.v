@@ -550,7 +550,11 @@ module axi_is_the_worst_v1_0_M00_AXI #
 	  end
 	else if(r_state == RD_BAD)
 	  begin
-	     r_load_data <= 'd0;
+	     // POISON out-of-range reads (was 'd0) so a wild/corrupt-pointer read is
+	     // VISIBLE in the value, not indistinguishable from legit zero.  0xA5A5A5A5
+	     // is itself > addrmask, so it self-propagates through a wild pointer chain
+	     // (deref of an A5A5 ptr is another RD_BAD -> A5A5 again).
+	     r_load_data <= {16{8'hA5}};
 	  end
      end // always @ (posedge M_AXI_ACLK)
    

@@ -1408,7 +1408,9 @@ module axi_is_the_worst_v1_0_S00_AXI #
 	  //              0x39/0x3C/0x3D/0x3E reads, 0x12/0x13/0x14 writes).
 	  // 0x20260727 = + DRAM control-flow deep trace (dram_trace, arbiter N=3,
 	  //              arm=ctrl bit21, wptr rd 0x1C, overflow rd 0x26 bit11, ring @0x18000000).
-	  6'h3F   : reg_data_out <= 32'h20260727;
+	  // 0x20260728 = + poison RD_BAD reads with 0xA5A5A5A5 (M00_AXI) so out-of-range
+	  //              (wild-pointer) reads are visible in the value, not silent 0.
+	  6'h3F   : reg_data_out <= 32'h20260728;
 	  default : reg_data_out <= 0;
 	endcase
      end
