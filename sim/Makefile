@@ -34,6 +34,11 @@ VFLAGS = -cc --exe -O3 \
 ifdef BIG_L2
 VFLAGS += +define+BIG_SIM_L2
 endif
+# `make TRACE_ALL_PC=1` -> dram_trace captures ALL retires (kernel+user) so the codec
+# can be validated on boot code (env TRACE_VALIDATE=1) without booting to userspace.
+ifdef TRACE_ALL_PC
+VFLAGS += +define+TRACE_ALL_PC -CFLAGS -DTRACE_ALL_PC
+endif
 # `make UNCACHED=1` -> force ALL D-side data traffic uncached (coherence litmus test)
 ifdef UNCACHED
 VFLAGS += +define+FORCE_UNCACHED
@@ -51,7 +56,7 @@ endif
 #     the sub-make's -MMD deps then recompile exactly the changed .o and relink.
 #     (Previously those files were not prerequisites, so `make` silently ran a stale
 #     binary -- a core .cc/.hh edit never landed without a `make clean`.)
-obj_dir/.verilated: $(RTL)/henry_soc.sv $(RTL)/mc.sv $(RTL)/hpc3.sv $(RTL)/ioc.sv $(RTL)/int3.sv $(RTL)/scsi_shim.sv $(RTL)/enet_shim.sv $(wildcard $(R9999)/*.sv $(R9999)/*.vh) Makefile
+obj_dir/.verilated: $(RTL)/henry_soc.sv $(RTL)/mc.sv $(RTL)/hpc3.sv $(RTL)/ioc.sv $(RTL)/int3.sv $(RTL)/scsi_shim.sv $(RTL)/enet_shim.sv $(RTL)/dram_trace.sv $(RTL)/mem_arbiter.sv $(wildcard $(R9999)/*.sv $(R9999)/*.vh) Makefile
 	# Pass the golden-ISS .cc to Verilator's --exe so it compiles them (RTL-agnostic)
 	# alongside henry_tb.cpp into obj_dir/*.o.
 	$(VERILATOR) $(VFLAGS) $(RTL)/henry_soc.sv henry_tb.cpp $(INTERP_CC)

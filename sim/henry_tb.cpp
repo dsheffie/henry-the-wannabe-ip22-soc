@@ -54,6 +54,12 @@ static bool        g_checker  = false;     // --checker enables the lockstep com
 // independent of any checker alignment.  Needs --checker (ss populated).
 static retire_trace g_rt;
 static uint8_t     *g_mem = nullptr;         // RTL DRAM (PA-indexed, big-endian); mmap'd in main
+
+// ---- DRAM control-flow trace validation (env TRACE_VALIDATE=1): arm dram_trace,
+//      record the ground-truth retire-PC stream (filter matches dram_trace.sv), then
+//      read the ring back from g_mem[0x18000000] at end-of-run and compare records. ----
+static const bool             g_trace_val = getenv("TRACE_VALIDATE") != nullptr;
+static std::vector<uint32_t>  g_trace_ref;   // captured retire PCs in program order
 static const char  *g_rt_file = nullptr;
 static uint64_t     g_rt_lo = 0, g_rt_hi = 0, g_rt_ifail = 0, g_rt_cap = 0;
 static bool         g_rt_useronly = false;   // RETIRETRACE_USERONLY: only pc<0x80000000 (o32 code)
@@ -1400,6 +1406,7 @@ int main(int argc, char **argv) {
   const uint64_t NO_RETIRE_LIMIT = getenv("NO_RETIRE_LIMIT") ? strtoull(getenv("NO_RETIRE_LIMIT"), nullptr, 0) : 65536;
   uint64_t retired = 0, last_pc = 0, last_retire_cyc = 0;
   bool deadlock = false;
+  if(g_trace_val) tb->trace_arm = 1;   // arm the DRAM control-flow deep trace for validation
   uint64_t prev_epc = 0; int exc_prints = 0; uint32_t prev_sr = 0; uint64_t prev_badv = 0;
 
   // Loop mirrors r9999 top.cc phase ordering: posedge eval FIRST (core samples
@@ -1438,6 +1445,18 @@ int main(int argc, char **argv) {
     if(drain) { putchar(drain_ch); mon_console_out(drain_ch); }
 
     if(tb->retire_valid) { retired++; last_pc = tb->retire_pc; last_retire_cyc = cyc; g_cur_retire_pc = tb->retire_pc; }
+
+    // trace validation: mirror dram_trace.sv's per-retire capture (head then next-head,
+    // program order) into the ground-truth reference stream.
+    if(g_trace_val && g_trace_ref.size() < 2000000u) {
+#ifdef TRACE_ALL_PC
+      if(tb->retire_valid)     g_trace_ref.push_back((uint32_t)tb->retire_pc);
+      if(tb->retire_two_valid) g_trace_ref.push_back((uint32_t)tb->retire_two_pc);
+#else
+      if(tb->retire_valid     && (tb->retire_pc     >> 31) == 0) g_trace_ref.push_back((uint32_t)tb->retire_pc);
+      if(tb->retire_two_valid && (tb->retire_two_pc >> 31) == 0) g_trace_ref.push_back((uint32_t)tb->retire_two_pc);
+#endif
+    }
     else if(NO_RETIRE_LIMIT && (cyc - last_retire_cyc) > NO_RETIRE_LIMIT) {
       fprintf(stderr, "[tb] NO-RETIRE WATCHDOG: %llu cycles with no retirement "
               "(cyc=%llu retired=%llu last_pc=0x%llx head_pc=0x%08x head_status=0x%02x). WEDGED.\n",
@@ -2201,6 +2220,39 @@ int main(int argc, char **argv) {
     fprintf(stderr, "[retiretrace] wrote %zu records to %s (%llu inst-fetch fails)\n",
             g_rt.get_records().size(), g_rt_file, (unsigned long long)g_rt_ifail);
   }
+  if(g_trace_val) {
+    // Read the ring back from g_mem[0x18000000] and compare to the expected records
+    // computed from the ground-truth retire stream.  Beat layout (dram_trace.sv):
+    //   t_beat = {rec1, rec0}; rec = {from[31:0], to[31:0]}  (from high, to low)
+    //   store word0=to0 word1=from0 word2=to1 word3=from1, each little-endian in g_mem.
+    const uint32_t BASE = 0x18000000u;
+    uint32_t wbytes = tb->trace_ring_wptr;
+    size_t   nbeats = wbytes / 16;
+    auto le32 = [&](uint32_t a)->uint32_t {
+      return (uint32_t)g_mem[a] | ((uint32_t)g_mem[a+1]<<8) | ((uint32_t)g_mem[a+2]<<16) | ((uint32_t)g_mem[a+3]<<24); };
+    struct Rec { uint32_t from, to; };
+    std::vector<Rec> ring, exp;
+    for(size_t b = 0; b < nbeats; b++) {
+      uint32_t p = BASE + (uint32_t)(b*16);
+      ring.push_back({ le32(p+4),  le32(p+0)  });   // rec0 {from0, to0}
+      ring.push_back({ le32(p+12), le32(p+8)  });   // rec1 {from1, to1}
+    }
+    for(size_t i = 1; i < g_trace_ref.size(); i++)
+      if(g_trace_ref[i] != g_trace_ref[i-1] + 4) exp.push_back({ g_trace_ref[i-1], g_trace_ref[i] });
+    size_t n = (exp.size() < ring.size()) ? exp.size() : ring.size();
+    size_t mism = 0; long first = -1;
+    for(size_t i = 0; i < n; i++)
+      if(exp[i].from != ring[i].from || exp[i].to != ring[i].to) { mism++; if(first < 0) first = (long)i; }
+    fprintf(stderr, "\n[TRACE-VAL] ref_pcs=%zu expected_recs=%zu ring_recs=%zu (wptr=%u B) overflow=%d\n",
+            g_trace_ref.size(), exp.size(), ring.size(), wbytes, (int)tb->trace_overflow);
+    fprintf(stderr, "[TRACE-VAL] compared %zu recs: %zu mismatches%s\n",
+            n, mism, (mism == 0 && n > 0) ? "   ===> PASS" : (n == 0 ? "  (no records captured)" : "   ===> FAIL"));
+    if(mism && first >= 0)
+      for(long i = (first > 2 ? first-2 : 0); i <= first+2 && i < (long)n; i++)
+        fprintf(stderr, "   [%ld] exp{%08x->%08x} ring{%08x->%08x}%s\n",
+                i, exp[i].from, exp[i].to, ring[i].from, ring[i].to, (i == first) ? "  <<< first mismatch" : "");
+  }
+
   delete tb;
   return 0;
 }

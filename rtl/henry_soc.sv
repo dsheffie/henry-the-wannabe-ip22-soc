@@ -61,6 +61,7 @@ module henry_soc
    input  logic [31:0]           bp_wp_val,     // expected corrupt store value (freeze-on)
    input  logic                  bp_fault_only, // freeze ONLY on a fault at bp_pc (ctrl bit19)
    input  logic                  l2_nocache,    // set-before-go: L2 behaves as no-cache (ctrl bit20)
+   input  logic                  trace_arm,     // arm the DRAM control-flow deep trace (ctrl bit21)
 
    // SCC serial Rx: host/TB pushes a byte -> IOC2 SCC Rx FIFO -> INT3 serial IRQ (IP2)
    input  logic                  scc_rx_valid,
@@ -125,6 +126,8 @@ module henry_soc
    input  logic [11:0]           dbg_trace_index,
    output logic [31:0]           dbg_trace_data,
    output logic [8:0]            dbg_trace_wptr,
+   output logic [31:0]           trace_ring_wptr,   // DRAM deep-trace: bytes written since arm
+   output logic                  trace_overflow,    // DRAM deep-trace: a record was dropped (sticky)
    // ---- SCSI shim mailbox (scsi_shim.sv): request out / completion in ----
    // FPGA: map to AXI-lite slv_regs; sim: henry_tb reads req_* / drives rsp_*.
    // (Tied off unless `ENABLE_SCSI_SHIM.)
@@ -334,18 +337,42 @@ module henry_soc
                           ? {c_req_addr[`PA_WIDTH-1:28], 1'b1, c_req_addr[26:0]}
                           : c_req_addr;
 
-   // Parameterized weighted round-robin arbiter: master 0 = CPU, 1 = DMA.
-   // SLOT_MAP 4'b1000 = 4 slots, CPU owns slots 0..2, DMA owns slot 3 -> CPU:DMA
-   // = 3:1, DMA guaranteed a turn within 4 rounds.  Add masters / retune by the
-   // parameters (see mem_arbiter.sv).
-   wire [1:0] w_arb_rsp_valid;
-   mem_arbiter #(.N(2), .NSLOT(4), .LG_N(1), .SLOT_MAP(4'b1000)) u_arb
+   // ---- DRAM control-flow deep trace (master 2): streams a compressed userspace
+   // control-flow trace to the IP22 "Reserved / Future GIO Space" region, which
+   // sgi_mode passes through IDENTITY to free DRAM (0x18000000..0x1EFFFFFF, all
+   // <= addrmask).  Ring = 64 MB at 0x18000000; the ARM reads it at c_addr[base].
+   localparam [`PA_WIDTH-1:0] TRACE_BASE = `PA_WIDTH'(36'h018000000);
+   localparam [`PA_WIDTH-1:0] TRACE_MASK = `PA_WIDTH'(36'h003ffffff);   // 64 MB - 1 (circular)
+   wire                 w_trace_req_valid;
+   wire [`PA_WIDTH-1:0] w_trace_req_addr;
+   wire [127:0]         w_trace_req_store_data;
+   wire [4:0]           w_trace_req_opcode;
+   wire [15:0]          w_trace_req_mask;
+
+   dram_trace u_trace
      (.clk(clk), .reset(reset),
-      .m_req_valid     ({w_m1_req_valid,      w_cpu_dram_req}),
-      .m_req_addr      ({w_m1_req_addr,       w_cpu_req_addr}),
-      .m_req_store_data({w_m1_req_store_data, c_req_store_data}),
-      .m_req_opcode    ({w_m1_req_opcode,     c_req_opcode}),
-      .m_req_mask      ({w_m1_req_mask,       c_req_mask}),
+      .arm(trace_arm),
+      .ring_base(TRACE_BASE), .ring_mask(TRACE_MASK),
+      .retire0_valid(retire_valid),     .retire0_pc(retire_pc),
+      .retire1_valid(retire_two_valid), .retire1_pc(retire_two_pc),
+      .trace_req_valid(w_trace_req_valid),           .trace_req_addr(w_trace_req_addr),
+      .trace_req_store_data(w_trace_req_store_data), .trace_req_opcode(w_trace_req_opcode),
+      .trace_req_mask(w_trace_req_mask),
+      .trace_rsp_valid(w_arb_rsp_valid[2]),          .trace_rsp_bad(mem_rsp_bad),
+      .trace_ring_wptr(trace_ring_wptr), .trace_overflow(trace_overflow));
+
+   // Parameterized weighted round-robin arbiter: master 0 = CPU, 1 = DMA, 2 = trace.
+   // NSLOT=8, SLOT_MAP gives CPU slots 0..5, DMA slot 6, trace slot 7 -> CPU:DMA:trace
+   // = 6:1:1.  Trace is low-weight (its FIFO absorbs bursts) so it cannot starve CPU
+   // line fills.  Add masters / retune by the parameters (see mem_arbiter.sv).
+   wire [2:0] w_arb_rsp_valid;
+   mem_arbiter #(.N(3), .NSLOT(8), .LG_N(2), .SLOT_MAP(16'b10_01_00_00_00_00_00_00)) u_arb
+     (.clk(clk), .reset(reset),
+      .m_req_valid     ({w_trace_req_valid,      w_m1_req_valid,      w_cpu_dram_req}),
+      .m_req_addr      ({w_trace_req_addr,       w_m1_req_addr,       w_cpu_req_addr}),
+      .m_req_store_data({w_trace_req_store_data, w_m1_req_store_data, c_req_store_data}),
+      .m_req_opcode    ({w_trace_req_opcode,     w_m1_req_opcode,     c_req_opcode}),
+      .m_req_mask      ({w_trace_req_mask,       w_m1_req_mask,       c_req_mask}),
       .m_rsp_valid     (w_arb_rsp_valid),
       .m_rsp_load_data (),                // CPU/DMA read mem_rsp_load_data directly
       .m_rsp_bad       (),

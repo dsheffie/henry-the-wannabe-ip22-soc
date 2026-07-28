@@ -49,6 +49,8 @@ module axi_is_the_worst_v1_0_S00_AXI #
     input wire [31:0]                         status_reg,
     input wire [31:0]                         dbg_trace_data,
     input wire [8:0]                          dbg_trace_wptr,
+    input wire [31:0]                         trace_ring_wptr,   // DRAM deep-trace: bytes written since arm
+    input wire                                trace_overflow,    // DRAM deep-trace: a record was dropped (sticky)
     output wire [11:0]                        dbg_trace_index,
     input wire [31:0]                         dbg_head_pc,
     input wire [31:0]                         dbg_head_status,
@@ -1355,7 +1357,7 @@ module axi_is_the_worst_v1_0_S00_AXI #
 	  6'h19   : reg_data_out <= {23'd0, dbg_trace_wptr};
 	  6'h1A   : reg_data_out <= dbg_head_pc;      // ROB head PC (was slv_reg26 scratch)
 	  6'h1B   : reg_data_out <= dbg_head_status;  // ROB head status bits (was slv_reg27 scratch)
-	  6'h1C   : reg_data_out <= slv_reg28;
+	  6'h1C   : reg_data_out <= trace_ring_wptr;   // DRAM deep-trace bytes written (was slv_reg28 scratch)
 	  6'h1D   : reg_data_out <= slv_reg29;
 	  6'h1E   : reg_data_out <= slv_reg30;
 	  6'h1F   : reg_data_out <= slv_reg31;
@@ -1365,7 +1367,7 @@ module axi_is_the_worst_v1_0_S00_AXI #
 	  6'h23   : reg_data_out <= slv_reg35;
 	  6'h24   : reg_data_out <= slv_reg36;
 	  6'h25   : reg_data_out <= {31'd0, scsi_beat_full};   // SCSI beat FIFO full (flow control)
-	  6'h26   : reg_data_out <= {21'd0, dbg_frozen, l2_flush_done, l1i_flush_done, l1d_flush_done, cause};
+	  6'h26   : reg_data_out <= {20'd0, trace_overflow, dbg_frozen, l2_flush_done, l1i_flush_done, l1d_flush_done, cause};  // bit11=deep-trace overflow
 	  6'h27   : reg_data_out <= dbg_wp_data;  /* was r_last_retire; overloaded for store-value capture */
 	  6'h28   : reg_data_out <= r_insn_cnt[31:0];
 	  6'h29   : reg_data_out <= r_insn_cnt[63:32];
@@ -1404,7 +1406,9 @@ module axi_is_the_worst_v1_0_S00_AXI #
 	  // HD0-window decode fix (Linux scsi0_ext @ 0x44000 now reaches the shim).
 	  // 0x20260721 = + ENET mailbox (Seeq/HPC3 ethernet; enet_shim + AXI regs
 	  //              0x39/0x3C/0x3D/0x3E reads, 0x12/0x13/0x14 writes).
-	  6'h3F   : reg_data_out <= 32'h20260721;
+	  // 0x20260727 = + DRAM control-flow deep trace (dram_trace, arbiter N=3,
+	  //              arm=ctrl bit21, wptr rd 0x1C, overflow rd 0x26 bit11, ring @0x18000000).
+	  6'h3F   : reg_data_out <= 32'h20260727;
 	  default : reg_data_out <= 0;
 	endcase
      end

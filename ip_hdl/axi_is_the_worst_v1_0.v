@@ -132,6 +132,8 @@ module axi_is_the_worst_v1_0 #
    wire [63:0]					w_dbg_head_pc;
    wire [31:0]					w_dbg_head_status;
    wire [8:0]					w_trace_wptr;
+   wire [31:0]					w_trace_ring_wptr;   // DRAM deep-trace: bytes written since arm
+   wire						w_trace_overflow;    // DRAM deep-trace: a record was dropped
    wire						w_l1i_flush_done, w_l1d_flush_done, w_l2_flush_done;
    
    
@@ -290,6 +292,8 @@ module axi_is_the_worst_v1_0 #
 				       .dbg_trace_data(w_trace_data),
 				       .dbg_trace_wptr(w_trace_wptr),
 				       .dbg_trace_index(w_trace_index),
+				       .trace_ring_wptr(w_trace_ring_wptr),
+				       .trace_overflow(w_trace_overflow),
 				       .dbg_head_pc(w_dbg_head_pc[31:0]),
 				       .dbg_head_status(w_dbg_head_status),
 				       .l1i_flush_done(w_l1i_flush_done),
@@ -502,6 +506,9 @@ module axi_is_the_worst_v1_0 #
 	   .bp_wp_val(w_bp_wp_val),
 	   .bp_fault_only(w_rvcontrol[19]),   // [19]=freeze only on a fault at bp_pc
 	   .l2_nocache(w_rvcontrol[20]),   // [20]=L2 no-cache (set before go)
+	   .trace_arm(w_rvcontrol[21]),    // [21]=arm the DRAM control-flow deep trace
+	   .trace_ring_wptr(w_trace_ring_wptr),
+	   .trace_overflow(w_trace_overflow),
 	   // SCC serial Rx driven by the ARM/PS via S00_AXI reg 0x3B (push) /
 	   // reg 0x3A bit8 (full). A pushed byte lands in the core's Rx FIFO and
 	   // raises the INT3 serial IRQ (IP2) inside henry_soc.
