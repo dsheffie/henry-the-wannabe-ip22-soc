@@ -27,7 +27,7 @@ module dram_trace
    input  logic                     reset,
    input  logic                     arm,
    input  logic [`PA_WIDTH-1:0]     ring_base,
-   input  logic [`PA_WIDTH-1:0]     ring_mask,
+   input  logic [`PA_WIDTH-1:0]     ring_size,   // ring byte size (compare wrap; may be non-2^k)
 
    input  logic                     retire0_valid,
    input  logic [63:0]              retire0_pc,
@@ -123,7 +123,15 @@ module dram_trace
           end
      end // always_comb
 
-   // ================= bit accumulator -> 128-bit beats =================
+   // ================= PIPELINE stage 1: register the encoded append =================
+   // The encode (subtract/zigzag/LEB priority-encode) and the pack (128-way barrel
+   // shift + merge) are the two deep combinational paths; a flop between them opens WNS.
+   logic [95:0]  r_p_append;
+   logic [7:0]   r_p_applen;
+   wire  [95:0]  n_p_append = w_append;
+   wire  [7:0]   n_p_applen = w_applen;
+
+   // ================= PIPELINE stage 2: pack registered bits -> 128-bit beats =======
    logic [255:0] r_acc, n_acc;
    logic [8:0]   r_nbits, n_nbits;
    logic         t_beat_we;
@@ -134,8 +142,8 @@ module dram_trace
         // append new bits at position r_nbits (r_nbits < 128 after any flush)
         logic [255:0] merged;
         logic [8:0]   total;
-        merged    = r_acc | ({160'd0, w_append} << r_nbits);
-        total     = r_nbits + {1'b0, w_applen};
+        merged    = r_acc | ({160'd0, r_p_append} << r_nbits);
+        total     = r_nbits + {1'b0, r_p_applen};
         t_beat_we = (total >= 9'd128);
         t_beat    = merged[127:0];
         if(t_beat_we)
@@ -190,7 +198,7 @@ module dram_trace
           begin
              n_req   = 1'b0;
              n_rd    = r_rd + 1'b1;
-             n_woff  = (r_woff + `PA_WIDTH'd16) & ring_mask;
+             n_woff  = ((r_woff + `PA_WIDTH'd16) >= ring_size) ? `PA_WIDTH'd0 : (r_woff + `PA_WIDTH'd16);
              n_bytes = r_bytes + 32'd16;
           end
      end // always_comb
@@ -201,6 +209,8 @@ module dram_trace
           begin
              r_last_pc <= 32'd0;
              r_seeded  <= 1'b0;
+             r_p_append<= 96'd0;
+             r_p_applen<= 8'd0;
              r_acc     <= 256'd0;
              r_nbits   <= 9'd0;
              r_wr      <= '0;
@@ -214,6 +224,8 @@ module dram_trace
           begin
              r_last_pc <= n_last_pc;
              r_seeded  <= n_seeded;
+             r_p_append<= n_p_append;
+             r_p_applen<= n_p_applen;
              r_acc     <= n_acc;
              r_nbits   <= n_nbits;
              r_wr      <= n_wr;

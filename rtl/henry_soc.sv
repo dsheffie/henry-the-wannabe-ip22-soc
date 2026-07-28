@@ -342,7 +342,10 @@ module henry_soc
    // sgi_mode passes through IDENTITY to free DRAM (0x18000000..0x1EFFFFFF, all
    // <= addrmask).  Ring = 64 MB at 0x18000000; the ARM reads it at c_addr[base].
    localparam [`PA_WIDTH-1:0] TRACE_BASE = `PA_WIDTH'(36'h018000000);
-   localparam [`PA_WIDTH-1:0] TRACE_MASK = `PA_WIDTH'(36'h003ffffff);   // 64 MB - 1 (circular)
+   // 112 MB = the whole IP22 GIO-reserved free region 0x18000000..0x1EFFFFFF (<= addrmask).
+   // Non-2^k so dram_trace wraps via compare; big enough that be's crash (during
+   // reconfigure, ~96MB of trace) fits with no wrap -> ring stays linearly decodable.
+   localparam [`PA_WIDTH-1:0] TRACE_SIZE = `PA_WIDTH'(36'h007000000);   // 112 MB (circular)
    wire                 w_trace_req_valid;
    wire [`PA_WIDTH-1:0] w_trace_req_addr;
    wire [127:0]         w_trace_req_store_data;
@@ -352,7 +355,7 @@ module henry_soc
    dram_trace u_trace
      (.clk(clk), .reset(reset),
       .arm(trace_arm),
-      .ring_base(TRACE_BASE), .ring_mask(TRACE_MASK),
+      .ring_base(TRACE_BASE), .ring_size(TRACE_SIZE),
       .retire0_valid(retire_valid),     .retire0_pc(retire_pc),
       .retire1_valid(retire_two_valid), .retire1_pc(retire_two_pc),
       .trace_req_valid(w_trace_req_valid),           .trace_req_addr(w_trace_req_addr),

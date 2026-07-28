@@ -1412,7 +1412,9 @@ module axi_is_the_worst_v1_0_S00_AXI #
 	  //              (wild-pointer) reads are visible in the value, not silent 0.
 	  // 0x20260729 = deep trace now uses the bit-packed varint CODEC (dram_trace):
 	  //              ~0.3 B/rec (~5x), fits the 64MB ring, ~5x less DRAM slowdown.
-	  6'h3F   : reg_data_out <= 32'h20260729;
+	  // 0x2026072a = codec packer PIPELINED (2-stage, WNS margin) + ring 64MB->112MB
+	  //              (whole GIO region, compare wrap) so be's crash-time trace fits, no wrap.
+	  6'h3F   : reg_data_out <= 32'h2026072a;
 	  default : reg_data_out <= 0;
 	endcase
      end
