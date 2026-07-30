@@ -53,7 +53,7 @@ echo "[gen_mipscore] $(ls "$BUILD"/*.sv | wc -l) .sv + $(ls "$BUILD"/*.vh 2>/dev
 # and turned ON here for henry's active bug-hunt builds).  Override via the env:
 #   SV2V_DEFINES= ./gen_mipscore.sh      # production: watchpoint OFF, ports tie to 0
 #   SV2V_DEFINES="ENABLE_DEBUG_WATCHPOINT FOO" ./gen_mipscore.sh   # add more
-: "${SV2V_DEFINES:=ENABLE_DEBUG_WATCHPOINT}"
+: "${SV2V_DEFINES=ENABLE_DEBUG_WATCHPOINT}"
 export SV2V_DEFINES
 echo "[gen_mipscore] sv2v extra defines: ${SV2V_DEFINES:-<none>}"
 ( cd "$BUILD" && python3 convert_sv_to_v.py )
