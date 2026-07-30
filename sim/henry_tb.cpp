@@ -22,6 +22,7 @@
 #include <algorithm>
 #include <sys/mman.h>
 #include "scsi_service.h"   // host-side SCSI disk service (henry_scsi.h contract)
+#include "enet_service.h"   // host-side ethernet tap service (enet_shim.sv contract)
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -222,6 +223,14 @@ static uint8_t *scsi_mem(void * /*ctx*/, uint32_t phys, uint32_t len) {
   if(bad || (uint64_t)off + len > MEM_SIZE) return nullptr;
   return g_mem + off;
 }
+
+// ENET tap service (enet_shim.sv contract): TX doorbell (enet_tx_req_seq) -> assemble
+// the frame from the {BP,BC,DP} chain -> tap; RX free-run -> poll tap -> inject into the
+// guest RX ring.  Reuses scsi_mem (same FPGA address map as the descriptor walk).
+static enet_tap g_enet_tap;
+static uint32_t g_last_enet_tx_req_seq = 0, g_last_enet_rx_arm_seq = 0;
+static uint32_t g_enet_rx_nbdp = 0;          // service's current RX ring position
+static uint32_t g_enet_rx_rsp_seq = 0, g_enet_rx_crbdp = 0;
 
 // ---- core instrumentation/co-sim DPI hooks: stubbed (RTL-only run) ----
 // Declared extern "C" via Vhenry_soc__Dpi.h above, so these definitions get C
@@ -898,6 +907,7 @@ int main(int argc, char **argv) {
     else if(a == "--trace" && i+1 < argc)  trace_file = argv[++i];
     else if(a == "--rx" && i+1 < argc)     rx_str = argv[++i];
     else if(a == "--disk" && i+1 < argc)   g_scsi_disk.open_image(argv[++i]);
+    else if(a == "--enet-tap" && i+1 < argc) g_enet_tap.open_tap(argv[++i]);
     else if(a == "--checkpoint" && i+1 < argc) ckpt_file = argv[++i];
     else if(a == "--cimg" && i+1 < argc)   cimg_file = argv[++i];
     else if(a == "--verify-ckpt" && i+1 < argc) g_verify_path = argv[++i];
@@ -1373,6 +1383,39 @@ int main(int argc, char **argv) {
       tb->scsi_rsp_tgt_status  = g_pending_rsp.tgt_status;
       tb->scsi_rsp_seq         = g_pending_rsp.seq;
     };
+    // ---- ENET tap service (enet_shim.sv contract) --------------------------------
+    if(g_enet_tap.ok()) {
+      // TX doorbell: assemble the frame from the descriptor chain and write the tap.
+      if(tb->enet_tx_req_seq != g_last_enet_tx_req_seq) {
+        g_last_enet_tx_req_seq = tb->enet_tx_req_seq;
+        enet_tx_run(scsi_mem, nullptr, tb->enet_tx_nbdp, g_enet_tap.fd);
+        tb->enet_tx_rsp_seq = tb->enet_tx_req_seq;    // echo -> shim clears ACTIVE + TX IRQ
+      }
+      // RX arm: (re)capture the ring head the driver just armed.
+      if(tb->enet_rx_arm_seq != g_last_enet_rx_arm_seq) {
+        g_last_enet_rx_arm_seq = tb->enet_rx_arm_seq;
+        g_enet_rx_nbdp = tb->enet_rx_nbdp;
+      }
+      // RX free-run: drain the tap (throttled), inject each frame into the ring.
+      if((cyc & 0x3ff) == 0 && g_enet_rx_nbdp) {
+        uint8_t fr[ENET_FRAME_MAX];
+        for(int k = 0; k < 8; k++) {
+          ssize_t n = ::read(g_enet_tap.fd, fr, sizeof(fr));
+          if(n < 14) break;
+          uint8_t sta[6];
+          for(int j = 0; j < 6; j++) sta[j] = (uint8_t)(tb->enet_station >> (8*(5-j)));
+          if(!enet_addr_filter((uint8_t)tb->enet_rx_cmd, sta, fr, (uint32_t)n)) continue;
+          uint32_t crbdp = g_enet_rx_crbdp;
+          if(enet_rx_inject(scsi_mem, nullptr, g_enet_rx_nbdp, fr, (uint32_t)n, crbdp)) {
+            g_enet_rx_crbdp = crbdp;
+            g_enet_rx_rsp_seq++;                       // -> shim raises RX IRQ
+          }
+        }
+      }
+    }
+    tb->enet_rx_rsp_seq = g_enet_rx_rsp_seq;
+    tb->enet_rx_crbdp   = g_enet_rx_crbdp;
+
     tb->scsi_beat_push = 0;
     if(g_scsi_disk.ok() && tb->scsi_req_seq != g_last_scsi_req_seq) {
       g_last_scsi_req_seq = tb->scsi_req_seq;

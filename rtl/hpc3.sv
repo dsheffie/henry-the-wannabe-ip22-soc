@@ -46,6 +46,30 @@ module hpc3
    logic [31:0] r_pbus_dma [0:7];   // 0x5c000 block: 8 PBUS DMA channels (stride 0x200)
    logic [31:0] r_pbus_pio [0:15];  // 0x5d000 block: PBUS PIO channels (stride 0x100)
    logic [31:0] r_scsi_dmacfg, r_scsi_piocfg;  // 0x11010 / 0x11014 SCSI0 channel cfg
+   logic [47:0] r_enet_eaddr;       // ds1386 bbRAM station MAC @0x604e8..0x604fc; FSBL-programmed
+
+   // NMC93CS56 serial EEPROM @ reg 0x30008 (hpc3c0->eeprom). IRIX if_ec (get_nvreg,
+   // ml/IP22.c) reads the station MAC from it via a bit-banged Microwire protocol:
+   //   0x01 EPROT  0x02 CSEL  0x04 ECLK  0x08 DATO(->EE)  0x10 DATI(<-EE)
+   // READ = start(1)+opcode(10)+8b addr clocked in on ECLK rising (11 bits, MSB first),
+   // then 16 data bits clocked out on DATI (MSB first). (Guiness bbRAM path unused here;
+   // this IRIX takes the FullHouse/serial branch.)  See linux ip22-nvram.c.
+   logic        r_ee_eprot, r_ee_csel, r_ee_eclk, r_ee_dato, r_ee_dati;
+   logic [4:0]  r_ee_bitcnt;        // 0..10 command bits, 11..26 data bits
+   logic [10:0] r_ee_shin;          // command shift register (start+opcode+addr)
+   logic [15:0] r_ee_shout;         // data word being clocked out, MSB first
+   // EEPROM contents: MAC 08:00:69:12:34:56 at words 125/126/127 (if_ec reads these,
+   // storing v0>>8 then v0 as consecutive MAC bytes).
+   function automatic logic [15:0] ee_word(input logic [7:0] a);
+      begin
+         case(a)
+           8'd125:  ee_word = 16'h0800;   // MAC bytes 0,1
+           8'd126:  ee_word = 16'h6912;   // MAC bytes 2,3
+           8'd127:  ee_word = 16'h3456;   // MAC bytes 4,5
+           default: ee_word = 16'h0000;
+         endcase
+      end
+   endfunction
 
    // ds1386 RTC / battery-backed clock @0x60000 (byte-per-word x4: internal reg i
    // at offset 0x60000 + i*4, value in the low byte = [31:24] after the BE swap,
@@ -65,6 +89,10 @@ module hpc3
          else case(o)
            19'h30000: x = r_intstat;
            19'h30004: x = r_misc;
+           // NMC93CS56 eeprom register: IRIX readl()s it and tests bit4 (DATI). The
+           // core bswaps device word loads, so the 5 control bits sit in byte3 [28:24]
+           // -> post-bswap they land in the CPU word's [4:0] {EPROT,CSEL,ECLK,DATO,DATI}.
+           19'h30008: x = {3'b0, r_ee_dati, r_ee_dato, r_ee_eclk, r_ee_csel, r_ee_eprot, 24'd0};
            19'h1000c: x = w_dma_status; // mem-to-mem DMA status: bit0=BUSY bit1=DONE
            19'h60004: x = 32'h00000000; // ds1386 seconds      (BCD 00)
            19'h60008: x = 32'h00000000; // ds1386 minutes      (BCD 00)
@@ -74,6 +102,24 @@ module hpc3
            19'h60024: x = 32'h01000000; // ds1386 month        (January)
            19'h60028: x = 32'h90000000; // ds1386 year (BCD 90). IRIX rtodc() decodes year=1940+bcd (bcd<45 adds 30): bcd 90>=45 -> 2030. 2030 is AFTER the ~2026-06 /var/sysgen mtimes, so IRIX reconfigures ONCE then skips it every later boot.
            19'h6002c: x = 32'h00000000; // ds1386 command/status (not busy)
+           // IP22 station ethernet MAC in the ds1386 bbRAM (ip22_nvram_read
+           // EADDR_NVOFS=250; bbram base 0x60100 so reg 250 -> 0x604e8). The
+           // henry_arcs FSBL programs r_enet_eaddr at boot (from its eaddr_str),
+           // so IRIX if_ec reads a valid MAC (all-zero fails is_valid_ether_addr).
+           // Byte-per-word, byte in [31:24]; matches interp_mips sgi_hpc.cc reads.
+           // IP22 station MAC in the ds1386 bbRAM. IRIX get_nvreg (Guiness/Indy path)
+           // reads these as a 32-bit word (lw @ 0xbfbe0000 + reg*8 + 0x100) then `& 0xff`.
+           // The core byte-swaps device word loads, so the byte sits in hpc_rd[31:24]
+           // -> post-bswap it's the CPU word's low byte [7:0] that `& 0xff` selects.
+           // HARDCODED constant (not the FSBL-programmed r_enet_eaddr): the kernel
+           // writes/clears the bbRAM region during boot, which was zeroing the reg
+           // before IRIX's much-later MAC read.  MAC = 08:00:69:12:34:56.
+           19'h604e8: x = 32'h08000000; // MAC byte 0
+           19'h604ec: x = 32'h00000000; // MAC byte 1
+           19'h604f0: x = 32'h69000000; // MAC byte 2
+           19'h604f4: x = 32'h12000000; // MAC byte 3
+           19'h604f8: x = 32'h34000000; // MAC byte 4
+           19'h604fc: x = 32'h56000000; // MAC byte 5
            default:   x = 32'd0;     // unmodeled HPC3 read regs -> 0 (gap)
          endcase
          hpc_rd = x;
@@ -84,8 +130,11 @@ module hpc3
 
    always_comb begin
       rdata = '0;
+      // Drive the full word whenever ANY byte of the lane is accessed, so byte/half
+      // loads (e.g. IRIX's lbu of the ds1386 bbRAM MAC) get the register value; the
+      // core extracts the addressed byte.  Word reads (mask nibble = 0xf) unaffected.
       for(i = 0; i < 4; i = i + 1)
-        if(mask[4*i +: 4] == 4'hf)
+        if(mask[4*i +: 4] != 4'h0)
           rdata[32*i +: 32] = hpc_rd(offs + 19'(4*i));
    end
 
@@ -97,6 +146,10 @@ module hpc3
          for(i = 0; i < 16; i = i + 1) r_pbus_pio[i] <= 32'd0;
          r_scsi_dmacfg <= 32'd0;
          r_scsi_piocfg <= 32'd0;
+         r_enet_eaddr  <= 48'd0;
+         r_ee_eprot <= 1'b0; r_ee_csel <= 1'b0; r_ee_eclk <= 1'b0;
+         r_ee_dato  <= 1'b0; r_ee_dati <= 1'b0;
+         r_ee_bitcnt <= 5'd0; r_ee_shin <= 11'd0; r_ee_shout <= 16'd0;
       end
       else if(sel & is_store) begin
          // PBUS DMA/PIO config + SCSI0 cfg: store so the readback validates.
@@ -109,6 +162,44 @@ module hpc3
            if(mask[4*i +: 4] == 4'hf)
              case(offs + 19'(4*i))
                19'h30004: r_misc <= wdata[32*i +: 32] & 32'h3;
+               // NMC93CS56 eeprom register write. IRIX writel()s the control byte;
+               // the core bswaps device word stores, so the CPU value's low byte
+               // (EPROT/CSEL/ECLK/DATO in [3:0]) lands in this lane's high byte [31:24].
+               19'h30008: begin
+                  r_ee_eprot <= wdata[32*i + 24];             // bit0 EPROT
+                  r_ee_csel  <= wdata[32*i + 25];             // bit1 CSEL
+                  r_ee_eclk  <= wdata[32*i + 26];             // bit2 ECLK
+                  r_ee_dato  <= wdata[32*i + 27];             // bit3 DATO(->EE)
+                  if(~wdata[32*i + 25]) begin                 // CSEL deasserted -> idle
+                     r_ee_bitcnt <= 5'd0;
+                  end
+                  else if(wdata[32*i + 26] & ~r_ee_eclk) begin  // ECLK rising edge, CSEL on
+                     if(r_ee_bitcnt == 5'd0 & ~wdata[32*i + 27]) begin
+                        // leading zero(s) before the start bit (e.g. the cs_on ECLK
+                        // pulse with DATO=0) -> ignore until the start bit (DATO=1)
+                     end
+                     else if(r_ee_bitcnt < 5'd11) begin       // command phase: shift in DATO
+                        r_ee_shin   <= {r_ee_shin[9:0], wdata[32*i + 27]};
+                        r_ee_bitcnt <= r_ee_bitcnt + 5'd1;
+                        if(r_ee_bitcnt == 5'd10)              // 11th bit -> latch addr, load word
+                          r_ee_shout <= ee_word({r_ee_shin[6:0], wdata[32*i + 27]});
+                     end
+                     else begin                               // data phase: shift out MSB first
+                        r_ee_dati   <= r_ee_shout[15];
+                        r_ee_shout  <= {r_ee_shout[14:0], 1'b0};
+                        r_ee_bitcnt <= r_ee_bitcnt + 5'd1;
+                     end
+                  end
+               end
+               // FSBL programs the station MAC into the ds1386 bbRAM. HPC3 store
+               // convention (scsi_shim.sv): byte at addr-offset N = wdata[8N+:8],
+               // so the word-aligned MAC byte is the LOW byte of its lane: wdata[32*i +: 8].
+               19'h604e8: r_enet_eaddr[47:40] <= wdata[32*i +: 8];
+               19'h604ec: r_enet_eaddr[39:32] <= wdata[32*i +: 8];
+               19'h604f0: r_enet_eaddr[31:24] <= wdata[32*i +: 8];
+               19'h604f4: r_enet_eaddr[23:16] <= wdata[32*i +: 8];
+               19'h604f8: r_enet_eaddr[15:8]  <= wdata[32*i +: 8];
+               19'h604fc: r_enet_eaddr[7:0]   <= wdata[32*i +: 8];
                default:   /* enet/scsi/pio data windows: write-absorb */ ;
              endcase
       end
@@ -122,6 +213,14 @@ module hpc3
      if(sel & (offs[18:12] != 7'h30) & (offs[18:12] != 7'h40) & (offs[18:12] != 7'h60))
        $display("[hpc3acc] offs=%05x st=%b mask=%04x w0=%08x w1=%08x",
                 offs, is_store, mask, wdata[31:0], wdata[63:32]);
+   // TEMP: trace ALL HPC3 reads except the istat0 (0x30000) flood + SCSI/DMA blocks,
+   // to find where IRIX actually reads the station MAC.
+   always_ff @(posedge clk)
+     if(sel & ~is_store & (offs != 19'h30000)
+        & ~(offs[18:15] == 4'h1)                 // 0x08000-0x0ffff / 0x10000-0x17fff DMA
+        & ~((offs & 19'h78000) == 19'h40000))    // 0x40000 WD33C93
+       $display("[rd] offs=%05x mask=%04x rd=%08x_%08x_%08x_%08x",
+                offs, mask, rdata[127:96], rdata[95:64], rdata[63:32], rdata[31:0]);
 `endif
 
    // ---- mem-to-mem DMA copy engine (gated; see dma_memcpy.sv) ----------------

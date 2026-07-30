@@ -116,6 +116,18 @@ module axi_is_the_worst_v1_0_S00_AXI #
     output wire [127:0]			      scsi_beat_data,
     input  wire				      scsi_beat_full,
 
+    // ---- ENET mailbox (Seeq 8003 + HPC3 ENET DMA; enet_shim.sv).  TX doorbell +
+    //      RX reverse-doorbell.  PS READS req/arm/nbdp (read addrs 0x39/0x3C/0x3D/
+    //      0x3E); PS WRITES rsp/crbdp (slv_reg18/19/20 = 0x12/0x13/0x14).
+    //      The PS servicer walks the {BP,BC,DP} chain in DRAM to a host tap. ----
+    input  wire [31:0]			      enet_tx_req_seq,   // TX doorbell (read 0x39)
+    input  wire [31:0]			      enet_tx_nbdp,      // TX chain head (read 0x3C)
+    input  wire [31:0]			      enet_rx_arm_seq,   // RX arm       (read 0x3D)
+    input  wire [31:0]			      enet_rx_nbdp,      // RX ring head (read 0x3E)
+    output wire [31:0]			      enet_tx_rsp_seq,   // PS write 0x12 (echo tx_req_seq)
+    output wire [31:0]			      enet_rx_rsp_seq,   // PS write 0x13 (++ per RX frame)
+    output wire [31:0]			      enet_rx_crbdp,     // PS write 0x14 (current RX desc ptr)
+
     // Global Clock Signal
     input wire				      S_AXI_ACLK,
     // Global Reset Signal. This Signal is Active LOW
@@ -409,6 +421,9 @@ module axi_is_the_worst_v1_0_S00_AXI #
    assign scsi_rsp_scsi_status = slv_reg16[7:0];   // write 0x10 = {tgt[15:8], scsi[7:0]}
    assign scsi_rsp_tgt_status  = slv_reg16[15:8];
    assign scsi_sel_delay       = slv_reg17[15:0];  // write 0x11 (0 => shim default 8192)
+   assign enet_tx_rsp_seq      = slv_reg18;        // write 0x12 (echo enet_tx_req_seq when sent)
+   assign enet_rx_rsp_seq      = slv_reg19;        // write 0x13 (++ per injected RX frame)
+   assign enet_rx_crbdp        = slv_reg20;        // write 0x14 (service-maintained RX desc ptr)
 
    // ---- SCSI beat conduit: assemble the 16B beat from slv_reg32..35 (0x20..0x23)
    //      and pulse scsi_beat_push the cycle AFTER the 0x23 write (so slv_reg35 has
@@ -1366,12 +1381,12 @@ module axi_is_the_worst_v1_0_S00_AXI #
 	  // [31:28]=#resets [27:22]=#SASR-reads [21:16]=#SCMD-wr [15:10]=#SASR-wr
 	  // [9:8]=phase [7]=CIP [6]=BSY [5]=INTRQ [4:0]=SASR pointer
 	  6'h38   : reg_data_out <= scsi_dbg;
-	  6'h39   : reg_data_out <= branch_faults[63:32];
+	  6'h39   : reg_data_out <= enet_tx_req_seq;         // ENET TX doorbell (was branch_faults[63:32])
 	  6'h3A   : reg_data_out <= {23'd0, scc_rx_full, putchar_fifo_rptr, putchar_fifo_wptr};
 	  6'h3B   : reg_data_out <= {24'd0, putchar_fifo_out};
-	  6'h3C   : reg_data_out <= dram_req_cnt[31:0];
-	  6'h3D   : reg_data_out <= dram_req_cnt[63:32];
-	  6'h3E   : reg_data_out <= dram_req_cycles[31:0];
+	  6'h3C   : reg_data_out <= enet_tx_nbdp;            // ENET TX chain head (was dram_req_cnt[31:0])
+	  6'h3D   : reg_data_out <= enet_rx_arm_seq;         // ENET RX arm       (was dram_req_cnt[63:32])
+	  6'h3E   : reg_data_out <= enet_rx_nbdp;            // ENET RX ring head (was dram_req_cycles[31:0])
 	  // RTL build revision: a hand-bumped constant so the ARM/PS can verify which
 	  // RTL is actually on the silicon (catches the stale-ipshared/stale-bitstream
 	  // trap). BUMP THIS on every meaningful henry RTL change before re-synth.
@@ -1379,7 +1394,9 @@ module axi_is_the_worst_v1_0_S00_AXI #
 	  // (shadows dram_req_cycles[63:32], which only matters after 2^32 cycles.)
 	  // 0x20260629 = first 06-29 build (shim debug viz); 0x2026062a = + WD33C93
 	  // HD0-window decode fix (Linux scsi0_ext @ 0x44000 now reaches the shim).
-	  6'h3F   : reg_data_out <= 32'h2026062a;
+	  // 0x20260721 = + ENET mailbox (Seeq/HPC3 ethernet; enet_shim + AXI regs
+	  //              0x39/0x3C/0x3D/0x3E reads, 0x12/0x13/0x14 writes).
+	  6'h3F   : reg_data_out <= 32'h20260721;
 	  default : reg_data_out <= 0;
 	endcase
      end

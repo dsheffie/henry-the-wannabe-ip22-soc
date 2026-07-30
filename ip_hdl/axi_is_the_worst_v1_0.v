@@ -249,7 +249,10 @@ module axi_is_the_worst_v1_0 #
    wire         w_scsi_beat_push, w_scsi_beat_full;
    wire [127:0] w_scsi_beat_data;
    wire [31:0]  w_scsi_dbg;          // shim debug viz (AXI PMU readback)
-   axi_is_the_worst_v1_0_S00_AXI # ( .C_S_AXI_DATA_WIDTH(C_S00_AXI_DATA_WIDTH), .C_S_AXI_ADDR_WIDTH(C_S00_AXI_ADDR_WIDTH)) 
+   // ---- ENET mailbox wires: henry_soc publishes tx_req/rx_arm; S00_AXI returns rsp/crbdp ----
+   wire [31:0]  w_enet_tx_req_seq, w_enet_tx_nbdp, w_enet_rx_arm_seq, w_enet_rx_nbdp;
+   wire [31:0]  w_enet_tx_rsp_seq, w_enet_rx_rsp_seq, w_enet_rx_crbdp;
+   axi_is_the_worst_v1_0_S00_AXI # ( .C_S_AXI_DATA_WIDTH(C_S00_AXI_DATA_WIDTH), .C_S_AXI_ADDR_WIDTH(C_S00_AXI_ADDR_WIDTH))
    axi_is_the_worst_v1_0_S00_AXI_inst (
 				       .controlreg(w_controlreg),
 				       .base(w_baseaddr),
@@ -338,6 +341,13 @@ module axi_is_the_worst_v1_0 #
 				       .scsi_beat_data(w_scsi_beat_data),
 				       .scsi_beat_full(w_scsi_beat_full),
 				       .scsi_dbg(w_scsi_dbg),
+				       .enet_tx_req_seq(w_enet_tx_req_seq),
+				       .enet_tx_nbdp(w_enet_tx_nbdp),
+				       .enet_rx_arm_seq(w_enet_rx_arm_seq),
+				       .enet_rx_nbdp(w_enet_rx_nbdp),
+				       .enet_tx_rsp_seq(w_enet_tx_rsp_seq),
+				       .enet_rx_rsp_seq(w_enet_rx_rsp_seq),
+				       .enet_rx_crbdp(w_enet_rx_crbdp),
 				       .S_AXI_ACLK(s00_axi_aclk),
 				       .S_AXI_ARESETN(s00_axi_aresetn),
 				       .S_AXI_AWADDR(s00_axi_awaddr),
@@ -538,7 +548,17 @@ module axi_is_the_worst_v1_0 #
 	   .scsi_beat_push(w_scsi_beat_push),
 	   .scsi_beat_data(w_scsi_beat_data),
 	   .scsi_beat_full(w_scsi_beat_full),
-	   .scsi_dbg(w_scsi_dbg)
+	   .scsi_dbg(w_scsi_dbg),
+	   .enet_tx_req_seq(w_enet_tx_req_seq),
+	   .enet_tx_nbdp(w_enet_tx_nbdp),
+	   .enet_tx_rsp_seq(w_enet_tx_rsp_seq),
+	   .enet_rx_arm_seq(w_enet_rx_arm_seq),
+	   .enet_rx_nbdp(w_enet_rx_nbdp),
+	   .enet_rx_rsp_seq(w_enet_rx_rsp_seq),
+	   .enet_rx_crbdp(w_enet_rx_crbdp),
+	   .enet_station(),          // not routed to AXI v1 (IRIX filters); leave open
+	   .enet_rx_cmd(),
+	   .enet_dbg()
 	   );
 
    // tie-offs for status/debug taps henry_soc does not expose
