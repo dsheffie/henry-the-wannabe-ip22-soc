@@ -5,10 +5,16 @@
 #   make run                          # boot /unix with the ARCS blob
 #   make run KERNEL=foo.elf ARCS=...  # boot something else
 #
-# R9999 points at the core sources (default: the live tree; the in-repo submodule
-# is the intended source once updated to a current main).
-
-R9999     ?= /home/dsheffie/code/r9999
+# R9999 points at the core sources.  Derived from THIS Makefile's own location so a
+# sim ALWAYS compiles the r9999 submodule of the tree it lives in.
+#
+# Was hardcoded to /home/dsheffie/code/r9999 (the live tree).  That is wrong for every
+# checkout except that one: building sim/ in henry-gh or in a second henny checkout
+# silently verilated MAIN's RTL while you believed you were testing the local
+# submodule -- the two are routinely at different commits (2026-08-07: henry-gh @
+# d67bb74 vs henny @ 66815f3).  Still `?=`, so `make R9999=/path` overrides it.
+MKFILE_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+R9999     ?= $(MKFILE_DIR)../r9999
 RTL        = ../rtl
 VERILATOR ?= /home/dsheffie/local/bin/verilator
 TOP        = henry_soc
@@ -28,6 +34,7 @@ VFLAGS = -cc --exe -O3 \
          -Wno-UNUSED -Wno-BLKANDNBLK -Wno-PINMISSING \
          -y $(RTL) -y $(R9999) +incdir+$(R9999) +define+ENABLE_STORE_CHECK +define+INSN_PACED_COUNT --top-module $(TOP) -Mdir obj_dir \
          -CFLAGS "-I$(R9999) -DFAITHFUL_SCSI -DSTORE_CHECK" \
+         -LDFLAGS "-lcapstone" \
          -o henry_tb
 # `make BIG_L2=1` -> 1MB sim-only L2 (LG_L2_NUM_SETS=16) to shake out bugs the tiny
 # 16KB direct-mapped L2 was masking; leaves the FPGA build at 16KB.
@@ -38,6 +45,11 @@ endif
 ifdef UNCACHED
 VFLAGS += +define+FORCE_UNCACHED
 endif
+# Arbitrary extra verilator flags, e.g. to match an FPGA bitstream's cache geometry:
+#   make VFLAGS_EXTRA="+define+LG_L1D_NUM_SETS=8 +define+LG_L2_NUM_SETS=14"
+# machine.vh wraps each size in `ifndef, so a command-line define wins over the
+# defaults.  MUST stay outside any ifdef -- a conditional hook silently does nothing.
+VFLAGS += $(VFLAGS_EXTRA)
 
 # obj_dir/.verilated is defined first below, so pin the default goal to the binary.
 .DEFAULT_GOAL := obj_dir/henry_tb

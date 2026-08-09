@@ -87,6 +87,19 @@ extern "C" void l1d_wb_log(unsigned long long pa, unsigned long long data_lo, un
   if(la == 0x003e4000u || la == 0x083e4000u || n++ < 12)   /* +first 12 = does the DPI fire at all? */
     fprintf(stderr, "[l1dwb] pa=%08llx lo=%016llx hi=%016llx\n", pa, data_lo, data_hi);
 }
+/* l1d.sv declares these four DPI hooks under `ifdef ENABLE_STORE_CHECK, and the
+ * Makefile passes +define+ENABLE_STORE_CHECK unconditionally -- so without a C++
+ * definition every link of this testbench fails with "undefined reference".  They
+ * are line-lifecycle *tracing* hooks (who filled a line, which CACHE op hit it,
+ * dropped dirty bits); the full instrumented versions live in the be-hunt tree.
+ * Stubbed no-op here so the clean tree builds; fill them in if that trace is
+ * wanted.  Same failure mode as the l1i_fill/l1i_flush hooks removed in 0cf9897. */
+extern "C" void rd_log(long long, unsigned long long, unsigned long long, int) { }
+extern "C" void l1d_fill(unsigned long long, long long, unsigned long long,
+                         unsigned long long, unsigned long long) { }
+extern "C" void l1d_cacheop(unsigned long long, long long, unsigned long long, int) { }
+extern "C" void dirtydrop(unsigned long long, long long, unsigned long long, int) { }
+
 static uint64_t g_cur_cyc = 0;                 // updated each loop iteration (declared early for the DPIs)
 
 // TIP: commit-stall attribution (ported from rv64core top.cc). Every cycle, charge
