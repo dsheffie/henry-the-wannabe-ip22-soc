@@ -67,6 +67,7 @@ module henry_soc
    output logic [127:0]          mem_req_store_data,
    output logic [4:0]            mem_req_opcode,
    output logic [15:0]           mem_req_mask,
+   output logic                  mem_req_master,   // 0 = CPU/L2, 1 = DMA engine (see mem_arbiter)
    input  logic                  mem_rsp_valid,
    input  logic                  mem_rsp_bad,
    input  logic [127:0]          mem_rsp_load_data,
@@ -330,7 +331,7 @@ module henry_soc
       .m_rsp_bad       (),
       .mem_req_valid(mem_req_valid),           .mem_req_addr(mem_req_addr),
       .mem_req_store_data(mem_req_store_data), .mem_req_opcode(mem_req_opcode),
-      .mem_req_mask(mem_req_mask),
+      .mem_req_mask(mem_req_mask),             .mem_req_owner(mem_req_master),
       .mem_rsp_valid(mem_rsp_valid),           .mem_rsp_load_data(mem_rsp_load_data),
       .mem_rsp_bad(mem_rsp_bad));
 

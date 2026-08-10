@@ -13,6 +13,7 @@
 #include "Vhenry_soc__Dpi.h"
 #include "verilated.h"
 #include <cstdio>
+#include <unordered_map>
 #include <cstdlib>
 #include <cstring>
 #include <cstdint>
@@ -56,9 +57,14 @@ static bool        g_chk_active_gate = true; // on for normal boot; off (gated) 
 std::deque<store_rec>        g_iss_stores;          // defined here; extern in interpret.hh
 static std::deque<store_rec> g_rtl_stores;
 static bool                  g_store_diverged = false;
+extern "C" void dma_cpu_store(unsigned long long addr);   /* stale-read detector */
 extern "C" void wr_log(long long pc, int rob_ptr, unsigned long long addr,
                        unsigned long long data, int is_atomic) {
   (void)rob_ptr; (void)is_atomic;
+  /* A committed CPU store to a DMA-written line makes the CACHE the newer copy, so
+   * a later hit there is NOT a stale read -- it is the opposite bug (the writeback
+   * will clobber the DMA'd data).  Counted separately; see dma_cpu_store. */
+  dma_cpu_store(addr);
   if(g_checker) g_rtl_stores.emplace_back((uint64_t)pc, addr, data);
 }
 
@@ -87,19 +93,6 @@ extern "C" void l1d_wb_log(unsigned long long pa, unsigned long long data_lo, un
   if(la == 0x003e4000u || la == 0x083e4000u || n++ < 12)   /* +first 12 = does the DPI fire at all? */
     fprintf(stderr, "[l1dwb] pa=%08llx lo=%016llx hi=%016llx\n", pa, data_lo, data_hi);
 }
-/* l1d.sv declares these four DPI hooks under `ifdef ENABLE_STORE_CHECK, and the
- * Makefile passes +define+ENABLE_STORE_CHECK unconditionally -- so without a C++
- * definition every link of this testbench fails with "undefined reference".  They
- * are line-lifecycle *tracing* hooks (who filled a line, which CACHE op hit it,
- * dropped dirty bits); the full instrumented versions live in the be-hunt tree.
- * Stubbed no-op here so the clean tree builds; fill them in if that trace is
- * wanted.  Same failure mode as the l1i_fill/l1i_flush hooks removed in 0cf9897. */
-extern "C" void rd_log(long long, unsigned long long, unsigned long long, int) { }
-extern "C" void l1d_fill(unsigned long long, long long, unsigned long long,
-                         unsigned long long, unsigned long long) { }
-extern "C" void l1d_cacheop(unsigned long long, long long, unsigned long long, int) { }
-extern "C" void dirtydrop(unsigned long long, long long, unsigned long long, int) { }
-
 static uint64_t g_cur_cyc = 0;                 // updated each loop iteration (declared early for the DPIs)
 
 // TIP: commit-stall attribution (ported from rv64core top.cc). Every cycle, charge
@@ -122,8 +115,13 @@ static void tip_dump(const char *tag) {
 }
 // scsi_dma engine trace (SCSIDMADBG): every chain start / descriptor read / mem write, so we
 // can see whether the engine's r_bp (write target) walks onto the descriptor's own address.
+extern "C" void dma_wrote_line(uint64_t pa, uint32_t nbytes);   /* stale-read detector */
 extern "C" void scsi_dma_log(int kind, unsigned long long a, unsigned long long b,
                              unsigned long long c, unsigned long long d) {
+  /* kind==1 is the engine's memory WRITE (a=target addr).  Feed the stale-read
+   * detector BEFORE the debug gates below -- it must see every DMA write, not
+   * only the ones SCSIDMADBG happens to be printing. */
+  if(kind == 1) dma_wrote_line(a, 16);
   if(!g_checker) return;
   static const bool dbg = getenv("SCSIDMADBG") != nullptr;
   if(!dbg) return;
@@ -155,8 +153,13 @@ extern "C" void l2_line_log(int side, unsigned long long pa, unsigned long long 
 }
 // L2 CHECK_VALID_AND_TAG decision for the descriptor line: did the op hit? is the
 // held line dirty? what does it hold?  Reveals why a MEM_WB fails to drop a stale copy.
+extern "C" void l2_stale_chk(unsigned long long pa, int whit, int wvalid,
+                             unsigned long long d0lo, unsigned long long d0hi);
 extern "C" void l2_chk_log(unsigned long long pa, int whit, int wvalid, int wdirty,
                            int op, unsigned long long d0lo, unsigned long long d0hi) {
+  /* feed the stale detector BEFORE the L2DBG print gate -- it must see every tag
+   * check, not only the ones L2DBG happens to be printing */
+  l2_stale_chk(pa, whit, wvalid, d0lo, d0hi);
   static const bool l2dbg = getenv("L2DBG") != nullptr;
   if(!l2dbg) return;
   static const char *opn[32] = {0};
@@ -223,6 +226,132 @@ static uint8_t *g_mem = nullptr;
 // taken; we stamp it with the current sim cycle.  Queryable via monitor `timer`.
 static std::vector<uint64_t> g_timer_irq_cyc;  // cycle of every timer IRQ taken
 extern "C" void log_timer_irq() { g_timer_irq_cyc.push_back(g_cur_cyc); }
+
+
+/* ---- DMA stale-read detector (STALEDMA) ----------------------------------------
+ * The 256K-L2 failure is XFS reading corrupt metadata, i.e. the CPU seeing DRAM
+ * that a DMA has since overwritten.  This SoC has no working DMA->L2 snoop
+ * (l2.sv has snoop_req_*, henry_soc.sv never drives it), so a DMA write leaves a
+ * stale copy in the cache hierarchy and a big L2 holds it long enough to be read.
+ *
+ * Detector: remember every line the DMA writes, then flag
+ *   (a) STALE-HIT  -- an L1D hit on a line whose copy predates the DMA write, and
+ *   (b) STALE-FILL -- an L1D refill whose DATA already disagrees with DRAM, which
+ *       means the L2 (not the L1D) served pre-DMA data.
+ * (b) matters: without it a refill would clear the flag and mask L2-level
+ * staleness -- exactly the case we suspect at 256K.
+ *
+ * Only DMA-written lines are tracked, so the steady-state cost is one hash lookup
+ * per load rather than a 268MB shadow of DRAM. */
+struct dma_line_t { uint64_t dma_cyc; uint32_t bytes; };
+static std::unordered_map<uint64_t, dma_line_t> g_dma_lines;   // 16B line -> last DMA write
+static uint64_t g_stale_hit = 0, g_stale_fill = 0, g_dma_writes = 0;
+static uint64_t g_stale_l2 = 0, g_dma_clobber = 0;
+static const bool g_staledma = getenv("STALEDMA") != nullptr;
+/* report cap -- was hardcoded 40, which silently truncated the descended-vs-orphan
+ * analysis of stale hits.  STALEDMA_MAX overrides. */
+static const long g_stale_max = getenv("STALEDMA_MAX") ? strtol(getenv("STALEDMA_MAX"), 0, 0) : 2000;
+
+/* current 16 bytes of DRAM for a guest-physical line; false if unmapped */
+static bool dram_line(uint64_t pa, uint64_t *lo, uint64_t *hi) {
+  bool bad = false;
+  uint32_t off = FPGA_ADDRESS_MAP ? fpga_map((uint32_t)pa, &bad) : (uint32_t)(pa & MEM_MASK);
+  if(bad || (uint64_t)off + 16 > MEM_SIZE) return false;
+  uint64_t l = 0, h = 0;
+  for(int i = 0; i < 8; i++) {            /* byte i sits in bits [8i+7:8i] (see l1d fill packing) */
+    l |= (uint64_t)g_mem[off + i]     << (8 * i);
+    h |= (uint64_t)g_mem[off + 8 + i] << (8 * i);
+  }
+  *lo = l; *hi = h; return true;
+}
+
+/* POSITIVE CONTROL: if zero DMA writes are ever observed the detector is
+ * structurally unable to report anything, and "no stale reads" would be a lie.
+ * Print the counts at exit and say so loudly when the input never arrived. */
+static void staledma_summary(void) {
+  if(!g_staledma) return;
+  fprintf(stderr, "[staledma] DMA writes seen=%llu  lines still suspect=%zu  "
+          "STALE-HIT=%llu  STALE-L2=%llu  STALE-FILL=%llu  DMA-CLOBBER=%llu\n",
+          (unsigned long long)g_dma_writes, g_dma_lines.size(),
+          (unsigned long long)g_stale_hit, (unsigned long long)g_stale_l2,
+          (unsigned long long)g_stale_fill, (unsigned long long)g_dma_clobber);
+  if(g_dma_writes == 0)
+    fprintf(stderr, "[staledma] INERT: zero DMA writes observed -- this detector "
+            "could not have reported anything. Treat the result as NO DATA.\n");
+}
+extern "C" void dma_wrote_line(uint64_t pa, uint32_t nbytes) {
+  if(!g_staledma) return;
+  { static bool reg = false; if(!reg) { reg = true; atexit(staledma_summary); } }
+  g_dma_writes++;
+  for(uint64_t a = (pa & ~15ull); a < pa + (nbytes ? nbytes : 1); a += 16)
+    g_dma_lines[a] = { g_cur_cyc, nbytes };
+}
+
+extern "C" void rd_log(long long pc, unsigned long long addr,
+                       unsigned long long data, int hit) {
+  if(!g_staledma || !hit) return;
+  auto it = g_dma_lines.find(addr & ~15ull);
+  if(it == g_dma_lines.end()) return;     /* line never DMA'd -- the common case */
+  /* Hit on a line the DMA overwrote, with no intervening refill/invalidate: the
+   * cache is serving pre-DMA data. */
+  if((long)++g_stale_hit <= g_stale_max)
+    fprintf(stderr, "[STALE-HIT]  cyc=%llu pc=%08x pa=%09llx data=%016llx  dma_wrote@%llu\n",
+            (unsigned long long)g_cur_cyc, (uint32_t)pc, addr,
+            (unsigned long long)data, (unsigned long long)it->second.dma_cyc);
+}
+
+extern "C" void l1d_fill(unsigned long long /*rtl_cyc*/, long long pc, unsigned long long pa,
+                         unsigned long long lo, unsigned long long hi) {
+  if(!g_staledma) return;
+  uint64_t line = pa & ~15ull;
+  auto it = g_dma_lines.find(line);
+  if(it == g_dma_lines.end()) return;
+  uint64_t dlo = 0, dhi = 0;
+  if(dram_line(line, &dlo, &dhi) && (dlo != lo || dhi != hi)) {
+    /* refilled, but with data DRAM does not have -> the L2 served a stale line */
+    if((long)++g_stale_fill <= g_stale_max)
+      fprintf(stderr, "[STALE-FILL] cyc=%llu pc=%09llx pa=%09llx filled=%016llx.%016llx "
+              "dram=%016llx.%016llx dma_wrote@%llu\n",
+              (unsigned long long)g_cur_cyc, (unsigned long long)pc, line, lo, hi,
+              dlo, dhi, (unsigned long long)it->second.dma_cyc);
+  } else {
+    g_dma_lines.erase(it);   /* refilled with DRAM-correct data: no longer stale */
+  }
+}
+
+/* a CACHE-op invalidate drops the copy, so the line can no longer be read stale */
+extern "C" void l1d_cacheop(unsigned long long, long long, unsigned long long pa, int inval) {
+  if(g_staledma && inval) g_dma_lines.erase(pa & ~15ull);
+}
+extern "C" void dirtydrop(unsigned long long, long long, unsigned long long, int) { }
+
+/* CPU store to a DMA-written line: the cache copy is now NEWER than DRAM, so drop
+ * the line from the suspect set (a later hit is legitimate).  Counted as
+ * DMA-CLOBBER because the eventual writeback overwrites the DMA'd data -- a real
+ * bug, but a DIFFERENT one from a stale read, and conflating them buries both. */
+extern "C" void dma_cpu_store(unsigned long long addr) {
+  if(!g_staledma) return;
+  if(g_dma_lines.erase(addr & ~15ull)) g_dma_clobber++;
+}
+
+/* L2-side query: same structure, checked on EVERY L2 tag check.  A hit on a line
+ * the DMA has overwritten means the L2 itself is the stale reservoir -- which is
+ * the case an L1D-only probe cannot see, and the one a large L2 makes likely. */
+extern "C" void l2_stale_chk(unsigned long long pa, int whit, int wvalid,
+                             unsigned long long d0lo, unsigned long long d0hi) {
+  if(!g_staledma || !whit || !wvalid) return;
+  uint64_t line = pa & ~15ull;
+  auto it = g_dma_lines.find(line);
+  if(it == g_dma_lines.end()) return;
+  uint64_t dlo = 0, dhi = 0;
+  if(!dram_line(line, &dlo, &dhi)) return;
+  if(dlo == d0lo && dhi == d0hi) return;   /* L2 holds what DRAM holds -- not stale */
+  if((long)++g_stale_l2 <= g_stale_max)
+    fprintf(stderr, "[STALE-L2]   cyc=%llu pa=%09llx held=%016llx.%016llx "
+            "dram=%016llx.%016llx dma_wrote@%llu\n",
+            (unsigned long long)g_cur_cyc, line, d0lo, d0hi, dlo, dhi,
+            (unsigned long long)it->second.dma_cyc);
+}
 
 // ---- SCSI disk service (scsi_shim.sv mailbox; active only with `ENABLE_SCSI_SHIM + --disk) ----
 // Poll the doorbell (scsi_req_seq change), walk the descriptor chain in g_mem, do
@@ -1601,6 +1730,13 @@ int main(int argc, char **argv) {
       req_op    = tb->mem_req_opcode;
       req_mask  = tb->mem_req_mask;
       for(int i = 0; i < 4; i++) req_sd[i] = tb->mem_req_store_data[i];
+      /* DMA stale-read detector input.  master 1 = the SCSI/HPC3 DMA engine, master
+       * 0 = CPU/L2 writeback (mem_arbiter).  A DMA STORE makes DRAM newer than any
+       * cached copy; an L2 writeback does not, so the master bit is what separates
+       * them -- both arrive on this same port.  Hooked here rather than on
+       * scsi_dma_log, which does not exist in this tree's RTL at all. */
+      if(tb->mem_req_master == 1 && req_op != 4)
+        dma_wrote_line((unsigned long long)(tb->mem_req_addr & ~15ull), 16);
       { int lat = MEM_LAT_MIN + (int)(memlat_next() % MEM_LAT_SPAN);   /* random per request */
         reply_cyc = (int64_t)cyc + ((req_op == 4) ? lat : 2*lat); }
     }

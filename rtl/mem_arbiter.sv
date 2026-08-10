@@ -38,6 +38,10 @@ module mem_arbiter
     output logic [127:0]                mem_req_store_data,
     output logic [4:0]                  mem_req_opcode,
     output logic [15:0]                 mem_req_mask,
+    // Which master owns the outstanding request (valid while mem_req_valid).  Needed
+    // by the DMA stale-read detector to tell a DMA write (master 1) from a CPU/L2
+    // writeback (master 0) -- both arrive on the same mem_req_* port.
+    output logic [LG_N-1:0]             mem_req_owner,
     input  logic                        mem_rsp_valid,
     input  logic [127:0]                mem_rsp_load_data,
     input  logic                        mem_rsp_bad);
@@ -108,6 +112,8 @@ module mem_arbiter
    end
 
    // request mux -- variable base (the allowed use of +:)
+   assign mem_req_owner = r_owner;
+
    assign mem_req_valid      = ((r_arb_state == ARB_IDLE) & w_any_req) | (r_arb_state == ARB_BUSY);
    assign mem_req_addr       = m_req_addr      [w_cur_owner*`PA_WIDTH +: `PA_WIDTH];
    assign mem_req_store_data = m_req_store_data[w_cur_owner*128       +: 128];
