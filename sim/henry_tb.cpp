@@ -99,6 +99,11 @@ extern "C" void l1d_fill(unsigned long long, long long, unsigned long long,
                          unsigned long long, unsigned long long) { }
 extern "C" void l1d_cacheop(unsigned long long, long long, unsigned long long, int) { }
 extern "C" void dirtydrop(unsigned long long, long long, unsigned long long, int) { }
+/* Present in r9999 <= d67bb74, removed upstream by 0cf9897.  Stubbed so this tb
+ * links against the submodule pin on main (7586125) as well as the newer commits
+ * -- needed to A/B RTL revisions in sim. */
+extern "C" void l1i_fill(unsigned long long, unsigned long long) { }
+extern "C" void l1i_flush(unsigned long long) { }
 
 static uint64_t g_cur_cyc = 0;                 // updated each loop iteration (declared early for the DPIs)
 
