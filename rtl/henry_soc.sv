@@ -25,7 +25,13 @@
 // WD33C93 + HPC3 SCSI control shim (scsi_shim.sv) for the host-served disk path.
 // MUTUALLY EXCLUSIVE with hpc3.sv `ENABLE_HPC3_DMA -- both claim the HPC3 DMA
 // channel window @0x10000.  Uncomment here AND comment ENABLE_HPC3_DMA in hpc3.sv.
+/* ...and the exclusion is enforced here rather than left to a comment: selecting
+ * the mem-to-mem engine on the command line (+define+ENABLE_HPC3_DMA, used by
+ * tests/dma) automatically drops the SCSI shim that would otherwise fight it for
+ * the 0x10000 window.  Default (no define) is unchanged: SCSI shim on. */
+`ifndef ENABLE_HPC3_DMA
 `define ENABLE_SCSI_SHIM 1
+`endif
 // Seeq 8003 + HPC3 ENET DMA control shim (enet_shim.sv) for the host-served tap
 // ethernet path.  Shares the HPC3 window with scsi_shim (disjoint offsets);
 // ENET IRQ -> IOC2 local0 bit3.  Serviced by henry_tb (sim) / the ARM PS (FPGA).
@@ -41,7 +47,12 @@
 // I/O straight into the guest's buffers (see scsi_service.h / scsi_move).  The
 // per-beat engine is no longer instantiated; the shim completes on scsi_rsp_seq.
 // scsi_dma.sv is kept for its standalone unit test (sim/scsi_dma_test).
+/* Also excluded by +define+ENABLE_HPC3_DMA: this engine OWNS arbiter master 1
+ * (see the w_m1_* select below), so leaving it on starves the mem-to-mem engine
+ * -- its requests never reach DRAM and it hangs BUSY forever. */
+`ifndef ENABLE_HPC3_DMA
 `define ENABLE_SCSI_DMA 1
+`endif
 
 module henry_soc
   #(// MC MEMCFG0 (bank0 cfg) as STORED: BE lw -> bswap.  0x00002023 -> 0x23200000
@@ -210,9 +221,131 @@ module henry_soc
    // =====================================================================
    // INT3 (IOC2 interrupt mux) drives the 5 CPU hardware interrupt pins.
    wire w_int3_ip2, w_int3_ip3, w_int3_ip4, w_int3_ip5, w_int3_ip6;
+
+`ifdef ENABLE_L2_INCLUSION
+   /* ---- DMA->L2 snoop source (inclusive-L2) --------------------------------------
+    * Every DMA write to DRAM makes any cached copy stale.  Arbiter master 1 is the
+    * DMA engine (SCSI / HPC3 mem-to-mem); master 0 is the CPU/L2, whose writebacks
+    * are NOT staleness-creating -- which is why the grant bit is what separates them.
+    *
+    * Sampled on the RISING EDGE of mem_req_valid: the arbiter is one-outstanding and
+    * a master holds its request asserted until granted, so counting assertions would
+    * push the same line many times.
+    *
+    * A small FIFO absorbs DMA bursts (16B beats back-to-back) while the L2 works
+    * through them.  A DROPPED invalidate IS the corruption this exists to prevent, so
+    * overflow is fatal in sim rather than silently discarded. */
+   localparam LG_SNOOP_Q = 4;                       /* 16 entries */
+   reg [`PA_WIDTH-1:0] r_snoopq [(1<<LG_SNOOP_Q)-1:0];
+   reg [LG_SNOOP_Q:0]  r_sq_head, n_sq_head, r_sq_tail, n_sq_tail;
+   reg                 r_mrv_d;
+
+   wire w_sq_empty = (r_sq_head == r_sq_tail);
+   wire w_sq_full  = (r_sq_head[LG_SNOOP_Q-1:0] == r_sq_tail[LG_SNOOP_Q-1:0]) &
+                     (r_sq_head[LG_SNOOP_Q] != r_sq_tail[LG_SNOOP_Q]);
+   /* Any DMA request that is not a line FILL (opcode 4) writes DRAM behind the
+    * caches.  Matching on a single store opcode missed every real DMA write --
+    * the engine does not use 5'd7.  This mirrors the henry_tb detector's
+    * (master==1 && op!=4) test, which is the condition known to observe them. */
+   wire w_dma_store = mem_req_valid & ~r_mrv_d & mem_req_master &
+                      (mem_req_opcode != 5'd4);
+
+   wire w_snoop_valid = ~w_sq_empty;
+   wire [`PA_WIDTH-1:0] w_snoop_addr = r_snoopq[r_sq_head[LG_SNOOP_Q-1:0]];
+   wire w_snoop_ack;
+
+   always_comb
+     begin
+	n_sq_tail = r_sq_tail;
+	n_sq_head = r_sq_head;
+	if(w_dma_store & ~w_sq_full)
+	  begin
+	     n_sq_tail = r_sq_tail + 1'b1;
+	  end
+	if(w_snoop_valid & w_snoop_ack)
+	  begin
+	     n_sq_head = r_sq_head + 1'b1;
+	  end
+     end // always_comb
+
+   always_ff@(posedge clk)
+     begin
+	if(reset)
+	  begin
+	     r_sq_head <= 'd0;
+	     r_sq_tail <= 'd0;
+	     r_mrv_d <= 1'b0;
+	  end
+	else
+	  begin
+	     r_sq_head <= n_sq_head;
+	     r_sq_tail <= n_sq_tail;
+	     r_mrv_d <= mem_req_valid;
+	  end
+     end // always_ff
+
+   always_ff@(posedge clk)
+     begin
+	if(w_dma_store & ~w_sq_full)
+	  begin
+	     r_snoopq[r_sq_tail[LG_SNOOP_Q-1:0]] <= {mem_req_addr[`PA_WIDTH-1:4], 4'd0};
+	  end
+     end // always_ff
+
+`ifdef VERILATOR
+   /* Localize why w_dma_store never fires: count rising edges of mem_req_valid,
+    * how many carry master==1, and dump the first few opcodes actually seen. */
+   integer r_n_edge, r_n_m1, r_n_push, r_dbg_shown, r_pcyc;
+   always_ff@(posedge clk)
+     begin
+	if(reset)
+	  begin
+	     r_n_edge <= 0; r_n_m1 <= 0; r_n_push <= 0; r_dbg_shown <= 0; r_pcyc <= 0;
+	  end
+	else
+	  begin
+	     r_n_edge <= r_n_edge + ((mem_req_valid & ~r_mrv_d) ? 1 : 0);
+	     r_n_m1 <= r_n_m1 + ((mem_req_valid & ~r_mrv_d & mem_req_master) ? 1 : 0);
+	     r_n_push <= r_n_push + ((w_dma_store & ~w_sq_full) ? 1 : 0);
+	     /* dump only master==1 edges -- that is the DMA opcode we need to name */
+	     if((mem_req_valid & ~r_mrv_d & mem_req_master) & (r_dbg_shown < 20))
+	       begin
+		  r_dbg_shown <= r_dbg_shown + 1;
+		  $display("[dmaprobe] master=%0d op=%0d addr=%x", mem_req_master, mem_req_opcode, mem_req_addr);
+	       end
+	     r_pcyc <= r_pcyc + 1;
+	     if(r_pcyc == 20000000)
+	       begin
+		  r_pcyc <= 0;
+		  $display("[dmaprobe] edges=%0d master1=%0d pushes=%0d", r_n_edge, r_n_m1, r_n_push);
+	       end
+	  end
+     end // always_ff
+
+   always_ff@(negedge clk)
+     begin
+	if(!reset & w_dma_store & w_sq_full)
+	  begin
+	     /* a dropped invalidate IS the corruption this queue exists to prevent */
+	     $display("[snoopq] OVERFLOW at pa=%x -- dropped invalidate", mem_req_addr);
+	     $stop();
+	  end
+     end // always_ff
+`endif
+`else
+   wire w_snoop_valid = 1'b0;
+   wire [`PA_WIDTH-1:0] w_snoop_addr = 'd0;
+   wire w_snoop_ack;
+`endif
+
    core_l1d_l1i cpu
      (.clk(clk),
       .reset(reset),
+      /* DMA->L2 snoop: every DMA (arbiter master 1) store invalidates the L2 copy,
+       * which then back-invalidates the L1s (inclusive-L2, design C). */
+      .snoop_req_valid(w_snoop_valid),
+      .snoop_req_addr(w_snoop_addr),
+      .snoop_req_ack(w_snoop_ack),
       .retire_allowed(1'b1),
       .putchar_fifo_out(cp_out),
       .putchar_fifo_empty(cp_empty),

@@ -116,6 +116,7 @@ static void tip_dump(const char *tag) {
 // scsi_dma engine trace (SCSIDMADBG): every chain start / descriptor read / mem write, so we
 // can see whether the engine's r_bp (write target) walks onto the descriptor's own address.
 extern "C" void dma_wrote_line(uint64_t pa, uint32_t nbytes);   /* stale-read detector */
+extern "C" void snoop_log(unsigned long long pa, int hit);     /* L2 snoop lookup log */
 extern "C" void scsi_dma_log(int kind, unsigned long long a, unsigned long long b,
                              unsigned long long c, unsigned long long d) {
   /* kind==1 is the engine's memory WRITE (a=target addr).  Feed the stale-read
@@ -248,6 +249,7 @@ static std::unordered_map<uint64_t, dma_line_t> g_dma_lines;   // 16B line -> la
 static uint64_t g_stale_hit = 0, g_stale_fill = 0, g_dma_writes = 0;
 static uint64_t g_stale_l2 = 0, g_dma_clobber = 0;
 static const bool g_staledma = getenv("STALEDMA") != nullptr;
+static uint64_t g_snoop_lookups = 0, g_snoop_hits = 0;
 /* report cap -- was hardcoded 40, which silently truncated the descended-vs-orphan
  * analysis of stale hits.  STALEDMA_MAX overrides. */
 static const long g_stale_max = getenv("STALEDMA_MAX") ? strtol(getenv("STALEDMA_MAX"), 0, 0) : 2000;
@@ -271,14 +273,35 @@ static bool dram_line(uint64_t pa, uint64_t *lo, uint64_t *hi) {
 static void staledma_summary(void) {
   if(!g_staledma) return;
   fprintf(stderr, "[staledma] DMA writes seen=%llu  lines still suspect=%zu  "
-          "STALE-HIT=%llu  STALE-L2=%llu  STALE-FILL=%llu  DMA-CLOBBER=%llu\n",
+          "STALE-HIT=%llu  STALE-L2=%llu  STALE-FILL=%llu  DMA-CLOBBER=%llu\n"
+          "[staledma] snoop lookups=%llu (hits=%llu)\n",
           (unsigned long long)g_dma_writes, g_dma_lines.size(),
           (unsigned long long)g_stale_hit, (unsigned long long)g_stale_l2,
-          (unsigned long long)g_stale_fill, (unsigned long long)g_dma_clobber);
+          (unsigned long long)g_stale_fill, (unsigned long long)g_dma_clobber,
+          (unsigned long long)g_snoop_lookups, (unsigned long long)g_snoop_hits);
   if(g_dma_writes == 0)
     fprintf(stderr, "[staledma] INERT: zero DMA writes observed -- this detector "
             "could not have reported anything. Treat the result as NO DATA.\n");
 }
+struct snoop_rec_t { uint32_t n; uint32_t hits; };
+static std::unordered_map<uint64_t, snoop_rec_t> g_snoops;
+
+extern "C" void snoop_log(unsigned long long pa, int hit) {
+  if(!g_staledma) { return; }
+  snoop_rec_t &r = g_snoops[pa & ~15ull];
+  r.n++;
+  g_snoop_lookups++;
+  if(hit) { r.hits++; g_snoop_hits++; }
+}
+
+/* "was this line snooped, and did the snoop find it?" -- the question the
+ * aggregate hit counter cannot answer for a SPECIFIC stale line. */
+static const char *snoop_verdict(uint64_t pa) {
+  auto it = g_snoops.find(pa & ~15ull);
+  if(it == g_snoops.end()) { return "never-snooped"; }
+  return it->second.hits ? "snoop-HIT" : "snoop-missed";
+}
+
 extern "C" void dma_wrote_line(uint64_t pa, uint32_t nbytes) {
   if(!g_staledma) return;
   { static bool reg = false; if(!reg) { reg = true; atexit(staledma_summary); } }
@@ -295,9 +318,10 @@ extern "C" void rd_log(long long pc, unsigned long long addr,
   /* Hit on a line the DMA overwrote, with no intervening refill/invalidate: the
    * cache is serving pre-DMA data. */
   if((long)++g_stale_hit <= g_stale_max)
-    fprintf(stderr, "[STALE-HIT]  cyc=%llu pc=%08x pa=%09llx data=%016llx  dma_wrote@%llu\n",
+    fprintf(stderr, "[STALE-HIT]  cyc=%llu pc=%08x pa=%09llx data=%016llx  dma_wrote@%llu  %s\n",
             (unsigned long long)g_cur_cyc, (uint32_t)pc, addr,
-            (unsigned long long)data, (unsigned long long)it->second.dma_cyc);
+            (unsigned long long)data, (unsigned long long)it->second.dma_cyc,
+            snoop_verdict(addr));
 }
 
 extern "C" void l1d_fill(unsigned long long /*rtl_cyc*/, long long pc, unsigned long long pa,
@@ -311,9 +335,9 @@ extern "C" void l1d_fill(unsigned long long /*rtl_cyc*/, long long pc, unsigned 
     /* refilled, but with data DRAM does not have -> the L2 served a stale line */
     if((long)++g_stale_fill <= g_stale_max)
       fprintf(stderr, "[STALE-FILL] cyc=%llu pc=%09llx pa=%09llx filled=%016llx.%016llx "
-              "dram=%016llx.%016llx dma_wrote@%llu\n",
+              "dram=%016llx.%016llx dma_wrote@%llu  %s\n",
               (unsigned long long)g_cur_cyc, (unsigned long long)pc, line, lo, hi,
-              dlo, dhi, (unsigned long long)it->second.dma_cyc);
+              dlo, dhi, (unsigned long long)it->second.dma_cyc, snoop_verdict(line));
   } else {
     g_dma_lines.erase(it);   /* refilled with DRAM-correct data: no longer stale */
   }
@@ -348,9 +372,9 @@ extern "C" void l2_stale_chk(unsigned long long pa, int whit, int wvalid,
   if(dlo == d0lo && dhi == d0hi) return;   /* L2 holds what DRAM holds -- not stale */
   if((long)++g_stale_l2 <= g_stale_max)
     fprintf(stderr, "[STALE-L2]   cyc=%llu pa=%09llx held=%016llx.%016llx "
-            "dram=%016llx.%016llx dma_wrote@%llu\n",
+            "dram=%016llx.%016llx dma_wrote@%llu  %s\n",
             (unsigned long long)g_cur_cyc, line, d0lo, d0hi, dlo, dhi,
-            (unsigned long long)it->second.dma_cyc);
+            (unsigned long long)it->second.dma_cyc, snoop_verdict(line));
 }
 
 // ---- SCSI disk service (scsi_shim.sv mailbox; active only with `ENABLE_SCSI_SHIM + --disk) ----

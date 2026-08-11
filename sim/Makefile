@@ -33,7 +33,7 @@ VFLAGS = -cc --exe -O3 \
          -Wno-fatal -Wno-WIDTH -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE \
          -Wno-UNUSED -Wno-BLKANDNBLK -Wno-PINMISSING \
          -y $(RTL) -y $(R9999) +incdir+$(R9999) +define+ENABLE_STORE_CHECK +define+INSN_PACED_COUNT --top-module $(TOP) -Mdir obj_dir \
-         -CFLAGS "-I$(R9999) -DFAITHFUL_SCSI -DSTORE_CHECK" \
+         -CFLAGS "-I$(R9999) -DFAITHFUL_SCSI -DSTORE_CHECK -DHENRY_TB_TRACE" \
          -LDFLAGS "-lcapstone" \
          -o henry_tb
 # `make BIG_L2=1` -> 1MB sim-only L2 (LG_L2_NUM_SETS=16) to shake out bugs the tiny
