@@ -18,10 +18,18 @@
  * DRAM, every fill arms a snoop, and each line is read-modify-written while snoops
  * take it away.
  *
- * ORACLE: the counter is incremented N times, so it must read exactly N.  Any
- * value below N is a LOST STORE -- the snoop handed the L2 a pre-store copy of the
- * line and the L2 merged it over the good one.  The shortfall is printed in hex so
- * the magnitude is visible, not just pass/fail.
+ * ORACLE: each line is incremented once per pass, and is CHECKED AT THE START OF
+ * EVERY PASS before being incremented -- not just at the end.  Checking only the
+ * final value cannot tell a store that never landed from a line that reached the
+ * right value and was then REVERTED (the L2 merging a pre-store copy over a good
+ * one): both end one short.  Verifying each pass distinguishes them.  A line that
+ * reads correctly at the start of pass k and wrong at the start of pass k+1 lost
+ * exactly one store in pass k; a line that reads LOWER than a value already
+ * verified in an earlier pass has gone backwards, which is a revert.
+ *
+ * Failure prints <code><expected><actual><address>: 'B' = wrong at a pass boundary,
+ * 'F' = final check.  The address is there so the back-invalidate log
+ * (+define+INCL_ADDR_LOG) can be filtered down to the line that actually broke.
  *
  * Checked through the UNCACHED alias as well, so a correct-looking cached read
  * cannot mask a wrong value in memory.
@@ -56,7 +64,7 @@ zloop:
     bne   $t0, $s4, zloop
     nop
 
-    move  $t8, $zero           /* pass counter */
+    move  $t8, $zero           /* pass counter: at pass entry every line == $t8 */
 oloop:
     move  $t0, $zero           /* line index */
 loop:
@@ -64,6 +72,11 @@ loop:
     addu  $t1, $s0, $t1
     /* the read-modify-write under test */
     lw    $t2, 0($t1)
+    nop
+    /* CHECK BEFORE MODIFYING: this line was verified == $t8-1 last pass and
+     * incremented to $t8, so anything else means it changed while we were not
+     * looking.  $t2 < $t8 is a revert. */
+    bne   $t2, $t8, backwards
     nop
     addiu $t2, $t2, 1
     sw    $t2, 0($t1)
@@ -103,12 +116,33 @@ pass:
     b     halt
     nop
 
+backwards:
+    li    $t0, 0x42            /* 'B' -- caught at a pass boundary */
+    mtc0  $t0, $7
+    nop
+    move  $t3, $t8             /* expected */
+    bal   puthex
+    nop
+    move  $t3, $t2             /* actual   */
+    bal   puthex
+    nop
+    move  $t3, $t1             /* the line's ADDRESS -- correlate with [bi-ack] */
+    bal   puthex
+    nop
+    b     halt
+    nop
+
 fail:
     li    $t0, 0x46            /* 'F' */
     mtc0  $t0, $7
     nop
-    /* print the cached value as 8 hex nybbles so the shortfall is visible:
-     * "F<cached>" -- e.g. F0000fffe means two stores were lost. */
+    bal   puthex
+    nop
+    b     halt
+    nop
+
+/* prints $t3 as 8 hex nybbles; clobbers $t5/$t6/$t7/$at */
+puthex:
     li    $t5, 8               /* nybbles remaining */
     move  $t6, $t3             /* value to print */
 hexlp:
@@ -128,6 +162,8 @@ hexem:
     sll   $t6, $t6, 4
     addiu $t5, $t5, -1
     bne   $t5, $zero, hexlp
+    nop
+    jr    $ra
     nop
 
 halt:

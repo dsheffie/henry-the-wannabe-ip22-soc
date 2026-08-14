@@ -55,6 +55,16 @@ static bool        g_chk_active_gate = true; // on for normal boot; off (gated) 
 // each store cache-write via the wr_log DPI (l1d.sv).  Both streams are program-order, so
 // we drain+compare fronts -- the first mismatch is THE root store.  Compares pc/addr and
 // the low-32 data bits (endianness/partial-store robust).
+static uint64_t g_cur_cyc = 0;                 // updated each loop iteration (declared early for the DPIs)
+/* LDWATCH=<pa>: dump every CPU-visible load AND store to that 16B line, so the
+ * values the core actually observes can be interleaved with the [bi-issue]/[bi-ack]
+ * back-invalidate log for the same line.  Seeing what the L1D hands the L2 is only
+ * half the picture -- it cannot tell whether the CPU ever observed the value, or
+ * whether the reload came back stale.  Read once (getenv is never allowed in a
+ * per-access path). */
+static const char    *g_ldwatch_s = getenv("LDWATCH");
+static const uint64_t g_ldwatch   = g_ldwatch_s ? (strtoull(g_ldwatch_s, nullptr, 0) & ~15ull) : 0;
+
 std::deque<store_rec>        g_iss_stores;          // defined here; extern in interpret.hh
 static std::deque<store_rec> g_rtl_stores;
 static bool                  g_store_diverged = false;
@@ -62,6 +72,11 @@ extern "C" void dma_cpu_store(unsigned long long addr);   /* stale-read detector
 extern "C" void wr_log(long long pc, int rob_ptr, unsigned long long addr,
                        unsigned long long data, int is_atomic) {
   (void)rob_ptr; (void)is_atomic;
+  if(g_ldwatch && (addr & ~15ull) == g_ldwatch) {
+    fprintf(stderr, "[st]  cyc=%llu pc=%08x pa=%09llx data=%016llx\n",
+            (unsigned long long)g_cur_cyc, (uint32_t)pc, addr,
+            (unsigned long long)data);
+  }
   /* A committed CPU store to a DMA-written line makes the CACHE the newer copy, so
    * a later hit there is NOT a stale read -- it is the opposite bug (the writeback
    * will clobber the DMA'd data).  Counted separately; see dma_cpu_store. */
@@ -94,7 +109,6 @@ extern "C" void l1d_wb_log(unsigned long long pa, unsigned long long data_lo, un
   if(la == 0x003e4000u || la == 0x083e4000u || n++ < 12)   /* +first 12 = does the DPI fire at all? */
     fprintf(stderr, "[l1dwb] pa=%08llx lo=%016llx hi=%016llx\n", pa, data_lo, data_hi);
 }
-static uint64_t g_cur_cyc = 0;                 // updated each loop iteration (declared early for the DPIs)
 
 // TIP: commit-stall attribution (ported from rv64core top.cc). Every cycle, charge
 // 1.0 to the ROB-head PC when nothing retires (the head is the stall), or split the
@@ -313,6 +327,11 @@ extern "C" void dma_wrote_line(uint64_t pa, uint32_t nbytes) {
 
 extern "C" void rd_log(long long pc, unsigned long long addr,
                        unsigned long long data, int hit) {
+  if(g_ldwatch && (addr & ~15ull) == g_ldwatch) {
+    fprintf(stderr, "[ld]  cyc=%llu pc=%08x pa=%09llx data=%016llx %s\n",
+            (unsigned long long)g_cur_cyc, (uint32_t)pc, addr,
+            (unsigned long long)data, hit ? "HIT" : "miss");
+  }
   if(!g_staledma || !hit) return;
   auto it = g_dma_lines.find(addr & ~15ull);
   if(it == g_dma_lines.end()) return;     /* line never DMA'd -- the common case */
