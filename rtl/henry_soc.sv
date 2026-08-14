@@ -94,6 +94,10 @@ module henry_soc
    output logic                  got_break,
    output logic                  got_ud,
    output logic                  got_bad_addr,
+   /* 0 = PIT advances per core clock (real time, the default).
+    * 1 = PIT advances per RETIRED INSTRUCTION, making the pre-interrupt window
+    *     bit-reproducible so an RTL-vs-RTL retire-stream diff is a valid gate. */
+   input  logic                  det_pit,
    output logic                  retire_valid,
    output logic [`M_WIDTH-1:0]   retire_pc,
    output logic                  retire_two_valid,
@@ -237,6 +241,7 @@ module henry_soc
     * overflow is fatal in sim rather than silently discarded. */
    localparam LG_SNOOP_Q = 4;                       /* 16 entries */
    reg [`PA_WIDTH-1:0] r_snoopq [(1<<LG_SNOOP_Q)-1:0];
+   reg [(1<<LG_SNOOP_Q)-1:0] r_snoopq_ev;   /* 1 = L1D's dirty copy is authoritative */
    reg [LG_SNOOP_Q:0]  r_sq_head, n_sq_head, r_sq_tail, n_sq_tail;
    reg                 r_mrv_d;
 
@@ -250,15 +255,133 @@ module henry_soc
    wire w_dma_store = mem_req_valid & ~r_mrv_d & mem_req_master &
                       (mem_req_opcode != 5'd4);
 
+`ifdef SYNTH_SNOOP
+   /* ---- synthetic snoop injector (SIM ONLY) ------------------------------------
+    * EVERY line the L2 fills is snooped back out SYNTH_SNOOP_DELAY cycles later.
+    * That is the sanity floor for the coherence machinery: dropping a line the
+    * machine still has a clean copy of must be architecturally invisible, and the
+    * two ways it can NOT be -- dirty in the L1D, dirty in the L2 -- are handled in
+    * l2.sv (merge-on-ack, and skip respectively).  If this configuration cannot
+    * run, the problem is structural rather than a missing special case.
+    *
+    * Uniform, unlike the earlier every-Nth-with-one-in-flight version, which
+    * biased coverage toward whatever the fill stream happened to be doing.
+    *
+    * The delay is what makes it a real test: 1000 cycles is long enough for the
+    * line to be used and written after it lands, so the dirty paths actually get
+    * hit rather than snooping lines that are still pristine. */
+ `ifndef SYNTH_SNOOP_MINDELAY
+  /* Floor on the fill->snoop gap.  The bisect knob: if the corruption lives in a
+   * narrow window right after a line lands (a store retired but not yet in the
+   * L1D array, so neither dirty bit can see it), raising this floor removes the
+   * window while leaving injection VOLUME unchanged.  Panic surviving a large
+   * floor would rule that hypothesis out. */
+  `define SYNTH_SNOOP_MINDELAY 0
+ `endif
+ `ifndef SYNTH_SNOOP_REPS
+  `define SYNTH_SNOOP_REPS 2'd3   /* extra snoops queued per filled line */
+ `endif
+   localparam LG_SS_Q = 8;                     /* 256 deferred snoops in flight */
+   reg [`PA_WIDTH-1:0] r_ssq_addr [(1<<LG_SS_Q)-1:0];
+   reg [31:0] 	       r_ssq_due  [(1<<LG_SS_Q)-1:0];
+   reg [LG_SS_Q:0]     r_ssq_head, r_ssq_tail;
+   reg [31:0] 	       r_ss_cycle;
+   integer 	       r_n_synth_snoop, r_n_ssq_ovf;
+
+   wire w_ssq_empty = (r_ssq_head == r_ssq_tail);
+   wire w_ssq_full  = (r_ssq_head[LG_SS_Q-1:0] == r_ssq_tail[LG_SS_Q-1:0]) &
+                      (r_ssq_head[LG_SS_Q] != r_ssq_tail[LG_SS_Q]);
+   /* a CPU line fill: the line is resident from this moment, so a later snoop of
+    * it is guaranteed to HIT rather than silently testing nothing */
+   wire w_cpu_fill = mem_req_valid & ~r_mrv_d & ~mem_req_master & (mem_req_opcode == 5'd4);
+   /* Deterministic LFSR, so a failure reproduces exactly.  A FIXED delay only ever
+    * snoops a settled line; randomising it walks the whole lifetime, and the SHORT
+    * delays are the valuable ones -- they land while the fill is still completing,
+    * which is precisely the concurrency the snoop engine and the set interlock
+    * exist to handle.  Short delays are also the safest data-wise: a just-filled
+    * line is clean, so dropping it cannot lose a write. */
+   reg [15:0] r_ss_lfsr;
+   wire [15:0] w_ss_lfsr_n = {r_ss_lfsr[14:0],
+			      r_ss_lfsr[15] ^ r_ss_lfsr[13] ^ r_ss_lfsr[12] ^ r_ss_lfsr[10]};
+   reg [1:0]  r_ss_rep;
+   reg [`PA_WIDTH-1:0] r_ss_last;   /* address being re-queued across reps */
+   wire w_ss_due   = ~w_ssq_empty & (r_ss_cycle >= r_ssq_due[r_ssq_head[LG_SS_Q-1:0]]);
+   wire w_synth_snoop = w_ss_due;
+
+   always_ff@(posedge clk)
+     begin
+	if(reset)
+	  begin
+	     r_ssq_head <= 'd0;
+	     r_ssq_tail <= 'd0;
+	     r_ss_cycle <= 32'd0;
+	     r_n_synth_snoop <= 0;
+	     r_n_ssq_ovf <= 0;
+	     r_ss_lfsr <= 16'hace1;
+	     r_ss_rep <= 2'd0;
+	  end
+	else
+	  begin
+	     r_ss_cycle <= r_ss_cycle + 32'd1;
+	     /* one entry per cycle; a fill arms REPS of them, drained on later cycles */
+	     if(w_cpu_fill)
+	       begin
+		  r_ss_rep <= `SYNTH_SNOOP_REPS;
+	       end
+	     else if(r_ss_rep != 2'd0)
+	       begin
+		  r_ss_rep <= r_ss_rep - 2'd1;
+	       end
+	     if(w_cpu_fill | (r_ss_rep != 2'd0))
+	       begin
+		  r_ss_lfsr <= w_ss_lfsr_n;
+		  if(w_ssq_full)
+		    begin
+		       r_n_ssq_ovf <= r_n_ssq_ovf + 1;   /* dropped: reported, not hidden */
+		    end
+		  else
+		    begin
+		       r_ssq_addr[r_ssq_tail[LG_SS_Q-1:0]] <=
+			 w_cpu_fill ? {mem_req_addr[`PA_WIDTH-1:4], 4'd0} : r_ss_last;
+		       /* delay 1..1023: covers "still filling" through "long settled" */
+		       r_ssq_due[r_ssq_tail[LG_SS_Q-1:0]] <=
+			 r_ss_cycle + {22'd0, r_ss_lfsr[9:0]} + 32'd1 +
+			 32'd`SYNTH_SNOOP_MINDELAY;
+		       r_ssq_tail <= r_ssq_tail + 1'b1;
+		    end
+	       end
+	     if(w_cpu_fill)
+	       begin
+		  r_ss_last <= {mem_req_addr[`PA_WIDTH-1:4], 4'd0};
+	       end
+	     if(w_synth_snoop & ~w_sq_full)
+	       begin
+		  r_ssq_head <= r_ssq_head + 1'b1;
+		  r_n_synth_snoop <= r_n_synth_snoop + 1;
+	       end
+	     if((r_ss_cycle % 32'd5000000) == 32'd4999999)
+	       begin
+		  $display("[ssq] cyc=%0d injected=%0d dropped_full=%0d",
+			   r_ss_cycle, r_n_synth_snoop, r_n_ssq_ovf);
+	       end
+	  end
+     end // always_ff
+
+   wire [`PA_WIDTH-1:0] w_ss_addr = r_ssq_addr[r_ssq_head[LG_SS_Q-1:0]];
+`else
+   wire w_synth_snoop = 1'b0;
+`endif
+
    wire w_snoop_valid = ~w_sq_empty;
    wire [`PA_WIDTH-1:0] w_snoop_addr = r_snoopq[r_sq_head[LG_SNOOP_Q-1:0]];
+   wire w_snoop_ev = r_snoopq_ev[r_sq_head[LG_SNOOP_Q-1:0]];
    wire w_snoop_ack;
 
    always_comb
      begin
 	n_sq_tail = r_sq_tail;
 	n_sq_head = r_sq_head;
-	if(w_dma_store & ~w_sq_full)
+	if((w_dma_store | w_synth_snoop) & ~w_sq_full)
 	  begin
 	     n_sq_tail = r_sq_tail + 1'b1;
 	  end
@@ -289,7 +412,18 @@ module henry_soc
 	if(w_dma_store & ~w_sq_full)
 	  begin
 	     r_snoopq[r_sq_tail[LG_SNOOP_Q-1:0]] <= {mem_req_addr[`PA_WIDTH-1:4], 4'd0};
+	     r_snoopq_ev[r_sq_tail[LG_SNOOP_Q-1:0]] <= 1'b0;   /* real DMA: DRAM is authoritative */
 	  end
+`ifdef SYNTH_SNOOP
+	else if(w_synth_snoop & ~w_sq_full)
+	  begin
+	     r_snoopq[r_sq_tail[LG_SNOOP_Q-1:0]] <= w_ss_addr;
+	     /* Synthetic: DRAM was never written, so the L1D's dirty line is the ONLY
+	      * copy.  Discarding it destroys a live write -- which is exactly what the
+	      * first run of this injector did, 3050 times, before IRIX derailed. */
+	     r_snoopq_ev[r_sq_tail[LG_SNOOP_Q-1:0]] <= 1'b1;
+	  end
+`endif
      end // always_ff
 
 `ifdef VERILATOR
@@ -335,6 +469,7 @@ module henry_soc
 `else
    wire w_snoop_valid = 1'b0;
    wire [`PA_WIDTH-1:0] w_snoop_addr = 'd0;
+   wire w_snoop_ev = 1'b0;
    wire w_snoop_ack;
 `endif
 
@@ -345,6 +480,7 @@ module henry_soc
        * which then back-invalidates the L1s (inclusive-L2, design C). */
       .snoop_req_valid(w_snoop_valid),
       .snoop_req_addr(w_snoop_addr),
+      .snoop_req_ev(w_snoop_ev),
       .snoop_req_ack(w_snoop_ack),
       .retire_allowed(1'b1),
       .putchar_fifo_out(cp_out),
@@ -610,6 +746,7 @@ module henry_soc
      (.clk(clk), .reset(reset),
       .sel(w_dev_accept & w_is_ioc), .is_store(~w_is_load),
       .offs(c_req_addr[7:0]), .mask(c_req_mask), .wdata(c_req_store_data),
+      .pit_tick_n(det_pit ? ({1'b0, retire_valid} + {1'b0, retire_two_valid}) : 2'd1),
       .con_full(con_full),   // SCC RR0 Tx-ready reflects console-FIFO backpressure
       .rdata(w_rd_iocdev), .scc_tx_valid(w_scc_tx_valid), .scc_tx_byte(w_scc_tx_byte),
       .timer0_irq(w_ioc_timer0),

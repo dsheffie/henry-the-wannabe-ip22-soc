@@ -16,6 +16,19 @@ module ioc
     input  logic [15:0]  mask,
     input  logic [127:0] wdata,
     input  logic         con_full,   // SoC console FIFO full -> SCC Tx not ready (backpressure)
+    /* PIT timebase pulse.  Normally 1 every core clock (real time).  Driving it
+     * from instruction retirement instead makes the PIT a function of the
+     * INSTRUCTION STREAM rather than of cycles, which is what makes a pre-interrupt
+     * run bit-reproducible: _cpuclkper100ticks and _ticksper1024inst both calibrate
+     * against this counter, so a cycle-paced PIT means any timing perturbation (a
+     * snoop, a different cache geometry) changes the calibration result and hence
+     * every value downstream.
+     *
+     * It is a COUNT, not a pulse: the core retires up to two instructions per
+     * cycle, and collapsing a dual retire into one tick would pace the PIT by
+     * retire-CYCLES rather than instructions -- leaving exactly the dependence on
+     * issue pairing that _ticksper1024inst is measuring. */
+    input  logic [1:0]   pit_tick_n,
     output logic [127:0] rdata,
     output logic         scc_tx_valid,
     output logic [7:0]   scc_tx_byte,
@@ -69,7 +82,9 @@ module ioc
    wire [7:0]  w_pit_tcnt2_in = wdata[95:88];     // tcnt2  = byte 11
 
    logic [31:0] r_cycle;        // PIT-tick counter, advanced at ~1.193 MHz by r_presc
-   logic [6:0]  r_presc;        // core-clock prescaler, 0..PIT_DIV-1 (no RTL divider)
+   logic [6:0]  r_presc;        // prescaler, 0..PIT_DIV-1 (no RTL divider)
+   /* tick_n is at most 2 and PIT_DIV >= 2, so this wraps at most once */
+   wire [7:0]   w_presc_next = {1'b0, r_presc} + {6'd0, pit_tick_n};
    logic [15:0] r_t2_load, r_t2_latch;
    logic [31:0] r_t2_at;                        // cycle snapshot at (re)load
    logic        r_t2_wr_phase, r_t2_rd_phase, r_t2_loading;
@@ -280,12 +295,13 @@ module ioc
       else begin
          // prescaler: advance the PIT tick once per PIT_DIV core clocks (~1.193 MHz),
          // no RTL divider -- just a 7-bit counter + compare.
-         if(r_presc == (PIT_DIV - 1)) begin
-            r_presc <= 7'd0;
+         if(w_presc_next >= PIT_DIV[7:0]) begin
+            r_presc <= w_presc_next[6:0] - PIT_DIV[6:0];
             r_cycle <= r_cycle + 32'd1;
          end
-         else
-            r_presc <= r_presc + 7'd1;
+         else begin
+            r_presc <= w_presc_next[6:0];
+         end
          // tcword write: RW field (bits[5:4]) == 0 is a counter-latch command;
          // otherwise it programs (or stops) cnt2 -> expect a 2-byte counter load.
          if(w_pit_tcword_wr) begin

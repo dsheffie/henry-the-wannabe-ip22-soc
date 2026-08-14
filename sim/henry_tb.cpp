@@ -46,6 +46,7 @@ namespace globals {
 static sparse_mem *g_ss_mem   = nullptr;   // golden ISS memory (own 4GB, PA-indexed)
 static state_t    *ss         = nullptr;   // golden checker state
 static bool        g_checker  = false;     // --checker enables the lockstep compare
+static bool        g_det_pit  = false;     // --det-pit: instruction-paced PIT (see arg parsing)
 static uint32_t    g_chk_gate_pc = 0;      // preamble-resume: start lockstep at this ckpt pc
 static bool        g_chk_active_gate = true; // on for normal boot; off (gated) when resuming
 
@@ -1078,6 +1079,15 @@ int main(int argc, char **argv) {
     else if(a == "--cimg" && i+1 < argc)   cimg_file = argv[++i];
     else if(a == "--verify-ckpt" && i+1 < argc) g_verify_path = argv[++i];
     else if(a == "--checker")              g_checker = true;
+    /* Make the i8254 PIT advance per retired instruction instead of per core
+     * clock.  IRIX calibrates its clock against that counter very early
+     * (_cpuclkper100ticks, ~instruction 184k of a boot), so with the default
+     * cycle-paced PIT ANY timing perturbation changes the calibration result and
+     * every value derived from it -- which makes an RTL-vs-RTL retire-stream diff
+     * useless past that point.  Instruction-pacing it removes the last source of
+     * non-determinism before interrupts are enabled, so two builds that differ
+     * only in cache/coherence behaviour must retire byte-identical streams. */
+    else if(a == "--det-pit")              g_det_pit = true;
     else if(a == "--iss-seed" && i+1 < argc) iss_seed_file = argv[++i];
   }
   std::vector<uint8_t> rx_bytes(rx_str.begin(), rx_str.end());
@@ -1182,6 +1192,8 @@ int main(int argc, char **argv) {
   auto tick = [&](void) { tb->clk = 1; tb->eval(); tb->clk = 0; tb->eval(); };
 
   // ---- reset ----
+  tb->det_pit = g_det_pit ? 1 : 0;
+  if(g_det_pit) { fprintf(stderr, "[tb] PIT is INSTRUCTION-paced (--det-pit): pre-interrupt execution is reproducible\n"); }
   tb->reset = 1; tb->resume = 0; tb->resume_pc = 0;
   tb->mem_rsp_valid = 0; tb->mem_rsp_bad = 0; tb->putchar_fifo_pop = 0;
   tb->scc_rx_valid = 0; tb->scc_rx_byte = 0;
