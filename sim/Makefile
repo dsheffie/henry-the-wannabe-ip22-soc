@@ -33,13 +33,23 @@ VFLAGS = -cc --exe -O3 \
          -Wno-fatal -Wno-WIDTH -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE \
          -Wno-UNUSED -Wno-BLKANDNBLK -Wno-PINMISSING \
          -y $(RTL) -y $(R9999) +incdir+$(R9999) +define+ENABLE_STORE_CHECK +define+INSN_PACED_COUNT --top-module $(TOP) -Mdir obj_dir \
-         -CFLAGS "-I$(R9999) -DFAITHFUL_SCSI -DSTORE_CHECK -DHENRY_TB_TRACE" \
+         -CFLAGS "-I$(R9999) -DFAITHFUL_SCSI -DSTORE_CHECK -DHENRY_TB_TRACE $(CFLAGS_EXTRA)" \
          -LDFLAGS "-lcapstone" \
          -o henry_tb
 # `make BIG_L2=1` -> 1MB sim-only L2 (LG_L2_NUM_SETS=16) to shake out bugs the tiny
 # 16KB direct-mapped L2 was masking; leaves the FPGA build at 16KB.
 ifdef BIG_L2
 VFLAGS += +define+BIG_SIM_L2
+endif
+# `make WAVE=1` -> FST waveform support.  Off by default because tracing costs sim
+# speed even when no window is active.  FST rather than VCD: this design dumps
+# enormous amounts of state and VCD is impractical past a few thousand cycles.
+# Runtime knobs (see henry_tb.cpp): WAVE=<file> WAVE_START=<cyc> WAVE_END=<cyc>.
+# A window is mandatory in practice -- the interesting repro sits at ~69-87M cycles
+# and dumping all of it would fill the disk.
+ifdef WAVE
+VFLAGS += --trace-fst --trace-structs --trace-depth 12
+CFLAGS_EXTRA += -DWAVE_ENABLED
 endif
 # `make UNCACHED=1` -> force ALL D-side data traffic uncached (coherence litmus test)
 ifdef UNCACHED

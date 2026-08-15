@@ -10,6 +10,9 @@
 //   ./henry_tb --kernel <unix.elf> [--arcs <blob>] [--maxcyc N]
 // -----------------------------------------------------------------------------
 #include "Vhenry_soc.h"
+#ifdef WAVE_ENABLED
+#include "verilated_fst_c.h"
+#endif
 #include "Vhenry_soc__Dpi.h"
 #include "verilated.h"
 #include <cstdio>
@@ -55,6 +58,10 @@ static bool        g_chk_active_gate = true; // on for normal boot; off (gated) 
 // each store cache-write via the wr_log DPI (l1d.sv).  Both streams are program-order, so
 // we drain+compare fronts -- the first mismatch is THE root store.  Compares pc/addr and
 // the low-32 data bits (endianness/partial-store robust).
+#ifdef WAVE_ENABLED
+static VerilatedFstC *g_tfp = nullptr;
+static uint64_t g_wv_beg = 0, g_wv_end = 0;
+#endif
 static uint64_t g_cur_cyc = 0;                 // updated each loop iteration (declared early for the DPIs)
 /* LDWATCH=<pa>: dump every CPU-visible load AND store to that 16B line, so the
  * values the core actually observes can be interleaved with the [bi-issue]/[bi-ack]
@@ -1208,6 +1215,27 @@ int main(int argc, char **argv) {
   Verilated::commandArgs(argc, argv);
   Vhenry_soc *tb = new Vhenry_soc;
 
+  /* ---- windowed FST tracing (build with `make WAVE=1`) --------------------
+   * WAVE=<file> WAVE_START=<cycle> WAVE_END=<cycle>.  The window is not optional
+   * in practice: this repro is at ~69-87M cycles and a full dump is not storable.
+   * Timestamps are 2*cycle so both clock edges are distinguishable. */
+#ifdef WAVE_ENABLED
+  /* NOTE: the dump calls live in the MAIN LOOP (at the real clk edges), not in the
+   * tick lambda below -- that lambda only runs during reset/resume, so hanging the
+   * dump off it produced a valid-looking but permanently empty FST. */
+  static const char *wv_file  = getenv("WAVE");
+  static const uint64_t wv_beg = getenv("WAVE_START") ? strtoull(getenv("WAVE_START"),0,0) : 0;
+  static const uint64_t wv_end = getenv("WAVE_END")   ? strtoull(getenv("WAVE_END"),0,0)   : 0;
+  if(wv_file) {
+    Verilated::traceEverOn(true);
+    g_tfp = new VerilatedFstC;
+    tb->trace(g_tfp, 12);
+    g_tfp->open(wv_file);
+    g_wv_beg = wv_beg; g_wv_end = wv_end;
+    fprintf(stderr, "[wave] %s cycles [%llu, %llu]\n", wv_file,
+            (unsigned long long)wv_beg, (unsigned long long)wv_end);
+  }
+#endif
   auto tick = [&](void) { tb->clk = 1; tb->eval(); tb->clk = 0; tb->eval(); };
 
   // ---- reset ----
@@ -1298,6 +1326,9 @@ int main(int argc, char **argv) {
 
     tb->clk = 1;
     tb->eval();                              // posedge (FIFO advances if pop)
+#ifdef WAVE_ENABLED
+    if(g_tfp && g_cur_cyc >= g_wv_beg && g_cur_cyc <= g_wv_end) { g_tfp->dump(2*g_cur_cyc); }
+#endif
     if(drain) { putchar(drain_ch); mon_console_out(drain_ch); }
 
     if(tb->retire_valid) { retired++; last_pc = tb->retire_pc; last_retire_cyc = cyc; }
@@ -1818,6 +1849,72 @@ int main(int argc, char **argv) {
                     (unsigned long long)(req_addr & MEM_MASK),
                     (unsigned)req_mask, req_sd[0], req_sd[1], req_sd[2], req_sd[3]);
         }
+        /* WBWATCH=<pa>: log EVERY writeback landing on that 16B line -- cycle,
+         * mask, and the data actually committed to memory.  The trace shows the L2
+         * being handed a value and a later refill returning an older one, but
+         * nothing in between shows whether the newer value ever reached DRAM.  This
+         * is that missing link, observed at the point of commit rather than inferred.
+         *
+         * NOTE the timebase: cyc here is the testbench's counter, which runs ~16640
+         * BEHIND the RTL r_cycle used by every $display in l1d/l2.  Add the offset
+         * when lining these up against SNP-CLEAR / bi-ack timestamps. */
+        static const char *wbw = getenv("WBWATCH");
+        static const uint64_t wbw_pa = wbw ? (strtoull(wbw, nullptr, 0) & ~15ull) : 0;
+        if(wbw_pa && ((req_addr & MEM_MASK) & ~15ull) == wbw_pa) {
+          uint32_t oldw = ((uint32_t)g_mem[wbw_pa]<<24) | ((uint32_t)g_mem[wbw_pa+1]<<16) |
+                          ((uint32_t)g_mem[wbw_pa+2]<<8) | (uint32_t)g_mem[wbw_pa+3];
+          fprintf(stderr, "[wb] cyc=%llu (rtl~%llu) pa=%09llx mask=%04x  DRAM %u -> %u  raw=%08x\n",
+                  (unsigned long long)cyc, (unsigned long long)(cyc + 16640),
+                  (unsigned long long)(req_addr & MEM_MASK), (unsigned)req_mask,
+                  oldw, __builtin_bswap32(req_sd[0]), req_sd[0]);
+        }
+        /* REGRESSWATCH=<lo>:<hi>: flag any writeback that lowers the first word of
+         * a line inside [lo,hi).  rmw_snoop.S only ever increments each line, so a
+         * value going DOWN in memory is stale data overwriting good -- observed at
+         * the DRAM interface, on the cycle it happens, rather than inferred from a
+         * wrong read tens of millions of cycles later.  Big-endian: the CPU's word
+         * is the first four bytes of the line. */
+        static const char *rw = getenv("REGRESSWATCH");
+        static uint64_t rw_lo = 0, rw_hi = 0;
+        static bool rw_on = false;
+        static long rw_hits = 0;
+        if(rw && !rw_on) {
+          rw_lo = strtoull(rw, nullptr, 0);
+          const char *c = strchr(rw, ':');
+          rw_hi = c ? strtoull(c + 1, nullptr, 0) : rw_lo + 16;
+          rw_on = true;
+        }
+        if(rw_on) {
+          uint64_t la = req_addr & MEM_MASK;
+          if(la >= rw_lo && la < rw_hi && (req_mask & 0xf) == 0xf) {
+            uint64_t a = la;
+            uint32_t oldv = ((uint32_t)g_mem[a]<<24) | ((uint32_t)g_mem[a+1]<<16) |
+                            ((uint32_t)g_mem[a+2]<<8)  | (uint32_t)g_mem[a+3];
+            uint32_t newv = __builtin_bswap32(req_sd[0]);
+            /* POSITIVE CONTROL: count what the probe actually SEES.  A regression
+             * count of zero is only meaningful if the probe is looking at traffic
+             * at all -- an address range that never matches reports "clean" just
+             * as loudly as a design that is clean. */
+            /* "lowered" is not the only way to lose an update.  A writeback that
+             * puts back the value already in DRAM advances nothing and trips no
+             * regression check -- if the L2 line never took the merged data, its
+             * eviction writes the OLD value and the store dies silently.  Count
+             * equal-value writebacks separately. */
+            static long rw_seen = 0, rw_up = 0, rw_same = 0;
+            ++rw_seen;
+            if(newv > oldv) { ++rw_up; }
+            else if(newv == oldv) { ++rw_same; }
+            if((rw_seen % 200000) == 0) {
+              fprintf(stderr, "[regresswatch] wb=%ld raised=%ld unchanged=%ld lowered=%ld\n",
+                      rw_seen, rw_up, rw_same, rw_hits);
+            }
+            if(newv < oldv && ++rw_hits <= 40) {
+              fprintf(stderr, "[REGRESS] cyc=%llu pa=%09llx  DRAM %u -> %u  (owner=%s)\n",
+                      (unsigned long long)cyc, (unsigned long long)la,
+                      oldv, newv, req_owner ? "DMA" : "CPU");
+            }
+          }
+        }
         for(int i = 0; i < 16; i++) {
           if((req_mask >> i) & 1) {
             uint64_t a = (req_addr + i) & MEM_MASK;
@@ -1836,6 +1933,13 @@ int main(int argc, char **argv) {
 
     tb->clk = 0;
     tb->eval();                              // negedge
+#ifdef WAVE_ENABLED
+    if(g_tfp && g_cur_cyc >= g_wv_beg && g_cur_cyc <= g_wv_end) { g_tfp->dump(2*g_cur_cyc + 1); }
+    if(g_tfp && g_cur_cyc == g_wv_end) {
+      g_tfp->close(); g_tfp = nullptr;
+      fprintf(stderr, "[wave] window written, closed at cyc=%llu\n", (unsigned long long)g_cur_cyc);
+    }
+#endif
 
     if((tb->badvaddr != prev_badv || tb->epc != prev_epc) && exc_prints < 120) {
       unsigned pre_exl = (prev_sr >> 1) & 1;
