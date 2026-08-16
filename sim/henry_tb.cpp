@@ -145,7 +145,11 @@ extern "C" void scsi_dma_log(int kind, unsigned long long a, unsigned long long 
    * detector BEFORE the debug gates below -- it must see every DMA write, not
    * only the ones SCSIDMADBG happens to be printing. */
   if(kind == 1) dma_wrote_line(a, 16);
-  if(!g_checker) return;
+  /* SCSIDMADBG is an independent debug knob: it must NOT be gated on g_checker.
+   * The lockstep checker disables itself on the first PC divergence (~5.3M insns,
+   * an exception-entry fidelity gap), which silently killed every DMA record long
+   * before the DMA under investigation at 181M -- the trace came back empty and
+   * looked like "no such DMA" rather than "no instrument". */
   static const bool dbg = getenv("SCSIDMADBG") != nullptr;
   if(!dbg) return;
   if(kind == 2)
@@ -272,6 +276,7 @@ static uint64_t g_stale_hit = 0, g_stale_fill = 0, g_dma_writes = 0;
 static uint64_t g_stale_l2 = 0, g_dma_clobber = 0;
 static const bool g_staledma = getenv("STALEDMA") != nullptr;
 static uint64_t g_snoop_lookups = 0, g_snoop_hits = 0;
+static uint64_t g_dmaw_total = 0, g_dmaw_shown = 0;   /* DMAWATCH positive control */
 /* report cap -- was hardcoded 40, which silently truncated the descended-vs-orphan
  * analysis of stale hits.  STALEDMA_MAX overrides. */
 static const long g_stale_max = getenv("STALEDMA_MAX") ? strtol(getenv("STALEDMA_MAX"), 0, 0) : 2000;
@@ -301,6 +306,8 @@ static void staledma_summary(void) {
           (unsigned long long)g_stale_hit, (unsigned long long)g_stale_l2,
           (unsigned long long)g_stale_fill, (unsigned long long)g_dma_clobber,
           (unsigned long long)g_snoop_lookups, (unsigned long long)g_snoop_hits);
+  fprintf(stderr, "[dmawatch] DMA-engine writes total=%llu  shown in window=%llu\n",
+          (unsigned long long)g_dmaw_total, (unsigned long long)g_dmaw_shown);
   if(g_dma_writes == 0)
     fprintf(stderr, "[staledma] INERT: zero DMA writes observed -- this detector "
             "could not have reported anything. Treat the result as NO DATA.\n");
@@ -1821,8 +1828,31 @@ int main(int argc, char **argv) {
        * cached copy; an L2 writeback does not, so the master bit is what separates
        * them -- both arrive on this same port.  Hooked here rather than on
        * scsi_dma_log, which does not exist in this tree's RTL at all. */
-      if(tb->mem_req_master == 1 && req_op != 4)
+      if(tb->mem_req_master == 1 && req_op != 4) {
         dma_wrote_line((unsigned long long)(tb->mem_req_addr & ~15ull), 16);
+        /* DMAWATCH=<lo>:<hi> -- log every DMA-engine write in a cycle window, with
+         * its target and payload.  The descriptor-walk tracer (scsi_dma_log) does
+         * NOT exist in this tree's RTL, so this port is the only place the engine's
+         * write stream is observable.  Counts are printed at exit so an empty
+         * result can be told apart from an inert probe. */
+        static const char *dw = getenv("DMAWATCH");
+        static uint64_t dw_lo = 0, dw_hi = 0;
+        static bool dw_init = false;
+        if(dw && !dw_init) {
+          dw_lo = strtoull(dw, nullptr, 0);
+          const char *c = strchr(dw, ':');
+          dw_hi = c ? strtoull(c + 1, nullptr, 0) : dw_lo + 1000000;
+          dw_init = true;
+        }
+        g_dmaw_total++;
+        if(dw && cyc >= dw_lo && cyc <= dw_hi) {
+          g_dmaw_shown++;
+          fprintf(stderr, "[dmawr] cyc=%llu pa=%09llx d=%08x %08x %08x %08x\n",
+                  (unsigned long long)cyc,
+                  (unsigned long long)(tb->mem_req_addr & MEM_MASK),
+                  req_sd[0], req_sd[1], req_sd[2], req_sd[3]);
+        }
+      }
       { int lat = MEM_LAT_MIN + (int)(memlat_next() % MEM_LAT_SPAN);   /* random per request */
         reply_cyc = (int64_t)cyc + ((req_op == 4) ? lat : 2*lat); }
     }
