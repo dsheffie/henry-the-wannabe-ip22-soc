@@ -312,6 +312,13 @@ static void staledma_summary(void) {
     fprintf(stderr, "[staledma] INERT: zero DMA writes observed -- this detector "
             "could not have reported anything. Treat the result as NO DATA.\n");
 }
+/* Register the summary at STARTUP, not lazily on the first DMA write.  Hanging
+ * the atexit() off dma_wrote_line made the INERT warning unreachable by
+ * construction: a run with zero DMA writes -- precisely the case the warning
+ * exists to announce -- printed nothing at all, which reads as "detector ran,
+ * found nothing" instead of "detector never ran". */
+static const bool g_staledma_reg = g_staledma && (atexit(staledma_summary) == 0);
+
 struct snoop_rec_t { uint32_t n; uint32_t hits; };
 static std::unordered_map<uint64_t, snoop_rec_t> g_snoops;
 
@@ -333,7 +340,6 @@ static const char *snoop_verdict(uint64_t pa) {
 
 extern "C" void dma_wrote_line(uint64_t pa, uint32_t nbytes) {
   if(!g_staledma) return;
-  { static bool reg = false; if(!reg) { reg = true; atexit(staledma_summary); } }
   g_dma_writes++;
   for(uint64_t a = (pa & ~15ull); a < pa + (nbytes ? nbytes : 1); a += 16)
     g_dma_lines[a] = { g_cur_cyc, nbytes };
