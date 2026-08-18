@@ -275,6 +275,66 @@ static std::unordered_map<uint64_t, dma_line_t> g_dma_lines;   // 16B line -> la
 static uint64_t g_stale_hit = 0, g_stale_fill = 0, g_dma_writes = 0;
 static uint64_t g_stale_l2 = 0, g_dma_clobber = 0;
 static const bool g_staledma = getenv("STALEDMA") != nullptr;
+
+// ---- LOST-WRITEBACK DETECTOR (env LOSTWB) ------------------------------------
+// An ISS-INDEPENDENT oracle for a DROPPED STORE. Every alias/coherence check in this
+// design asks "is the line in the right set"; none asks "did the data survive". If the
+// L1D writes a line back and a later REFILL of that same line returns different bytes,
+// something between the L1D and DRAM lost the write -- which is exactly the failure
+// shape behind IRIX's "invalid kptbl entry" (a page-table store that never landed).
+// Needs no golden ISS, so it is immune to the co-sim's device/CP0 divergence.
+// DMA-written lines are skipped: a device legitimately changes them underneath us.
+static const bool g_lostwb = getenv("LOSTWB") != nullptr;
+static std::unordered_map<uint64_t, std::pair<uint64_t,uint64_t> > g_lastwb;
+static long g_lostwb_n = 0;
+static long g_wbtrack_n = 0;
+static std::map<uint64_t,long> g_lostwb_pages;   // 4KB page -> lost lines
+
+extern "C" void l1d_wb_track(unsigned long long pa, unsigned long long lo,
+                            unsigned long long hi, int op) {
+  if(!g_lostwb) {
+    return;
+  }
+  /* Data-carrying requests only: MEM_SW=7, MEM_SD=15, MEM_WB=26. MEM_INVL=24 carries
+   * no line data and would poison the shadow with garbage. */
+  if(!(op == 7 || op == 15 || op == 26)) {
+    return;
+  }
+  g_wbtrack_n++;
+  g_lastwb[pa & ~15ull] = std::make_pair((uint64_t)lo, (uint64_t)hi);
+}
+
+/* Registered at STARTUP, not lazily inside the hook: a summary registered on first use
+ * never runs when the hook never fires, which is precisely the case you need told
+ * about. Same bug this file already had in staledma_summary. */
+static void lostwb_summary() {
+  if(!g_lostwb) {
+    return;
+  }
+  fprintf(stderr, "[LOSTWB] tracked_writebacks=%ld distinct_lines=%zu lost=%ld\n",
+          g_wbtrack_n, g_lastwb.size(), g_lostwb_n);
+  if(g_wbtrack_n == 0) {
+    fprintf(stderr, "[LOSTWB] *** INERT: the DPI never fired -- this run proves NOTHING\n");
+  }
+  /* Per-PAGE tally. The first-N print is useless here -- it is consumed by one
+   * early-boot page -- and the raw total is dominated by a false-positive mode that
+   * the PASSING BASELINE shares (MEM_SW carries partial-line store traffic, so the
+   * shadow is not always a full valid line). What matters is which pages lose lines in
+   * ONE configuration only, so print the distribution and diff it across configs. */
+  fprintf(stderr, "[LOSTWB] top pages by lost lines (page<<12):\n");
+  std::vector<std::pair<long,uint64_t> > v;
+  for(auto &kv : g_lostwb_pages) {
+    v.push_back(std::make_pair(kv.second, kv.first));
+  }
+  std::sort(v.begin(), v.end(), std::greater<std::pair<long,uint64_t> >());
+  for(size_t i = 0; i < v.size() && i < 20; i++) {
+    fprintf(stderr, "[LOSTWB]   pa=%09llx lost=%ld\n",
+            (unsigned long long)(v[i].second << 12), v[i].first);
+  }
+  fprintf(stderr, "[LOSTWB] kptbl page 0x0838e lost=%ld\n",
+          g_lostwb_pages.count(0x0838eull) ? g_lostwb_pages[0x0838eull] : 0L);
+}
+static const bool g_lostwb_reg = g_lostwb && (atexit(lostwb_summary) == 0);
 static uint64_t g_snoop_lookups = 0, g_snoop_hits = 0;
 static uint64_t g_dmaw_total = 0, g_dmaw_shown = 0;   /* DMAWATCH positive control */
 /* report cap -- was hardcoded 40, which silently truncated the descended-vs-orphan
@@ -366,6 +426,24 @@ extern "C" void rd_log(long long pc, unsigned long long addr,
 
 extern "C" void l1d_fill(unsigned long long /*rtl_cyc*/, long long pc, unsigned long long pa,
                          unsigned long long lo, unsigned long long hi) {
+  if(g_lostwb) {
+    uint64_t line = pa & ~15ull;
+    auto w = g_lastwb.find(line);
+    /* g_dma_lines is only populated when STALEDMA is set; run both together so a
+     * device write cannot masquerade as a lost store. */
+    bool dma_touched = (g_dma_lines.find(line) != g_dma_lines.end());
+    if(w != g_lastwb.end() && !dma_touched &&
+       (w->second.first != lo || w->second.second != hi)) {
+      g_lostwb_pages[line >> 12]++;
+      if(++g_lostwb_n <= 20) {
+        fprintf(stderr, "[LOST-WB] cyc=%llu pc=%08x pa=%09llx wrote=%016llx.%016llx "
+                "refilled=%016llx.%016llx\n",
+                (unsigned long long)g_cur_cyc, (uint32_t)pc, line,
+                (unsigned long long)w->second.first, (unsigned long long)w->second.second,
+                lo, hi);
+      }
+    }
+  }
   if(!g_staledma) return;
   uint64_t line = pa & ~15ull;
   auto it = g_dma_lines.find(line);
