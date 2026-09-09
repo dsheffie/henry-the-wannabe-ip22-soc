@@ -27,6 +27,14 @@ module hpc3
     input  logic [15:0]  mask,
     input  logic [127:0] wdata,
     output logic [127:0] rdata,
+    /* SCSI0 DMA channel status from scsi_dma (hpc3.pdf 'HD control register'): the
+     * processor sets ch_active to start; HPC3 CLEARS it when the chain completes, and
+     * the xie interrupt is cleared when the control register is READ.  These were never
+     * decoded -- hd0.bc/hd0.cntl read as 0, so the guest polled forever. */
+    input  logic         scsi0_dma_busy,   // engine active -> reflects ch_active
+    input  logic         scsi0_dma_irq,    // 1-cycle pulse: final descriptor had XIE
+    input  logic [13:0]  scsi0_dma_bc,     // residual byte count
+    output logic         scsi0_hpc_intr,   // level: XIE latched, cleared on cntl read
     // ---- DMA master (mem-to-mem copy engine) -> henry_soc DRAM arbiter ----
     output logic                  dma_req_valid,
     output logic [`PA_WIDTH-1:0]  dma_req_addr,
@@ -46,6 +54,8 @@ module hpc3
    logic [31:0] r_pbus_dma [0:7];   // 0x5c000 block: 8 PBUS DMA channels (stride 0x200)
    logic [31:0] r_pbus_pio [0:15];  // 0x5d000 block: PBUS PIO channels (stride 0x100)
    logic [31:0] r_scsi_dmacfg, r_scsi_piocfg;  // 0x11010 / 0x11014 SCSI0 channel cfg
+   logic        r_hd0_xie;        /* latched XIE interrupt; cleared when cntl is read */
+   logic        r_hd0_dir, r_hd0_flush;
    logic [47:0] r_enet_eaddr;       // ds1386 bbRAM station MAC @0x604e8..0x604fc; FSBL-programmed
 
    // NMC93CS56 serial EEPROM @ reg 0x30008 (hpc3c0->eeprom). IRIX if_ec (get_nvreg,
@@ -84,6 +94,12 @@ module hpc3
          x = 32'd0;
          if(o[18:12] == 7'h5c)       x = r_pbus_dma[o[11:9]];   // PBUS DMA cfg readback
          else if(o[18:12] == 7'h5d)  x = r_pbus_pio[o[11:8]];   // PBUS PIO cfg readback
+         /* hd0.bc (R): residual byte count.  hd0.cntl (R/W): bit0 ch_active reads back from
+          * the ENGINE's busy so HPC3 'clears' it exactly when the chain ends (hpc3.pdf);
+          * bit1 dir, bit4 flush, bit5 latched XIE.  Neither was decoded before -> both read
+          * 0 and the guest polled hd0.cntl forever. */
+         else if(o == 19'h11000)     x = {18'd0, scsi0_dma_bc};
+         else if(o == 19'h11004)     x = {26'd0, r_hd0_xie, r_hd0_flush, 2'd0, r_hd0_dir, scsi0_dma_busy};
          else if(o == 19'h11010)     x = r_scsi_dmacfg;         // SCSI0 DMA cfg readback
          else if(o == 19'h11014)     x = r_scsi_piocfg;         // SCSI0 PIO cfg readback
          else case(o)
@@ -100,7 +116,16 @@ module hpc3
            19'h60018: x = 32'h01000000; // ds1386 day-of-week  (1)
            19'h60020: x = 32'h01000000; // ds1386 date         (1st)
            19'h60024: x = 32'h01000000; // ds1386 month        (January)
-           19'h60028: x = 32'h90000000; // ds1386 year (BCD 90). IRIX rtodc() decodes year=1940+bcd (bcd<45 adds 30): bcd 90>=45 -> 2030. 2030 is AFTER the ~2026-06 /var/sysgen mtimes, so IRIX reconfigures ONCE then skips it every later boot.
+           19'h60028: x = 32'h90000000; // ds1386 year = BCD 90 (byte in [31:24], same lane as
+                                        // the MAC/SYSID fields).  IRIX rtodc() decodes
+                                        // year=1940+bcd (bcd<45 adds 30): bcd 90>=45 -> 2030,
+                                        // AFTER the ~2026-06 /var/sysgen mtimes, so IRIX
+                                        // reconfigures ONCE and skips it on every later boot.
+                                        // Was 32'h00000000 (BCD 00 -> 1970): the comment
+                                        // described the fix but the VALUE was never changed,
+                                        // so the guest re-ran "Automatically reconfiguring the
+                                        // operating system" every boot and never reached a
+                                        // login prompt.
            19'h6002c: x = 32'h00000000; // ds1386 command/status (not busy)
            // IP22 station ethernet MAC in the ds1386 bbRAM (ip22_nvram_read
            // EADDR_NVOFS=250; bbram base 0x60100 so reg 250 -> 0x604e8). The
@@ -145,6 +170,7 @@ module hpc3
          for(i = 0; i < 8;  i = i + 1) r_pbus_dma[i] <= 32'd0;
          for(i = 0; i < 16; i = i + 1) r_pbus_pio[i] <= 32'd0;
          r_scsi_dmacfg <= 32'd0;
+         r_hd0_xie <= 1'b0; r_hd0_dir <= 1'b0; r_hd0_flush <= 1'b0;
          r_scsi_piocfg <= 32'd0;
          r_enet_eaddr  <= 48'd0;
          r_ee_eprot <= 1'b0; r_ee_csel <= 1'b0; r_ee_eclk <= 1'b0;
@@ -155,6 +181,17 @@ module hpc3
          // PBUS DMA/PIO config + SCSI0 cfg: store so the readback validates.
          if((offs[18:12] == 7'h5c) & (mask[3:0] == 4'hf)) r_pbus_dma[offs[11:9]] <= wdata[31:0];
          if((offs[18:12] == 7'h5d) & (mask[3:0] == 4'hf)) r_pbus_pio[offs[11:8]] <= wdata[31:0];
+         /* hd0.cntl write: latch dir/flush only.  ch_active is deliberately NOT stored --
+          * it reflects the engine, so completion clears it in hardware as the spec requires. */
+         /* XIE: engine pulses irq at end-of-chain -> latch a LEVEL for the interrupt tree;
+          * reading hd0.cntl clears it, exactly as hpc3.pdf specifies. */
+         if(scsi0_dma_irq)                                r_hd0_xie <= 1'b1;
+         else if(~is_store & sel & (offs == 19'h11000) & (mask[7:4] == 4'hf)) r_hd0_xie <= 1'b0;
+         if((offs == 19'h11000) & (mask[7:4] == 4'hf))
+           begin
+              r_hd0_dir   <= wdata[33];
+              r_hd0_flush <= wdata[36];
+           end
          if((offs == 19'h11010)    & (mask[3:0] == 4'hf)) r_scsi_dmacfg <= wdata[31:0];
          if((offs == 19'h11010)    & (mask[7:4] == 4'hf)) r_scsi_piocfg <= wdata[63:32];
          // intstat/misc + remaining windows (write-absorb)
@@ -242,4 +279,8 @@ module hpc3
    assign dma_req_store_data = '0;
    assign dma_req_mask       = '0;
 `endif
+   /* level out to the interrupt tree (int3 local0 SCSI0); cleared by a cntl read */
+   assign scsi0_hpc_intr = r_hd0_xie;
+
 endmodule // hpc3
+

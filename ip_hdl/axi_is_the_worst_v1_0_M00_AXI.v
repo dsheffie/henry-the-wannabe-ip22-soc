@@ -38,7 +38,7 @@ module axi_is_the_worst_v1_0_M00_AXI #
     input wire				     ack_txn,
     input wire [31:0]			     baseaddr,
     input wire [31:0]			     addrmask,
-    input wire [31:0]			     cpuaddr,
+    input wire [35:0]			     cpuaddr,
     output wire [63:0]			     txn_cnt,
     output wire [63:0]			     txn_lat,
     
@@ -351,7 +351,7 @@ module axi_is_the_worst_v1_0_M00_AXI #
 	  end
      end // always@ (*)
 
-   reg [31:0] t_cpuaddr;
+   reg [35:0] t_cpuaddr;
    reg	      r_sgi_mode;
    
    always@(posedge M_AXI_ACLK)
@@ -370,7 +370,7 @@ module axi_is_the_worst_v1_0_M00_AXI #
 	     if((cpuaddr <= 32'h17ffffff) & (cpuaddr >= 32'h08000000) )
 	       begin
 		  //starts at 2^27 - 256 mbytes
-		  t_cpuaddr = {4'd0, cpuaddr[27:0]};
+		  t_cpuaddr = {8'd0, cpuaddr[27:0]};
 	       end
 	     else if((cpuaddr <= 32'h1fffffff) & (cpuaddr >= 32'h1f000000))
 	       begin
@@ -380,7 +380,7 @@ module axi_is_the_worst_v1_0_M00_AXI #
 		  //0x1f9fffff 0x1f600000 4 MB GIO64 Expansion Slot 1
 		  //0x1f5fffff 0x1f400000 2 MB GIO64 Expansion Slot 0
 		  //0x1f3fffff 0x1f000000 4 MB Graphics System
-		  t_cpuaddr = {8'd16 , cpuaddr[23:0]};
+		  t_cpuaddr = {12'd16 , cpuaddr[23:0]};
 	       end
 	     
 	      //0x1effffff 0x18000000 112 MB Reserved (Future GIO Space)
@@ -393,8 +393,10 @@ module axi_is_the_worst_v1_0_M00_AXI #
      end
 	   
    
-   wire [31:0] 					w_axi_addr = baseaddr+t_cpuaddr;
-   wire						w_bad_addr = (t_cpuaddr > addrmask);
+   /* truncate ONLY here, at the 32-bit AXI bus, and only after the
+    * full-width range check below has had a chance to poison it. */
+   wire [31:0] 					w_axi_addr = baseaddr+t_cpuaddr[31:0];
+   wire						w_bad_addr = (t_cpuaddr > {4'd0, addrmask});
 
    wire						w_wr_req = mem_req_valid & (mem_opcode == 'd7);
    wire						w_rd_req = mem_req_valid & (mem_opcode == 'd4);
