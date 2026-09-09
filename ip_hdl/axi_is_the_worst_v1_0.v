@@ -108,8 +108,15 @@ module axi_is_the_worst_v1_0 #
    wire [31:0] 					w_controlreg,w_baseaddr,w_status;
    wire [31:0]					w_addrmask;
    
-   wire [31:0] 					w_mem_req_addr;
-   wire [31:0] 					w_axi_addr = w_baseaddr+(w_mem_req_addr);
+   /* Full 36-bit physical address.  henry_soc drives PA_WIDTH=36; truncating it
+    * here dropped PA[35:32] AND defeated the out-of-range poison, because
+    * M00_AXI's `w_bad_addr = (t_cpuaddr > addrmask)` then compared the ALREADY
+    * TRUNCATED value -- so a high-PFN access was laundered into an in-range
+    * address and read real DRAM at the wrong line instead of returning
+    * 0xA5A5A5A5.  The AXI bus itself is 32-bit and cannot widen, so the rule is:
+    * range-check at full width, truncate only at the bus. */
+   wire [35:0] 					w_mem_req_addr;
+   wire [31:0] 					w_axi_addr = w_baseaddr+(w_mem_req_addr[31:0]);
 
    wire [127:0]					w_mem_req_store_data;
    wire						w_axi_busy;
@@ -122,7 +129,18 @@ module axi_is_the_worst_v1_0 #
    wire [31:0] 					w_bp_wp_val;  // expected corrupt store value (slv_reg11)
 
    //inputs to axi slave
-   wire [31:0] 					w_rvstatus, w_epc, w_badvaddr;
+   /* These carry `M_WIDTH (64b) values from henry_soc but the AXI readback
+    * registers are 32b, so only the low half is visible.  The truncation is
+    * made EXPLICIT below ([31:0] on the port connection) instead of being left
+    * to an implicit width mismatch: the limit is real (true 64b visibility
+    * needs new readback registers -- 0x1B-0x25 are free) but it should not be
+    * silent.  For the o32 userspace code in the 2026-09-02 captures this is
+    * lossless; a genuinely 64-bit-wrong value would NOT be visible. */
+   wire [63:0] 					w_epc64, w_badvaddr64;
+   wire [31:0] 					w_rvstatus;
+   wire [31:0] 					w_epc      = w_epc64[31:0];
+   wire [31:0] 					w_badvaddr = w_badvaddr64[31:0];
+   wire [31:0] 					w_wf_epc, w_wf_badv, w_wf_stat;   // wild-fault latch
    wire [31:0]					w_states;
    wire [4:0]					w_cause;
    wire [2:0]					w_dbg_frozen;
@@ -132,8 +150,10 @@ module axi_is_the_worst_v1_0 #
    wire [63:0]					w_dbg_head_pc;
    wire [31:0]					w_dbg_head_status;
    wire [8:0]					w_trace_wptr;
+   wire [31:0]					w_dbg_rdchk;
    wire [31:0]					w_trace_ring_wptr;   // DRAM deep-trace: bytes written since arm
    wire						w_trace_overflow;    // DRAM deep-trace: a record was dropped
+   wire [7:0]					w_cur_asid;          // current EntryHi ASID readback (be-ASID discovery)
    wire						w_l1i_flush_done, w_l1d_flush_done, w_l2_flush_done;
    
    
@@ -188,7 +208,7 @@ module axi_is_the_worst_v1_0 #
    wire [127:0]					w_load_data;
    
    wire						w_memq_empty;
-   wire [5:0]					w_inflight;
+   wire [5:0]					w_inflight;   /* soc drives LG_ROB_ENTRIES+1 = 5b; upper bit reads 0 */
 
    wire [4:0]					w_reg_ptr0, w_reg_ptr1;
    wire [31:0]					w_reg_data0, w_reg_data1;
@@ -252,6 +272,15 @@ module axi_is_the_worst_v1_0 #
    wire [7:0]   w_scsi_req_dest, w_scsi_req_lun, w_scsi_rsp_scsi_status, w_scsi_rsp_tgt_status;
    wire         w_scsi_req_to_device;
    wire [15:0]  w_scsi_sel_delay;
+   // enet_dma conduit: S00_AXI (ARM) <-> henry_soc engine
+   wire         w_enet_rx_frame_go, w_enet_rx_beat_push, w_enet_rx_beat_full;
+   wire [13:0]  w_enet_rx_frame_len;
+   wire [127:0] w_enet_rx_beat_data;
+   wire         w_enet_tx_beat_valid, w_enet_tx_beat_pop;
+   wire [127:0] w_enet_tx_beat_data;
+   wire         w_enet_dma_rx_done, w_enet_dma_rx_dropped, w_enet_dma_tx_done;
+   wire [31:0]  w_enet_dma_crbdp;
+
    // SCSI beat conduit: S00_AXI (ARM pushes) -> henry_soc engine FIFO
    wire         w_scsi_beat_push, w_scsi_beat_full;
    wire [127:0] w_scsi_beat_data;
@@ -283,17 +312,22 @@ module axi_is_the_worst_v1_0 #
 				       .rvstatus(w_rvstatus),
 				       .states(w_states),
 				       .sgi_mode(w_sgi_mode),				       
-				       .epc(w_epc),
+				       .epc(w_epc64),
 				       .status_reg(w_status_reg),
-				       .badvaddr(w_badvaddr),
+				       .badvaddr(w_badvaddr64),
+				       .wf_epc(w_wf_epc),
+				       .wf_badv(w_wf_badv),
+				       .wf_stat(w_wf_stat),
 				       .cause(w_cause),
 				       .dbg_frozen(w_dbg_frozen),
 				       .dbg_wp_data(w_dbg_wp_data),
 				       .dbg_trace_data(w_trace_data),
 				       .dbg_trace_wptr(w_trace_wptr),
+				       .dbg_rdchk(w_dbg_rdchk),
 				       .dbg_trace_index(w_trace_index),
 				       .trace_ring_wptr(w_trace_ring_wptr),
 				       .trace_overflow(w_trace_overflow),
+				       .cur_asid(w_cur_asid),
 				       .dbg_head_pc(w_dbg_head_pc[31:0]),
 				       .dbg_head_status(w_dbg_head_status),
 				       .l1i_flush_done(w_l1i_flush_done),
@@ -351,6 +385,18 @@ module axi_is_the_worst_v1_0 #
 				       .scsi_rsp_scsi_status(w_scsi_rsp_scsi_status),
 				       .scsi_rsp_tgt_status(w_scsi_rsp_tgt_status),
 				       .scsi_sel_delay(w_scsi_sel_delay),
+				       .enet_rx_frame_go(w_enet_rx_frame_go),
+				       .enet_rx_frame_len(w_enet_rx_frame_len),
+				       .enet_rx_beat_push(w_enet_rx_beat_push),
+				       .enet_rx_beat_data(w_enet_rx_beat_data),
+				       .enet_rx_beat_full(w_enet_rx_beat_full),
+				       .enet_tx_beat_valid(w_enet_tx_beat_valid),
+				       .enet_tx_beat_pop(w_enet_tx_beat_pop),
+				       .enet_tx_beat_data(w_enet_tx_beat_data),
+				       .enet_dma_rx_done(w_enet_dma_rx_done),
+				       .enet_dma_rx_dropped(w_enet_dma_rx_dropped),
+				       .enet_dma_crbdp(w_enet_dma_crbdp),
+				       .enet_dma_tx_done(w_enet_dma_tx_done),
 				       .scsi_beat_push(w_scsi_beat_push),
 				       .scsi_beat_data(w_scsi_beat_data),
 				       .scsi_beat_full(w_scsi_beat_full),
@@ -362,6 +408,7 @@ module axi_is_the_worst_v1_0 #
 				       .enet_tx_rsp_seq(w_enet_tx_rsp_seq),
 				       .enet_rx_rsp_seq(w_enet_rx_rsp_seq),
 				       .enet_rx_crbdp(w_enet_rx_crbdp),
+
 				       .S_AXI_ACLK(s00_axi_aclk),
 				       .S_AXI_ARESETN(s00_axi_aresetn),
 				       .S_AXI_AWADDR(s00_axi_awaddr),
@@ -507,8 +554,15 @@ module axi_is_the_worst_v1_0 #
 	   .bp_fault_only(w_rvcontrol[19]),   // [19]=freeze only on a fault at bp_pc
 	   .l2_nocache(w_rvcontrol[20]),   // [20]=L2 no-cache (set before go)
 	   .trace_arm(w_rvcontrol[21]),    // [21]=arm the DRAM control-flow deep trace
+	   .trace_filter_en(w_rvcontrol[15]),        // [15]=enable the deep-trace ASID filter
+	   .trace_loadval(w_rvcontrol[14]),          // [14]=deep trace records {pc,val} load records
+	   .trace_throttle(w_rvcontrol[13]),         // [13]=stall retirement on trace FIFO high-water (lossless)
+	   .trace_pcfilt(w_rvcontrol[12]),           // [12]=record+throttle only be-text-range PCs
+	   .wf_epc(w_wf_epc), .wf_badv(w_wf_badv), .wf_stat(w_wf_stat),   // wild-fault latch (poison pointer P)
+	   .trace_target_asid(w_rvcontrol[29:22]),   // [29:22]=ASID filter target (be's ASID)
 	   .trace_ring_wptr(w_trace_ring_wptr),
 	   .trace_overflow(w_trace_overflow),
+	   .cur_asid(w_cur_asid),
 	   // SCC serial Rx driven by the ARM/PS via S00_AXI reg 0x3B (push) /
 	   // reg 0x3A bit8 (full). A pushed byte lands in the core's Rx FIFO and
 	   // raises the INT3 serial IRQ (IP2) inside henry_soc.
@@ -566,6 +620,7 @@ module axi_is_the_worst_v1_0 #
 	   .dbg_trace_index(w_trace_index),
 	   .dbg_trace_data(w_trace_data),
 	   .dbg_trace_wptr(w_trace_wptr),
+	   .dbg_rdchk(w_dbg_rdchk),
 	   .scsi_req_seq(w_scsi_req_seq),
 	   .scsi_req_cdb(w_scsi_req_cdb),
 	   .scsi_req_nbdp(w_scsi_req_nbdp),
@@ -581,6 +636,22 @@ module axi_is_the_worst_v1_0 #
 	   .scsi_beat_data(w_scsi_beat_data),
 	   .scsi_beat_full(w_scsi_beat_full),
 	   .scsi_dbg(w_scsi_dbg),
+	   /* enet_dma host conduit, driven by S00_AXI (regs 0x2a-0x2f / 0x3a-0x3d).
+	    * NOTE the ARM driver (axilite-mips/enet_arm.h) must be rewritten to use it;
+	    * until then it never pushes a beat or pulses rx_frame_go, so the engine
+	    * simply idles and ENET keeps working over the legacy mailbox path. */
+	   .enet_rx_frame_go(w_enet_rx_frame_go),
+	   .enet_rx_frame_len(w_enet_rx_frame_len),
+	   .enet_rx_beat_push(w_enet_rx_beat_push),
+	   .enet_rx_beat_data(w_enet_rx_beat_data),
+	   .enet_rx_beat_full(w_enet_rx_beat_full),
+	   .enet_tx_beat_valid(w_enet_tx_beat_valid),
+	   .enet_tx_beat_pop(w_enet_tx_beat_pop),
+	   .enet_tx_beat_data(w_enet_tx_beat_data),
+	   .enet_dma_rx_done(w_enet_dma_rx_done),
+	   .enet_dma_rx_dropped(w_enet_dma_rx_dropped),
+	   .enet_dma_crbdp(w_enet_dma_crbdp),
+	   .enet_dma_tx_done(w_enet_dma_tx_done),
 	   .enet_tx_req_seq(w_enet_tx_req_seq),
 	   .enet_tx_nbdp(w_enet_tx_nbdp),
 	   .enet_tx_rsp_seq(w_enet_tx_rsp_seq),
