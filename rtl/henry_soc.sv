@@ -60,6 +60,7 @@ module henry_soc
    input  logic [31:0]           bp_wp_addr,    // driver-programmable store-address watchpoint VA
    input  logic [31:0]           bp_wp_val,     // expected corrupt store value (freeze-on)
    input  logic                  bp_fault_only, // freeze ONLY on a fault at bp_pc (ctrl bit19)
+   input  logic                  rt_oneshot,    // rewind+arm the retire ring for one pass (ctrl bit22)
    input  logic                  l2_nocache,    // set-before-go: L2 behaves as no-cache (ctrl bit20)
    input  logic                  trace_arm,     // arm the DRAM control-flow deep trace (ctrl bit21)
    input  logic [7:0]            trace_target_asid, // ASID filter target (record only this process)
@@ -148,6 +149,12 @@ module henry_soc
    output logic [3:0]            l2_rsp_state,
    output logic [`LG_ROB_ENTRIES:0] inflight,
    input  logic [19:0]           dbg_trace_index,
+   output logic [63:0]           l1i_cache_accesses,
+   output logic [63:0]           l1i_cache_hits,
+   output logic [63:0]           l1d_cache_accesses,
+   output logic [63:0]           l1d_cache_hits,
+   output logic [63:0]           l2_cache_accesses,
+   output logic [63:0]           l2_cache_hits,
    output logic [31:0]           dbg_trace_data,
    output logic [15:0]           dbg_trace_wptr,
    output logic [31:0]           dbg_rdchk,   /* reader-agreement checker status -> AXI 0x26[21:20] */
@@ -300,7 +307,7 @@ module henry_soc
       .bp_pc(bp_pc),
       .bp_wp_addr(bp_wp_addr),
       .bp_wp_val(bp_wp_val),
-      .bp_fault_only(bp_fault_only),
+      .bp_fault_only(bp_fault_only), .rt_oneshot(rt_oneshot),
       .l2_nocache(l2_nocache),
       .in_flush_mode(),
       .resume(resume),
@@ -337,9 +344,12 @@ module henry_soc
       .retire_load_addr(retire_load_addr), .retire_load_addr_two(retire_load_addr_two),
       .wf_epc(wf_epc), .wf_badv(wf_badv), .wf_stat(wf_stat),
       .branch_pc(), .branch_pc_valid(), .branch_fault(),
-      .l1i_cache_accesses(), .l1i_cache_hits(),
-      .l1d_cache_accesses(), .l1d_cache_hits(),
-      .l2_cache_accesses(), .l2_cache_hits(),
+      /* were left UNCONNECTED: the core counts fine, henry_soc discarded the
+       * outputs, and the AXI wrapper fed the read mux literal 'd0 -- so every
+       * cache counter read 0 on silicon.  A silently no-op instrument. */
+      .l1i_cache_accesses(l1i_cache_accesses), .l1i_cache_hits(l1i_cache_hits),
+      .l1d_cache_accesses(l1d_cache_accesses), .l1d_cache_hits(l1d_cache_hits),
+      .l2_cache_accesses(l2_cache_accesses),   .l2_cache_hits(l2_cache_hits),
       .got_break(got_break), .got_ud(got_ud), .got_bad_addr(got_bad_addr),
       .core_state(core_state), .l1i_state(l1i_state), .l1d_state(l1d_state), .l2_state(l2_state), .l2_rsp_state(l2_rsp_state),
       .inflight(inflight), .epc(epc), .status_reg(status_reg), .badvaddr(badvaddr), .cause(cause), .cause_ip(cause_ip), .dbg_frozen(dbg_frozen), .dbg_wp_data(dbg_wp_data),

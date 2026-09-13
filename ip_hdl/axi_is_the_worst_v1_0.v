@@ -145,11 +145,24 @@ module axi_is_the_worst_v1_0 #
    wire [4:0]					w_cause;
    wire [2:0]					w_dbg_frozen;
    wire [31:0]					w_dbg_wp_data;
-   wire [11:0]					w_trace_index;
+   /* MUST be 20 bits: dbg_trace_index is declared [19:0] at BOTH ends, but this
+    * intermediate wire was [11:0], silently dropping bits [19:12] -- which is the
+    * entire ring WORD select ({index[18], index[16:15]}).  Row/bank ([10:1]) fit
+    * in 12 bits and worked, so every dump returned word 0 (the pc) for all 7
+    * words and the ring was undecodable.  Verilog gives no width warning here.
+    * Stale comment on the S00_AXI side still says {row[7:0],word[3:0]}, which is
+    * what 12 bits was sized for before the ring grew to 2048 entries. */
+   wire [19:0]					w_trace_index;
    wire [31:0]					w_trace_data;
    wire [63:0]					w_dbg_head_pc;
    wire [31:0]					w_dbg_head_status;
-   wire [8:0]					w_trace_wptr;
+   /* WAS [8:0], which truncated a 16-bit bus: core.sv drives
+    * {r_rtrace_frozen, 4'd0, r_rtrace_ptr[9:0], 1'b0}, so bit15 is the ring's
+    * FROZEN flag and [10:1] the pair index.  At 9 bits the readback carried only
+    * ptr[7:0] and the frozen flag was UNREADABLE -- a freeze could only be
+    * inferred from wptr going static, which is ambiguous against a parked core.
+    * Widened to the full 16 the S00_AXI port already expects (reg 0x19). */
+   wire [15:0]					w_trace_wptr;
    wire [31:0]					w_dbg_rdchk;
    wire [31:0]					w_trace_ring_wptr;   // DRAM deep-trace: bytes written since arm
    wire						w_trace_overflow;    // DRAM deep-trace: a record was dropped
@@ -175,12 +188,86 @@ module axi_is_the_worst_v1_0 #
    wire [2:0]					w_istate; //3
    
 
-   wire [63:0] 					w_l1i_cache_accesses = 'd0;
-   wire [63:0] 					w_l1i_cache_hits = 'd0;
-   wire [63:0] 					w_l1d_cache_accesses = 'd0;
-   wire [63:0] 					w_l1d_cache_hits = 'd0;
-   wire [63:0] 					w_l2_cache_accesses = 'd0;
-   wire [63:0] 					w_l2_cache_hits = 'd0;
+   /* ---- cache performance counters: PIPELINED, deliberately ------------------
+    * These six buses run from counter flops deep inside l1i/l1d/l2 all the way
+    * to the 64-entry AXI readback mux, and they have historically been a major
+    * source of timing pressure on this design: a long cross-chip route feeding
+    * wide combinational select logic.
+    *
+    * They are DEBUG counters that software samples at Hz rates, so latency is
+    * entirely free -- 10 cycles of skew is invisible.  Flopping the path lets the
+    * placer/router break one long hop into ten short ones.
+    *
+    * Only [31:0] is ever read back (regs 0x2C-0x2F, 0x36, 0x37; the upper halves
+    * were repurposed to make room for these very registers), so the pipeline is
+    * 32 bits wide, not 64 -- half the flops for the same benefit.
+    *
+    * THE TRAP: a plain flop chain gets absorbed into an SRL16/SRL32, which puts
+    * all ten stages in ONE LUT at ONE site and defeats the entire purpose while
+    * looking correct in simulation.  cnt_pipe carries shreg_extract="no" and
+    * srl_style="register" to force real distributed flops.  Check it held:
+    *   check "LUT as Memory" in the impl utilization report does not grow. */
+   wire [63:0] 					w_l1i_cache_accesses;
+   wire [63:0] 					w_l1i_cache_hits;
+   wire [63:0] 					w_l1d_cache_accesses;
+   wire [63:0] 					w_l1d_cache_hits;
+   wire [63:0] 					w_l2_cache_accesses;
+   wire [63:0] 					w_l2_cache_hits;
+   wire [31:0] 					w_l1i_acc_q;
+   wire [31:0] 					w_l1i_hit_q;
+   wire [31:0] 					w_l1d_acc_q;
+   wire [31:0] 					w_l1d_hit_q;
+   wire [31:0] 					w_l2_acc_q;
+   wire [31:0] 					w_l2_hit_q;
+
+   /* ---- CACHE COUNTERS DISABLED 2026-09-12 ---------------------------------
+    * Tied off to land a bitstream.  Two full impl runs of this design WITH the
+    * counters (both strategies, ~5h wall clock) failed to close: post-route
+    * phys_opt reached WNS +0.14 / +0.06 with TNS 0, and the following routing
+    * pass tore it back open every time.  These six buses run from counter flops
+    * deep inside l1i/l1d/l2 to the 64-entry AXI readback mux and have always put
+    * heavy timing pressure on the design.
+    *
+    * Pipelining them (cnt_pipe, 10 stages) was VERIFIED to work as intended --
+    * placed FFs 42160 -> 44082 (+1922 vs +1920 predicted), LUT-as-Memory and
+    * shift-registers both UNCHANGED at 2545/171, so the flops stayed real and
+    * were not absorbed into SRLs.  It still was not enough to close timing, so
+    * the counters come out entirely for now.
+    *
+    * TO RESTORE: uncomment the cnt_pipe instances below and swap the six
+    * .l1*_cache_* connections on the S00_AXI instance back to {32'd0, w_*_q}.
+    * The cnt_pipe module itself is kept (bottom of this file) -- unused modules
+    * cost nothing and the attributes on it are the non-obvious part. */
+//   cnt_pipe #(.W(32), .N(10)) pipe_l1i_acc (
+//	.clk(s00_axi_aclk),
+//	.in(w_l1i_cache_accesses[31:0]),
+//	.out(w_l1i_acc_q)
+//	);
+//   cnt_pipe #(.W(32), .N(10)) pipe_l1i_hit (
+//	.clk(s00_axi_aclk),
+//	.in(w_l1i_cache_hits[31:0]),
+//	.out(w_l1i_hit_q)
+//	);
+//   cnt_pipe #(.W(32), .N(10)) pipe_l1d_acc (
+//	.clk(s00_axi_aclk),
+//	.in(w_l1d_cache_accesses[31:0]),
+//	.out(w_l1d_acc_q)
+//	);
+//   cnt_pipe #(.W(32), .N(10)) pipe_l1d_hit (
+//	.clk(s00_axi_aclk),
+//	.in(w_l1d_cache_hits[31:0]),
+//	.out(w_l1d_hit_q)
+//	);
+//   cnt_pipe #(.W(32), .N(10)) pipe_l2_acc (
+//	.clk(s00_axi_aclk),
+//	.in(w_l2_cache_accesses[31:0]),
+//	.out(w_l2_acc_q)
+//	);
+//   cnt_pipe #(.W(32), .N(10)) pipe_l2_hit (
+//	.clk(s00_axi_aclk),
+//	.in(w_l2_cache_hits[31:0]),
+//	.out(w_l2_hit_q)
+//	);
    wire [63:0]					w_l2_early_accesses = 'd0;
    
 
@@ -358,12 +445,16 @@ module axi_is_the_worst_v1_0 #
 				       .retire_reg_two_valid(w_reg_val1),
 
 				       
-				       .l1i_cache_accesses(w_l1i_cache_accesses),
-				       .l1i_cache_hits(w_l1i_cache_hits),
-				       .l1d_cache_accesses(w_l1d_cache_accesses),
-				       .l1d_cache_hits(w_l1d_cache_hits),
-				       .l2_cache_accesses(w_l2_cache_accesses),
-				       .l2_cache_hits(w_l2_cache_hits),
+				       /* PIPELINED (cnt_pipe, 10 stages) -- see the
+					* declarations above.  Upper half is tied to 0
+					* because no readback register exposes it; the
+					* truncation is explicit, not implicit. */
+				       .l1i_cache_accesses(64'd0),
+				       .l1i_cache_hits(64'd0),
+				       .l1d_cache_accesses(64'd0),
+				       .l1d_cache_hits(64'd0),
+				       .l2_cache_accesses(64'd0),
+				       .l2_cache_hits(64'd0),
 				       /*.l2_early_accesses(w_l2_early_accesses), */
 				       .branch_faults('d0),
 				       .axi_busy(w_axi_busy),				       
@@ -540,6 +631,12 @@ module axi_is_the_worst_v1_0 #
    // readback are inactive in the Henry build.
    henry_soc
      henrysoc0 (
+       .l1i_cache_accesses(w_l1i_cache_accesses),
+       .l1i_cache_hits(w_l1i_cache_hits),
+       .l1d_cache_accesses(w_l1d_cache_accesses),
+       .l1d_cache_hits(w_l1d_cache_hits),
+       .l2_cache_accesses(w_l2_cache_accesses),
+       .l2_cache_hits(w_l2_cache_hits),
 	   .clk(s00_axi_aclk),
 	   .reset(w_reset | w_rvcontrol[0]),
 	   // debug control: [31]=single_step(freeze) [30]=step-pulse [17]=bp_enable(arm fault-trap)
@@ -552,6 +649,7 @@ module axi_is_the_worst_v1_0 #
 	   .bp_wp_addr(w_bp_wp_addr),
 	   .bp_wp_val(w_bp_wp_val),
 	   .bp_fault_only(w_rvcontrol[19]),   // [19]=freeze only on a fault at bp_pc
+	   .rt_oneshot(w_rvcontrol[22]),      // [22]=rewind+arm retire ring, one pass, self-freeze
 	   .l2_nocache(w_rvcontrol[20]),   // [20]=L2 no-cache (set before go)
 	   .trace_arm(w_rvcontrol[21]),    // [21]=arm the DRAM control-flow deep trace
 	   .trace_filter_en(w_rvcontrol[15]),        // [15]=enable the deep-trace ASID filter
@@ -678,3 +776,50 @@ module axi_is_the_worst_v1_0 #
    assign w_l2_flush_done  = 1'b0;
 
 endmodule
+
+/* cnt_pipe -- N-stage register pipeline for a wide debug-counter bus.
+ *
+ * Lives in THIS file on purpose: the IP's component.xml lists exactly four
+ * source files, so a new cnt_pipe.v would be copied into hdl/ by
+ * gen_mipscore.sh and then silently NOT compiled -- synthesis would fail on an
+ * unresolved module.  Keeping it here means internal RTL edits still never
+ * require re-packaging the IP.
+ *
+ * WHY IT EXISTS: the cache performance counters (l1i/l1d/l2 accesses and hits)
+ * live deep inside the caches and feed a 64-entry AXI readback mux at the chip
+ * edge -- a long route into wide combinational select logic, historically a
+ * major source of timing pressure here.  Software samples these at Hz rates, so
+ * latency is entirely free; pipelining lets the placer/router turn one long hop
+ * into N short ones.
+ *
+ * THE ATTRIBUTES ARE NOT OPTIONAL.  A flop chain with no logic between stages is
+ * precisely what Vivado's SRL inference targets: it packs all N stages into one
+ * SRL16/SRL32 inside a SINGLE LUT at a SINGLE site.  That simulates identically
+ * and reports the same latency while completely defeating the purpose, because
+ * the long route remains a single hop into the SRL.  Both attributes are needed
+ * -- shreg_extract disables the inference, srl_style pins the implementation to
+ * real registers.  Verify it held: "LUT as Memory" in the utilization report
+ * must NOT grow when this is added (6 * 32 * 10 = 1920 new FFs instead).
+ */
+module cnt_pipe(clk, in, out);
+   parameter W = 32;
+   parameter N = 10;
+   input wire 		clk;
+   input wire [W-1:0] 	in;
+   output wire [W-1:0] 	out;
+
+   (* shreg_extract = "no", srl_style = "register" *)
+   reg [W-1:0] 		r_pipe [N-1:0];
+
+   integer 		i;
+   always @(posedge clk)
+     begin
+	r_pipe[0] <= in;
+	for(i = 1; i < N; i = i + 1)
+	  begin
+	     r_pipe[i] <= r_pipe[i-1];
+	  end
+     end // always
+
+   assign out = r_pipe[N-1];
+endmodule // cnt_pipe

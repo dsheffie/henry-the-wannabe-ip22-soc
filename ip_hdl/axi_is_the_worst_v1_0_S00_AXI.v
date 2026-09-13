@@ -1442,9 +1442,14 @@ module axi_is_the_worst_v1_0_S00_AXI #
 	  6'h2A   : reg_data_out <= r_cycle[31:0];
 	  6'h2B   : reg_data_out <= r_cycle[63:32];
 	  6'h2C   : reg_data_out <= l1i_cache_accesses[31:0];
-	  6'h2D   : reg_data_out <= l1i_cache_accesses[63:32];
+	  /* REPURPOSED: all 64 read regs were allocated, and the UPPER half of these
+	   * counters is dead weight -- we measure RATES over ~30s windows and a 32-bit
+	   * counter at ~4M events/s wraps in ~1000s.  Trading three unused high halves
+	   * for the three counters that were wired but never exposed at all, so CPI can
+	   * be decomposed without an IP re-package (widening the reg space needs one). */
+	  6'h2D   : reg_data_out <= l1d_cache_accesses[31:0];   // was l1i_cache_accesses[63:32]
 	  6'h2E   : reg_data_out <= l1i_cache_hits[31:0];
-	  6'h2F   : reg_data_out <= l1i_cache_hits[63:32];
+	  6'h2F   : reg_data_out <= l1d_cache_hits[31:0];       // was l1i_cache_hits[63:32]
 	  // SCSI request mailbox (was L1D/L2 cache perf counters): PS reads the pending
 	  // command here; 0x30 is the doorbell (++ per command) the ARM polls.
 	  6'h30   : reg_data_out <= scsi_req_seq;
@@ -1454,7 +1459,7 @@ module axi_is_the_worst_v1_0_S00_AXI #
 	  6'h34   : reg_data_out <= scsi_req_nbdp;
 	  6'h35   : reg_data_out <= {15'd0, scsi_req_to_device, scsi_req_lun, scsi_req_dest};
 	  6'h36   : reg_data_out <= l2_cache_hits[31:0];
-	  6'h37   : reg_data_out <= l2_cache_hits[63:32];
+	  6'h37   : reg_data_out <= l2_cache_accesses[31:0];    // was l2_cache_hits[63:32]
 	  // 0x38 repurposed (was branch_faults[31:0]) -> SCSI shim debug viz.
 	  // [31:28]=#resets [27:22]=#SASR-reads [21:16]=#SCMD-wr [15:10]=#SASR-wr
 	  // [9:8]=phase [7]=CIP [6]=BSY [5]=INTRQ [4:0]=SASR pointer
