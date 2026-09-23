@@ -148,6 +148,7 @@ module henry_soc
    output logic [3:0]            l2_state,
    output logic [3:0]            l2_rsp_state,
    output logic [`LG_ROB_ENTRIES:0] inflight,
+   output logic [31:0] dbg_rob_inflight,
    input  logic [19:0]           dbg_trace_index,
    output logic [63:0]           l1i_cache_accesses,
    output logic [63:0]           l1i_cache_hits,
@@ -352,7 +353,7 @@ module henry_soc
       .l2_cache_accesses(l2_cache_accesses),   .l2_cache_hits(l2_cache_hits),
       .got_break(got_break), .got_ud(got_ud), .got_bad_addr(got_bad_addr),
       .core_state(core_state), .l1i_state(l1i_state), .l1d_state(l1d_state), .l2_state(l2_state), .l2_rsp_state(l2_rsp_state),
-      .inflight(inflight), .epc(epc), .status_reg(status_reg), .badvaddr(badvaddr), .cause(cause), .cause_ip(cause_ip), .dbg_frozen(dbg_frozen), .dbg_wp_data(dbg_wp_data),
+      .inflight(inflight), .dbg_rob_inflight(dbg_rob_inflight), .epc(epc), .status_reg(status_reg), .badvaddr(badvaddr), .cause(cause), .cause_ip(cause_ip), .dbg_frozen(dbg_frozen), .dbg_wp_data(dbg_wp_data),
       .l1i_flush_done(), .l1d_flush_done(), .l2_flush_done(),
       .snoop_req_valid(w_snoop_valid),
       .snoop_req_addr(w_snoop_addr),
@@ -464,7 +465,16 @@ module henry_soc
    // NSLOT=8, SLOT_MAP gives CPU slots 0..5, DMA slot 6, trace slot 7 -> CPU:DMA:trace
    // = 6:1:1.  Trace is low-weight (its FIFO absorbs bursts) so it cannot starve CPU
    // line fills.  Add masters / retune by the parameters (see mem_arbiter.sv).
-   wire [2:0] w_arb_rsp_valid;
+   /* WAS [2:0] while the arbiter below is N(4) and ENET is master 3, so
+    * `w_mem_rsp_enet = w_arb_rsp_valid[3]` read a bit that does not exist and
+    * synthesized to CONSTANT 0 (netlist mipscore.v:15842/15910).  enet_dma's FSM
+    * advances only on dma_rsp_valid, so the first tx_go latched dma_req_valid and
+    * the engine re-requested its TX descriptor FOREVER -- ~3.1M AXI reads/s on one
+    * address -- starving the CPU off this arbiter until nothing retired at all.
+    * Captured on silicon 2026-09-14 (db08ab69, IRIX): enet_tx_nbdp == the hammered
+    * address, l2 IDLE, l1i parked in WAIT_FOR_NOT_FULL.  Widening also revives the
+    * ENET L2 snoop, which is gated on the same dead signal. */
+   wire [3:0] w_arb_rsp_valid;
    /* master 3 = ENET DMA.  Slots: CPU x5, SCSI x1, trace x1, ENET x1 -- ENET moves
     * at most an MTU per frame so one slot in eight is ample, and starving the CPU
     * to service a NIC would be the wrong trade. */
@@ -532,6 +542,32 @@ module henry_soc
       .push(enet_rx_beat_push), .wdata(enet_rx_beat_data), .full(enet_rx_beat_full),
       .pop(w_enet_rx_pop), .rdata(w_enet_rx_rdata), .empty(w_enet_rx_empty));
 
+`ifndef ENABLE_ENET_DMA   /* engine is OPT-IN: default build ties it off */
+   /* ENET RTL DMA engine OFF BY DEFAULT (2026-09-14; made default 2026-09-22).  The engine and the HOST servicer
+    * (axi.cc enet_arm.h) both walk the guest's {BP,BC,DP} descriptor chain, so with
+    * the engine live there are TWO owners and neither completes a frame: the guest
+    * counts Opkts with Oerrs=0 while tap0 never sees the bytes.  The engine-aware
+    * host driver (enet_arm.h.engine) was written 2026-08-07 but could never be
+    * exercised -- the engine was livelocked by the w_arb_rsp_valid[3] truncation --
+    * and on first real use its RX framing errors 2 frames in 3 (guest ec0 Ierrs=28
+    * vs Ipkts=14).  The pure-SOFTWARE path has worked for months, and a real Indy
+    * did DMA incoherently anyway, so removing the engine restores the known-good
+    * configuration.  It ALSO keeps the 1.9x speedup: a removed engine cannot
+    * head-of-line block the one-outstanding mem_arbiter the way the livelocked one
+    * did.  See [[project_enet_dma_livelock]]. */
+   assign w_enet_req_valid      = 1'b0;
+   assign w_enet_req_addr       = '0;
+   assign w_enet_req_opcode     = 5'd0;
+   assign w_enet_req_store_data = '0;
+   assign w_enet_req_mask       = 16'd0;
+   assign enet_dma_rx_done      = 1'b0;
+   assign enet_dma_rx_dropped   = 1'b0;
+   assign enet_dma_crbdp        = 32'd0;
+   assign enet_dma_tx_done      = 1'b0;
+   assign w_enet_rx_pop         = 1'b0;
+   assign w_enet_tx_beat_en_i   = 1'b0;
+   assign w_enet_tx_beat_data_i = '0;
+`else
    enet_dma u_enet_dma
      (.clk(clk), .reset(reset),
       .rx_go(enet_rx_frame_go), .rx_nbdp(enet_rx_nbdp), .rx_len(enet_rx_frame_len),
@@ -546,6 +582,7 @@ module henry_soc
       .rx_rd_en(w_enet_rx_pop), .rx_rd_data(w_enet_rx_rdata),
       .rx_rd_valid(~w_enet_rx_empty),
       .tx_wr_en(w_enet_tx_beat_en_i), .tx_wr_data(w_enet_tx_beat_data_i));
+`endif
 
    // ---- DMA-coherence snoop: SCSI + ENET producers -------------------------
    // Push the line address of every DMA *store* that DRAM actually completed.
