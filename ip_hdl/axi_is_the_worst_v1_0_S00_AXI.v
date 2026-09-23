@@ -152,6 +152,7 @@ module axi_is_the_worst_v1_0_S00_AXI #
     output wire [31:0]			      enet_tx_rsp_seq,   // PS write 0x12 (echo tx_req_seq)
     output wire [31:0]			      enet_rx_rsp_seq,   // PS write 0x13 (++ per RX frame)
     output wire [31:0]			      enet_rx_crbdp,     // PS write 0x14 (current RX desc ptr)
+    output wire [31:0]			      enet_tx_crbdp,     // PS write 0x15 (current TX desc ptr)
 
     // Global Clock Signal
     input wire				      S_AXI_ACLK,
@@ -452,6 +453,7 @@ module axi_is_the_worst_v1_0_S00_AXI #
    assign enet_tx_rsp_seq      = slv_reg18;        // write 0x12 (echo enet_tx_req_seq when sent)
    assign enet_rx_rsp_seq      = slv_reg19;        // write 0x13 (++ per injected RX frame)
    assign enet_rx_crbdp        = slv_reg20;        // write 0x14 (service-maintained RX desc ptr)
+   assign enet_tx_crbdp        = slv_reg21;        // write 0x15 (service-maintained TX desc ptr)
 
    // ---- SCSI beat conduit: assemble the 16B beat from slv_reg32..35 (0x20..0x23)
    //      and pulse scsi_beat_push the cycle AFTER the 0x23 write (so slv_reg35 has
@@ -1419,7 +1421,7 @@ module axi_is_the_worst_v1_0_S00_AXI #
 	  6'h19   : reg_data_out <= {16'd0, dbg_trace_wptr};
 	  6'h1A   : reg_data_out <= dbg_head_pc;      // ROB head PC (was slv_reg26 scratch)
 	  6'h1B   : reg_data_out <= dbg_head_status;  // ROB head status bits (was slv_reg27 scratch)
-	  6'h1C   : reg_data_out <= trace_ring_wptr;   // DRAM deep-trace bytes written (was slv_reg28 scratch)
+	  6'h1C   : reg_data_out <= trace_ring_wptr;   // REPURPOSED: {l1d r_rob_inflight[15:0], core r_rob_inflight[15:0]}
 	  6'h1D   : reg_data_out <= wf_epc;  // wild-fault EPC (poison deref site)
 	  6'h1E   : reg_data_out <= wf_badv;  // wild-fault BadVaddr = poison pointer P
 	  6'h1F   : reg_data_out <= wf_stat;  // {wild-fault count[15:0],11'd0,cause[4:0]}

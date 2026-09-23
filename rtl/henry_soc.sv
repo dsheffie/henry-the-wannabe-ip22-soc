@@ -213,6 +213,7 @@ module henry_soc
    output logic [31:0]           enet_rx_nbdp,       // RX ring head (phys)
    input  logic [31:0]           enet_rx_rsp_seq,    // ++ by service per injected frame
    input  logic [31:0]           enet_rx_crbdp,      // service-maintained current RX desc
+   input  logic [31:0]           enet_tx_crbdp,      // service-maintained current TX desc
    output logic [47:0]           enet_station,       // programmed station MAC (for RX filter)
    output logic [7:0]            enet_rx_cmd,        // Seeq RX command (match mode)
    output logic [31:0]           enet_dbg            // ENET shim debug viz (AXI PMU readback)
@@ -752,7 +753,7 @@ module henry_soc
       .enet_tx_req_seq(enet_tx_req_seq), .enet_tx_nbdp(enet_tx_nbdp),
       .enet_tx_rsp_seq(enet_tx_rsp_seq),
       .enet_rx_arm_seq(enet_rx_arm_seq), .enet_rx_nbdp(enet_rx_nbdp),
-      .enet_rx_rsp_seq(enet_rx_rsp_seq), .enet_rx_crbdp(enet_rx_crbdp),
+      .enet_rx_rsp_seq(enet_rx_rsp_seq), .enet_rx_crbdp(enet_rx_crbdp), .enet_tx_crbdp(enet_tx_crbdp),
       .enet_station(enet_station), .enet_rx_cmd(enet_rx_cmd),
       .enet_intrq(w_enet_intrq), .dbg(enet_dbg));
 `else

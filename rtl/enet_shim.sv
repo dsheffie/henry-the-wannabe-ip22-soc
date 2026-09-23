@@ -51,6 +51,7 @@ module enet_shim
     output logic [31:0]  enet_rx_nbdp,       // RX ring head (phys)
     input  logic [31:0]  enet_rx_rsp_seq,    // ++ by the service per injected frame
     input  logic [31:0]  enet_rx_crbdp,      // service-maintained current RX desc (reg 0x18000)
+    input  logic [31:0]  enet_tx_crbdp,      // service-maintained current TX desc (reg 0x1a000)
     // ---- Seeq config -> service (for the RX address filter) ----
     output logic [47:0]  enet_station,       // programmed station MAC (bank-0 regs 0..5)
     output logic [7:0]   enet_rx_cmd,        // Seeq RX command (match mode + int enables)
@@ -90,7 +91,15 @@ module enet_shim
    wire         w_cbpln  = sel & (w_n == 19'h14000);              // CBP(w0) / NBDP(w1)
    wire         w_bcln   = sel & (w_n == 19'h15000);              // BC(w0)  / CTRL(w1)
    wire         w_rstln  = sel & (w_n == 19'h15010);              // reset/CLRIRQ @0x15014 (w1)
-   wire         w_crbdp  = sel & (offs == 19'h18000);             // CRBDP (RX only, w0)
+   /* CRBDP line, CHANNEL-NORMALISED.  This was RX-only (offs == 0x18000), so the TX
+    * channel's CRBDP at 0x1a000 (0x18000|0x2000) read back as ZERO from the rdata
+    * default.  IRIX's ec TX-completion handler bounds its descriptor walk with that
+    * register (both words, masked ~0xf and forced to kseg1); with it stuck at 0 the
+    * loop terminator `beq s7,s1` could never match a real descriptor pointer, so the
+    * walk ran off the end of the ring, picked up a bogus mbuf from desc->12 and
+    * faulted in `lw s3,8(s3)` -- the invariant PANIC at PC 0x88058338.  Linux was
+    * immune because sgiseeq polls tx_ctrl ACTIVE instead of reading CRBDP. */
+   wire         w_crbdpln = sel & (w_n == 19'h18000);             // CRBDP line, either channel
    wire         w_seeqlo = sel & (offs == 19'h54000);             // Seeq regs 0..3
    wire         w_seeqhi = sel & (offs == 19'h54010);             // Seeq regs 4..7
 
@@ -198,8 +207,13 @@ module enet_shim
       // reset reg (0x15014) read: CLRIRQ (0x2) reflects a pending ENET channel IRQ
       if(w_rstln & ~is_store & (mask[7:4] == 4'hf))
         rdata[63:32] = bswap32((r_rx_irq | r_tx_irq) ? 32'h2 : 32'd0);
-      // CRBDP read (0x18000): service-maintained current RX descriptor pointer
-      if(w_crbdp & ~is_store & (mask[3:0] == 4'hf)) rdata[31:0] = bswap32(enet_rx_crbdp);
+      // CRBDP read: 0x18000 = RX, 0x1a000 = TX.  IRIX reads BOTH words of the TX line
+      // and compares each against its descriptor cursor, so publish the same
+      // service-maintained pointer in w0 and w1 -- both are simply "stop here".
+      if(w_crbdpln & ~is_store & (mask[3:0] == 4'hf))
+        rdata[31:0]  = bswap32(w_ch ? enet_tx_crbdp : enet_rx_crbdp);
+      if(w_crbdpln & ~is_store & (mask[7:4] == 4'hf) & w_ch)
+        rdata[63:32] = bswap32(enet_tx_crbdp);
       // Seeq PIO reads: reg5 = NO_SQE (carrier), reg6 = rx_stat, reg7 = tx_stat; else 0.
       // The byte goes in the MSB of the guest word, i.e. byte (reg&3)*4 of the line.
       if(w_seeqhi & ~is_store) begin

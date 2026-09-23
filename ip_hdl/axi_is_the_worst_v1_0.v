@@ -165,6 +165,9 @@ module axi_is_the_worst_v1_0 #
    wire [15:0]					w_trace_wptr;
    wire [31:0]					w_dbg_rdchk;
    wire [31:0]					w_trace_ring_wptr;   // DRAM deep-trace: bytes written since arm
+   wire [31:0]					w_dbg_rob_inflight;   /* {l1d r_rob_inflight[15:0], core r_rob_inflight[15:0]} */
+   (* shreg_extract = "no", srl_style = "register" *) reg [31:0] r_dbg_rob_p1, r_dbg_rob_p2, r_dbg_rob_p3;
+   always @(posedge s00_axi_aclk) begin r_dbg_rob_p1 <= w_dbg_rob_inflight; r_dbg_rob_p2 <= r_dbg_rob_p1; r_dbg_rob_p3 <= r_dbg_rob_p2; end
    wire						w_trace_overflow;    // DRAM deep-trace: a record was dropped
    wire [7:0]					w_cur_asid;          // current EntryHi ASID readback (be-ASID discovery)
    wire						w_l1i_flush_done, w_l1d_flush_done, w_l2_flush_done;
@@ -374,7 +377,7 @@ module axi_is_the_worst_v1_0 #
    wire [31:0]  w_scsi_dbg;          // shim debug viz (AXI PMU readback)
    // ---- ENET mailbox wires: henry_soc publishes tx_req/rx_arm; S00_AXI returns rsp/crbdp ----
    wire [31:0]  w_enet_tx_req_seq, w_enet_tx_nbdp, w_enet_rx_arm_seq, w_enet_rx_nbdp;
-   wire [31:0]  w_enet_tx_rsp_seq, w_enet_rx_rsp_seq, w_enet_rx_crbdp;
+   wire [31:0]  w_enet_tx_rsp_seq, w_enet_rx_rsp_seq, w_enet_rx_crbdp, w_enet_tx_crbdp;
    axi_is_the_worst_v1_0_S00_AXI # ( .C_S_AXI_DATA_WIDTH(C_S00_AXI_DATA_WIDTH), .C_S_AXI_ADDR_WIDTH(C_S00_AXI_ADDR_WIDTH))
    axi_is_the_worst_v1_0_S00_AXI_inst (
 				       .controlreg(w_controlreg),
@@ -412,7 +415,7 @@ module axi_is_the_worst_v1_0 #
 				       .dbg_trace_wptr(w_trace_wptr),
 				       .dbg_rdchk(w_dbg_rdchk),
 				       .dbg_trace_index(w_trace_index),
-				       .trace_ring_wptr(w_trace_ring_wptr),
+				       .trace_ring_wptr(r_dbg_rob_p3),  /* reg 0x1C repurposed: {l1d,core} r_rob_inflight */
 				       .trace_overflow(w_trace_overflow),
 				       .cur_asid(w_cur_asid),
 				       .dbg_head_pc(w_dbg_head_pc[31:0]),
@@ -499,6 +502,7 @@ module axi_is_the_worst_v1_0 #
 				       .enet_tx_rsp_seq(w_enet_tx_rsp_seq),
 				       .enet_rx_rsp_seq(w_enet_rx_rsp_seq),
 				       .enet_rx_crbdp(w_enet_rx_crbdp),
+				       .enet_tx_crbdp(w_enet_tx_crbdp),
 
 				       .S_AXI_ACLK(s00_axi_aclk),
 				       .S_AXI_ARESETN(s00_axi_aresetn),
@@ -715,6 +719,7 @@ module axi_is_the_worst_v1_0 #
 	   .l2_state(w_l2state),
 	   .l2_rsp_state(w_l2rsp_state),
 	   .inflight(w_inflight),
+	   .dbg_rob_inflight(w_dbg_rob_inflight),
 	   .dbg_trace_index(w_trace_index),
 	   .dbg_trace_data(w_trace_data),
 	   .dbg_trace_wptr(w_trace_wptr),
@@ -757,6 +762,7 @@ module axi_is_the_worst_v1_0 #
 	   .enet_rx_nbdp(w_enet_rx_nbdp),
 	   .enet_rx_rsp_seq(w_enet_rx_rsp_seq),
 	   .enet_rx_crbdp(w_enet_rx_crbdp),
+	   .enet_tx_crbdp(w_enet_tx_crbdp),
 	   .enet_station(),          // not routed to AXI v1 (IRIX filters); leave open
 	   .enet_rx_cmd(),
 	   .enet_dbg()
