@@ -177,6 +177,18 @@ module enet_shim
             r_tx_active   <= 1'b0;                               // DMA done: clear tx ACTIVE
             r_tx_irq      <= 1'b1;                               // ENET TX channel IRQ
             r_tx_stat     <= XS_SUCCESS;                         // NEW status (OLD cleared)
+            // Advance NBDP to one-past-the-last-transmitted descriptor, as real HPC3
+            // does while it walks a chain.  Without this the register is a static latch
+            // of the guest's kick value: since ACTIVE clears in the same cycle as the
+            // IRQ, if_ecintr always takes its idle path and bounds the reap walk with
+            // tx_nbdp -- a stale start address BEHIND the walk, so the walk never meets
+            // its terminator, runs past ei_ttail onto a mbuf-less descriptor and NULL-
+            // derefs (PC 0x88058338).  enet_tx_crbdp is the service's tx_end, published
+            // before the echo, same native byte order as r_tx_nbdp.
+            // A same-cycle guest NBDP store (a fresh kick) must win over this advance.
+            if(!(w_nbdp_wr & w_ch)) begin
+               r_tx_nbdp  <= enet_tx_crbdp;
+            end
          end
          // ---- RX inject (service free-ran the RX seq per inbound frame) ----
          if(w_rx_inject) begin
