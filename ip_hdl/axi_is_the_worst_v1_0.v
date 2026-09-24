@@ -251,7 +251,7 @@ module axi_is_the_worst_v1_0 #
    wire [31:0]  w_scsi_dbg;          // shim debug viz (AXI PMU readback)
    // ---- ENET mailbox wires: henry_soc publishes tx_req/rx_arm; S00_AXI returns rsp/crbdp ----
    wire [31:0]  w_enet_tx_req_seq, w_enet_tx_nbdp, w_enet_rx_arm_seq, w_enet_rx_nbdp;
-   wire [31:0]  w_enet_tx_rsp_seq, w_enet_rx_rsp_seq, w_enet_rx_crbdp;
+   wire [31:0]  w_enet_tx_rsp_seq, w_enet_rx_rsp_seq, w_enet_rx_crbdp, w_enet_tx_crbdp;
    axi_is_the_worst_v1_0_S00_AXI # ( .C_S_AXI_DATA_WIDTH(C_S00_AXI_DATA_WIDTH), .C_S_AXI_ADDR_WIDTH(C_S00_AXI_ADDR_WIDTH))
    axi_is_the_worst_v1_0_S00_AXI_inst (
 				       .controlreg(w_controlreg),
@@ -347,7 +347,7 @@ module axi_is_the_worst_v1_0 #
 				       .enet_rx_nbdp(w_enet_rx_nbdp),
 				       .enet_tx_rsp_seq(w_enet_tx_rsp_seq),
 				       .enet_rx_rsp_seq(w_enet_rx_rsp_seq),
-				       .enet_rx_crbdp(w_enet_rx_crbdp),
+				       .enet_rx_crbdp(w_enet_rx_crbdp), .enet_tx_crbdp(w_enet_tx_crbdp),
 				       .S_AXI_ACLK(s00_axi_aclk),
 				       .S_AXI_ARESETN(s00_axi_aresetn),
 				       .S_AXI_AWADDR(s00_axi_awaddr),
@@ -555,7 +555,7 @@ module axi_is_the_worst_v1_0 #
 	   .enet_rx_arm_seq(w_enet_rx_arm_seq),
 	   .enet_rx_nbdp(w_enet_rx_nbdp),
 	   .enet_rx_rsp_seq(w_enet_rx_rsp_seq),
-	   .enet_rx_crbdp(w_enet_rx_crbdp),
+	   .enet_rx_crbdp(w_enet_rx_crbdp), .enet_tx_crbdp(w_enet_tx_crbdp),
 	   .enet_station(),          // not routed to AXI v1 (IRIX filters); leave open
 	   .enet_rx_cmd(),
 	   .enet_dbg()

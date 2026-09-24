@@ -127,6 +127,7 @@ module axi_is_the_worst_v1_0_S00_AXI #
     output wire [31:0]			      enet_tx_rsp_seq,   // PS write 0x12 (echo tx_req_seq)
     output wire [31:0]			      enet_rx_rsp_seq,   // PS write 0x13 (++ per RX frame)
     output wire [31:0]			      enet_rx_crbdp,     // PS write 0x14 (current RX desc ptr)
+    output wire [31:0]			      enet_tx_crbdp,     // PS write 0x15 (current TX desc ptr)
 
     // Global Clock Signal
     input wire				      S_AXI_ACLK,
@@ -424,6 +425,7 @@ module axi_is_the_worst_v1_0_S00_AXI #
    assign enet_tx_rsp_seq      = slv_reg18;        // write 0x12 (echo enet_tx_req_seq when sent)
    assign enet_rx_rsp_seq      = slv_reg19;        // write 0x13 (++ per injected RX frame)
    assign enet_rx_crbdp        = slv_reg20;        // write 0x14 (service-maintained RX desc ptr)
+   assign enet_tx_crbdp        = slv_reg21;        // write 0x15 (service-maintained TX desc ptr)
 
    // ---- SCSI beat conduit: assemble the 16B beat from slv_reg32..35 (0x20..0x23)
    //      and pulse scsi_beat_push the cycle AFTER the 0x23 write (so slv_reg35 has
