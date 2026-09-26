@@ -494,6 +494,8 @@ module axi_is_the_worst_v1_0 #
 				       .scsi_beat_push(w_scsi_beat_push),
 				       .scsi_beat_data(w_scsi_beat_data),
 				       .scsi_beat_full(w_scsi_beat_full),
+				       .ext_flush_stat(w_ext_flush_stat),
+				       .ext_flush_cycles(w_ext_flush_cycles),
 				       .scsi_dbg(w_scsi_dbg),
 				       .enet_tx_req_seq(w_enet_tx_req_seq),
 				       .enet_tx_nbdp(w_enet_tx_nbdp),
@@ -625,6 +627,8 @@ module axi_is_the_worst_v1_0 #
    wire [63:0]					w_resume_pc64 = { {32{w_resume_pc[31]}}, w_resume_pc};
    
    
+   wire [31:0] w_ext_flush_stat;     // henry_soc -> S00_AXI read 0x25 [31:1]
+   wire [31:0] w_ext_flush_cycles;   // henry_soc -> S00_AXI read 0x24 [31:1]
    // SoC-level integration: instantiate henry_soc (core + MC/HPC3/IOC2 device models,
    // incl. the Z8530 SCC console TX + RR0) in place of the bare core.  Device-region
    // accesses (MC 0x1fa....., IOC2 0x1fbd98.., HPC3) are handled INSIDE henry_soc and
@@ -765,7 +769,11 @@ module axi_is_the_worst_v1_0 #
 	   .enet_tx_crbdp(w_enet_tx_crbdp),
 	   .enet_station(),          // not routed to AXI v1 (IRIX filters); leave open
 	   .enet_rx_cmd(),
-	   .enet_dbg()
+	   .enet_dbg(),
+	   // [2] = ARM-requested whole-cache flush + invalidate (0->1 edge starts one)
+	   .ext_flush_ctl(w_rvcontrol[2]),
+	   .ext_flush_stat(w_ext_flush_stat),
+	   .ext_flush_cycles(w_ext_flush_cycles)
 	   );
 
    // tie-offs for status/debug taps henry_soc does not expose

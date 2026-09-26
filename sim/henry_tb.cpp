@@ -1721,12 +1721,18 @@ int main(int argc, char **argv) {
   // 0x1fc00000 (--start-pc 0xbfc00000). --arcs-addr overrides for a non-FSBL blob
   // that links low (e.g. 0x1000). Default = FSBL.
   uint64_t arcs_addr = 0x1fc00000ull;
+  /* --extflush N: raise henry_soc.ext_flush_ctl for one cycle every N cycles (the
+   * ARM-requested whole-cache flush + invalidate).  Edges that land while a flush
+   * is still running are ignored by the RTL; the summary reports how many flushes
+   * completed, what each cost, and whether one never finished. */
+  uint64_t extflush_period = 0;
   for(int i = 1; i < argc; i++) {
     std::string a = argv[i];
     if(a == "--kernel" && i+1 < argc)      kernel = argv[++i];
     else if(a == "--arcs" && i+1 < argc)   arcs   = argv[++i];
     else if(a == "--arcs-addr" && i+1 < argc) arcs_addr = strtoull(argv[++i], nullptr, 0);
     else if(a == "--maxcyc" && i+1 < argc) max_cyc = strtoull(argv[++i], nullptr, 0);
+    else if(a == "--extflush" && i+1 < argc) extflush_period = strtoull(argv[++i], nullptr, 0);
     else if(a == "--maxicnt" && i+1 < argc) max_icnt = strtoull(argv[++i], nullptr, 0);
     else if(a == "--start-pc" && i+1 < argc) start_pc = (uint32_t)strtoull(argv[++i], nullptr, 0);
     else if(a == "--dump" && i+1 < argc)   dump_pas.push_back(strtoull(argv[++i], nullptr, 0));
@@ -2004,7 +2010,39 @@ int main(int argc, char **argv) {
   // Loop mirrors r9999 top.cc phase ordering: posedge eval FIRST (core samples
   // the mem_rsp set last cycle), THEN read mem_req and present mem_rsp for the
   // next posedge, then negedge eval.
+  uint64_t xf_edges = 0, xf_done = 0, xf_sum = 0, xf_min = ~0ull, xf_max = 0, xf_busy_since = 0;
+  uint32_t xf_prev_cnt = 0;
   for(uint64_t cyc = g_start_cyc; cyc < max_cyc && (max_icnt == 0 || retired < max_icnt) && !halted && !Verilated::gotFinish(); cyc++) {
+    { /* STTRACE=a:b -- print every change of the core/L1/L2 FSM states in [a,b] */
+      static uint64_t st_a = 0, st_b = 0; static bool st_init = false; static uint64_t st_prev = ~0ull;
+      if(!st_init) { st_init = true; const char *e = getenv("STTRACE"); if(e) { sscanf(e, "%llu:%llu", (unsigned long long*)&st_a, (unsigned long long*)&st_b); } }
+      if(st_b && cyc >= st_a && cyc <= st_b) {
+        uint64_t v = ((uint64_t)tb->core_state << 32) | ((uint64_t)tb->l1i_state << 24) | ((uint64_t)tb->l1d_state << 16) | ((uint64_t)tb->l2_state << 8) | tb->l2_rsp_state;
+        if(v != st_prev) {
+          fprintf(stderr, "[st] cyc %llu core=%u l1i=%u l1d=%u l2=%u l2rsp=%u xf=%08x\n", (unsigned long long)cyc,
+                  (unsigned)tb->core_state, (unsigned)tb->l1i_state, (unsigned)tb->l1d_state, (unsigned)tb->l2_state, (unsigned)tb->l2_rsp_state, (unsigned)tb->ext_flush_stat);
+          st_prev = v;
+        }
+      }
+    }
+    if(extflush_period) {
+      tb->ext_flush_ctl = (cyc > 0) && (cyc % extflush_period) == 0;
+      if(tb->ext_flush_ctl) {
+        xf_edges++;
+      }
+      uint32_t cnt = tb->ext_flush_stat >> 16;
+      bool busy = tb->ext_flush_stat & 1;
+      if(busy && xf_busy_since == 0) {
+        xf_busy_since = cyc;
+      }
+      if(cnt != xf_prev_cnt) {
+        uint64_t c = tb->ext_flush_cycles & 0x7fffffffu;
+        xf_done++; xf_sum += c;
+        xf_min = std::min(xf_min, c); xf_max = std::max(xf_max, c);
+        xf_prev_cnt = cnt;
+        xf_busy_since = 0;
+      }
+    }
     /* CHECKPOINT at a CLEAN CYCLE BOUNDARY.  The arming test runs mid-cycle (after the
      * posedge eval/retire, before the negedge eval); saving there captures a half-evaluated
      * model, and the restore -- which resumes at the top of a cycle -- silently drops that
@@ -3156,6 +3194,16 @@ int main(int argc, char **argv) {
   if(g_ct) { g_ct->close();
     fprintf(stderr, "### CTRACE: %llu recs, %llu bytes out\n",
             (unsigned long long)g_ct->records(), (unsigned long long)g_ct->bytes_out()); }
+  if(extflush_period) {
+    fprintf(stderr, "[extflush] period %llu: %llu request edges, %llu flushes completed, cycles/flush min %llu avg %llu max %llu%s\n",
+            (unsigned long long)extflush_period, (unsigned long long)xf_edges, (unsigned long long)xf_done,
+            (unsigned long long)(xf_done ? xf_min : 0), (unsigned long long)(xf_done ? xf_sum / xf_done : 0),
+            (unsigned long long)xf_max,
+            xf_busy_since ? " -- a flush was STILL RUNNING at the end" : "");
+    if(xf_busy_since) {
+      fprintf(stderr, "[extflush] outstanding flush started at cycle %llu\n", (unsigned long long)xf_busy_since);
+    }
+  }
   for(uint64_t pa : dump_pas) dump_pa(pa);
   if(trace) { fclose(trace); fprintf(stderr, "[tb] wrote retired-PC trace to %s\n", trace_file.c_str()); }
   if(g_rt_file && !g_rt.empty()) {

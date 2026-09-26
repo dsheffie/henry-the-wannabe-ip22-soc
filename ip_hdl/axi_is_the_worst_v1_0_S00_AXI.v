@@ -140,6 +140,8 @@ module axi_is_the_worst_v1_0_S00_AXI #
     output wire				      scsi_beat_push,
     output wire [127:0]			      scsi_beat_data,
     input  wire				      scsi_beat_full,
+    input  wire [31:0]			      ext_flush_stat,    // {completed[15:0], 15'd0, busy}
+    input  wire [31:0]			      ext_flush_cycles,  // cycles the last whole-cache flush took
 
     // ---- ENET mailbox (Seeq 8003 + HPC3 ENET DMA; enet_shim.sv).  TX doorbell +
     //      RX reverse-doorbell.  PS READS req/arm/nbdp (repurposed debug read addrs
@@ -1429,8 +1431,11 @@ module axi_is_the_worst_v1_0_S00_AXI #
 	  6'h21   : reg_data_out <= enet_tx_beat_data[63:32];   // ENET TX beat word1
 	  6'h22   : reg_data_out <= enet_tx_beat_data[95:64];   // ENET TX beat word2
 	  6'h23   : reg_data_out <= enet_tx_beat_data[127:96];   // ENET TX beat word3
-	  6'h24   : reg_data_out <= {31'd0, enet_tx_beat_valid};   // ENET TX beat queued
-	  6'h25   : reg_data_out <= {31'd0, scsi_beat_full};   // SCSI beat FIFO full (flow control)
+	  /* bit 0 keeps its old meaning in both; readers MUST mask it (& 1).  The upper
+	   * bits carry the ARM-requested whole-cache flush: 0x24[31:1] = cycles the last
+	   * flush took, 0x25[31:16] = flushes completed, 0x25[1] = a flush is running. */
+	  6'h24   : reg_data_out <= {ext_flush_cycles[30:0], enet_tx_beat_valid};   // ENET TX beat queued
+	  6'h25   : reg_data_out <= {ext_flush_stat[31:16], 14'd0, ext_flush_stat[0], scsi_beat_full};   // SCSI beat FIFO full (flow control)
 	  // [31:22] = low 10 bits of the rdchk CHECKED counter -- a LIVENESS probe.
 	  // The hit bit alone cannot tell "no violation" from "checker is dead", and
 	  // the fault it hunts takes ~26h to appear, so quiet is the expected first

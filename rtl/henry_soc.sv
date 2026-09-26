@@ -216,7 +216,12 @@ module henry_soc
    input  logic [31:0]           enet_tx_crbdp,      // service-maintained current TX desc
    output logic [47:0]           enet_station,       // programmed station MAC (for RX filter)
    output logic [7:0]            enet_rx_cmd,        // Seeq RX command (match mode)
-   output logic [31:0]           enet_dbg            // ENET shim debug viz (AXI PMU readback)
+   output logic [31:0]           enet_dbg,           // ENET shim debug viz (AXI PMU readback)
+   /* whole-cache flush + invalidate requested by the ARM (L1I, L1D, then L2; dirty
+    * lines written back).  Level input: a 0->1 edge starts one flush. */
+   input  logic                  ext_flush_ctl,
+   output logic [31:0]           ext_flush_stat,     // {completed[15:0], 15'd0, busy}
+   output logic [31:0]           ext_flush_cycles    // cycles the last flush took
    );
 
    localparam int unsigned DEV_LAT = 2;   // device response latency (cycles)
@@ -288,6 +293,77 @@ module henry_soc
    wire                 w_snoop_ack;
    wire                 w_snoop_full;
 
+   /* ================= ARM-requested whole-cache flush =================
+    * The core already has the flush + invalidate sequencer behind ext_flush_req /
+    * ext_flush_done (the one the CPU's CACHE_FLUSH uses).  The ARM raises
+    * ext_flush_ctl (AXI control bit) around its DMA helper ops; each 0->1 edge
+    * starts one flush, and ext_flush_stat / ext_flush_cycles let it poll for
+    * completion and measure what a flush costs.  An edge while a flush is still
+    * running is ignored -- the ARM waits for the completed count to move. */
+   logic        r_ext_flush_ctl, r_ext_flush_ctl_d;
+   logic        r_ext_flush_req, n_ext_flush_req;
+   logic        r_ext_flush_busy, n_ext_flush_busy;
+   logic [15:0] r_ext_flush_cnt, n_ext_flush_cnt;
+   logic [30:0] r_ext_flush_cyc, n_ext_flush_cyc;
+   logic [30:0] r_ext_flush_last, n_ext_flush_last;
+   wire         w_ext_flush_done;
+   /* register the control bit before edge-detecting it: it comes from the AXI
+    * slave, and a combinational edge off a raw input is also invisible to a
+    * testbench that changes inputs without an eval before the clock edge. */
+   wire         w_ext_flush_edge = r_ext_flush_ctl & ~r_ext_flush_ctl_d;
+
+   always_ff @(posedge clk)
+     begin
+        if(reset)
+          begin
+             r_ext_flush_ctl   <= 1'b0;
+             r_ext_flush_ctl_d <= 1'b0;
+             r_ext_flush_req   <= 1'b0;
+             r_ext_flush_busy  <= 1'b0;
+             r_ext_flush_cnt   <= 16'd0;
+             r_ext_flush_cyc   <= 31'd0;
+             r_ext_flush_last  <= 31'd0;
+          end
+        else
+          begin
+             r_ext_flush_ctl   <= ext_flush_ctl;
+             r_ext_flush_ctl_d <= r_ext_flush_ctl;
+             r_ext_flush_req   <= n_ext_flush_req;
+             r_ext_flush_busy  <= n_ext_flush_busy;
+             r_ext_flush_cnt   <= n_ext_flush_cnt;
+             r_ext_flush_cyc   <= n_ext_flush_cyc;
+             r_ext_flush_last  <= n_ext_flush_last;
+          end
+     end // always_ff
+
+   always_comb
+     begin
+        n_ext_flush_req  = 1'b0;
+        n_ext_flush_busy = r_ext_flush_busy;
+        n_ext_flush_cnt  = r_ext_flush_cnt;
+        n_ext_flush_cyc  = r_ext_flush_cyc;
+        n_ext_flush_last = r_ext_flush_last;
+        if(w_ext_flush_edge & !r_ext_flush_busy)
+          begin
+             n_ext_flush_req  = 1'b1;
+             n_ext_flush_busy = 1'b1;
+             n_ext_flush_cyc  = 31'd0;
+          end
+        else if(r_ext_flush_busy)
+          begin
+             n_ext_flush_cyc = r_ext_flush_cyc + 31'd1;
+             if(w_ext_flush_done)
+               begin
+                  n_ext_flush_busy = 1'b0;
+                  n_ext_flush_cnt  = r_ext_flush_cnt + 16'd1;
+                  n_ext_flush_last = r_ext_flush_cyc + 31'd1;
+               end
+          end
+     end // always_comb
+
+   assign ext_flush_stat   = {r_ext_flush_cnt, 15'd0, r_ext_flush_busy};
+   assign ext_flush_cycles = {1'b0, r_ext_flush_last};
+
    core_l1d_l1i cpu
      (.clk(clk),
       .reset(reset),
@@ -312,6 +388,8 @@ module henry_soc
       .bp_fault_only(bp_fault_only), .rt_oneshot(rt_oneshot),
       .l2_nocache(l2_nocache),
       .in_flush_mode(),
+      .ext_flush_req(r_ext_flush_req),
+      .ext_flush_done(w_ext_flush_done),
       .resume(resume),
       .resume_pc(resume_pc),
       .ready_for_resume(ready_for_resume),
