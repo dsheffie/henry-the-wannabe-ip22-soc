@@ -373,6 +373,9 @@ module axi_is_the_worst_v1_0 #
 
    // SCSI beat conduit: S00_AXI (ARM pushes) -> henry_soc engine FIFO
    wire         w_scsi_beat_push, w_scsi_beat_full;
+   // ext flush page list: S00_AXI (ARM writes 0x3C/0x3D) -> henry_soc
+   wire         w_ext_pg_push, w_ext_pg_go, w_ext_pg_drop;
+   wire [31:0]  w_ext_pg_ppn;
    wire [127:0] w_scsi_beat_data;
    wire [31:0]  w_scsi_dbg;          // shim debug viz (AXI PMU readback)
    // ---- ENET mailbox wires: henry_soc publishes tx_req/rx_arm; S00_AXI returns rsp/crbdp ----
@@ -496,6 +499,10 @@ module axi_is_the_worst_v1_0 #
 				       .scsi_beat_full(w_scsi_beat_full),
 				       .ext_flush_stat(w_ext_flush_stat),
 				       .ext_flush_cycles(w_ext_flush_cycles),
+				       .ext_pg_push(w_ext_pg_push),
+				       .ext_pg_ppn(w_ext_pg_ppn),
+				       .ext_pg_go(w_ext_pg_go),
+				       .ext_pg_drop(w_ext_pg_drop),
 				       .scsi_dbg(w_scsi_dbg),
 				       .enet_tx_req_seq(w_enet_tx_req_seq),
 				       .enet_tx_nbdp(w_enet_tx_nbdp),
@@ -772,6 +779,10 @@ module axi_is_the_worst_v1_0 #
 	   .enet_dbg(),
 	   // [2] = ARM-requested whole-cache flush + invalidate (0->1 edge starts one)
 	   .ext_flush_ctl(w_rvcontrol[2]),
+	   .ext_pg_push(w_ext_pg_push),
+	   .ext_pg_ppn(w_ext_pg_ppn),
+	   .ext_pg_go(w_ext_pg_go),
+	   .ext_pg_drop(w_ext_pg_drop),
 	   .ext_flush_stat(w_ext_flush_stat),
 	   .ext_flush_cycles(w_ext_flush_cycles)
 	   );

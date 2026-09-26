@@ -140,8 +140,13 @@ module axi_is_the_worst_v1_0_S00_AXI #
     output wire				      scsi_beat_push,
     output wire [127:0]			      scsi_beat_data,
     input  wire				      scsi_beat_full,
-    input  wire [31:0]			      ext_flush_stat,    // {completed[15:0], 15'd0, busy}
-    input  wire [31:0]			      ext_flush_cycles,  // cycles the last whole-cache flush took
+    input  wire [31:0]			      ext_flush_stat,    // {completed[15:0], dirty[13:0], 1'b0, busy}
+    input  wire [31:0]			      ext_flush_cycles,  // cycles the last flush / page list took
+    // page list: write 0x3C = push a physical page number, write 0x3D = go (bit0 = drop)
+    output wire				      ext_pg_push,
+    output wire [31:0]			      ext_pg_ppn,
+    output wire				      ext_pg_go,
+    output wire				      ext_pg_drop,
 
     // ---- ENET mailbox (Seeq 8003 + HPC3 ENET DMA; enet_shim.sv).  TX doorbell +
     //      RX reverse-doorbell.  PS READS req/arm/nbdp (repurposed debug read addrs
@@ -467,6 +472,27 @@ module axi_is_the_worst_v1_0_S00_AXI #
      else        r_beat_push <= slv_reg_wren &&
                   (axi_awaddr[ADDR_LSB+OPT_MEM_ADDR_BITS:ADDR_LSB] == 6'h23);
    assign scsi_beat_push = r_beat_push;
+
+   // ---- ext flush page list: pulse the cycle AFTER the write (register settled),
+   //      same as the SCSI beat push.  0x3C = page number, 0x3D = go, bit0 = drop. ----
+   reg r_pg_push, r_pg_go;
+   always @( posedge S_AXI_ACLK )
+     if(w_reset)
+       begin
+	  r_pg_push <= 1'b0;
+	  r_pg_go <= 1'b0;
+       end
+     else
+       begin
+	  r_pg_push <= slv_reg_wren &&
+		       (axi_awaddr[ADDR_LSB+OPT_MEM_ADDR_BITS:ADDR_LSB] == 6'h3c);
+	  r_pg_go   <= slv_reg_wren &&
+		       (axi_awaddr[ADDR_LSB+OPT_MEM_ADDR_BITS:ADDR_LSB] == 6'h3d);
+       end
+   assign ext_pg_push = r_pg_push;
+   assign ext_pg_ppn  = slv_reg60;
+   assign ext_pg_go   = r_pg_go;
+   assign ext_pg_drop = slv_reg61[0];
 
    // ---- enet_dma conduit ------------------------------------------------------
    //  RX beat  : slv_reg42..45 (0x2a..0x2d); writing 0x2d pushes (same 1-cycle-late
@@ -1435,7 +1461,7 @@ module axi_is_the_worst_v1_0_S00_AXI #
 	   * bits carry the ARM-requested whole-cache flush: 0x24[31:1] = cycles the last
 	   * flush took, 0x25[31:16] = flushes completed, 0x25[1] = a flush is running. */
 	  6'h24   : reg_data_out <= {ext_flush_cycles[30:0], enet_tx_beat_valid};   // ENET TX beat queued
-	  6'h25   : reg_data_out <= {ext_flush_stat[31:16], 14'd0, ext_flush_stat[0], scsi_beat_full};   // SCSI beat FIFO full (flow control)
+	  6'h25   : reg_data_out <= {ext_flush_stat[31:16], ext_flush_stat[15:2], ext_flush_stat[0], scsi_beat_full};   // {flushes done, page-drop dirty lines, flush busy, SCSI beat FIFO full}
 	  // [31:22] = low 10 bits of the rdchk CHECKED counter -- a LIVENESS probe.
 	  // The hit bit alone cannot tell "no violation" from "checker is dead", and
 	  // the fault it hunts takes ~26h to appear, so quiet is the expected first

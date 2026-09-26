@@ -1726,6 +1726,10 @@ int main(int argc, char **argv) {
    * is still running are ignored by the RTL; the summary reports how many flushes
    * completed, what each cost, and whether one never finished. */
   uint64_t extflush_period = 0;
+  /* --xfpages base,n,drop: each --extflush period, push n page numbers (base, base+1,
+   * ...) into the page list and fire `go` (drop=1: XPG_INV, 0: XPG_WBINV) instead of
+   * the whole-cache edge.  n > 16 overflows the list -> the RTL does a whole flush. */
+  uint64_t xfpg_base = 0, xfpg_n = 0, xfpg_drop = 0;
   for(int i = 1; i < argc; i++) {
     std::string a = argv[i];
     if(a == "--kernel" && i+1 < argc)      kernel = argv[++i];
@@ -1733,6 +1737,13 @@ int main(int argc, char **argv) {
     else if(a == "--arcs-addr" && i+1 < argc) arcs_addr = strtoull(argv[++i], nullptr, 0);
     else if(a == "--maxcyc" && i+1 < argc) max_cyc = strtoull(argv[++i], nullptr, 0);
     else if(a == "--extflush" && i+1 < argc) extflush_period = strtoull(argv[++i], nullptr, 0);
+    else if(a == "--xfpages" && i+1 < argc) {
+      if(sscanf(argv[++i], "%lli,%llu,%llu", (long long*)&xfpg_base, (unsigned long long*)&xfpg_n,
+                (unsigned long long*)&xfpg_drop) != 3) {
+        fprintf(stderr, "--xfpages wants base,n,drop\n");
+        return 1;
+      }
+    }
     else if(a == "--maxicnt" && i+1 < argc) max_icnt = strtoull(argv[++i], nullptr, 0);
     else if(a == "--start-pc" && i+1 < argc) start_pc = (uint32_t)strtoull(argv[++i], nullptr, 0);
     else if(a == "--dump" && i+1 < argc)   dump_pas.push_back(strtoull(argv[++i], nullptr, 0));
@@ -2026,12 +2037,39 @@ int main(int argc, char **argv) {
       }
     }
     if(extflush_period) {
-      tb->ext_flush_ctl = (cyc > 0) && (cyc % extflush_period) == 0;
-      if(tb->ext_flush_ctl) {
-        xf_edges++;
-      }
       uint32_t cnt = tb->ext_flush_stat >> 16;
       bool busy = tb->ext_flush_stat & 1;
+      if(xfpg_n == 0) {
+        tb->ext_flush_ctl = (cyc > 0) && (cyc % extflush_period) == 0;
+        if(tb->ext_flush_ctl) {
+          xf_edges++;
+        }
+      }
+      else {
+        /* page list: one push per cycle, then go (a period that lands while the
+         * previous list is still running is skipped, like an ignored edge) */
+        static uint64_t k = 0;
+        static int st = 0;
+        tb->ext_pg_push = 0;
+        tb->ext_pg_go = 0;
+        if(st == 0 && (cyc > 0) && (cyc % extflush_period) == 0 && !busy) {
+          st = 1;
+          k = 0;
+          xf_edges++;
+        }
+        if(st == 1) {
+          tb->ext_pg_ppn = (uint32_t)(xfpg_base + k);
+          tb->ext_pg_push = 1;
+          if(++k == xfpg_n) {
+            st = 2;
+          }
+        }
+        else if(st == 2) {
+          tb->ext_pg_drop = xfpg_drop ? 1 : 0;
+          tb->ext_pg_go = 1;
+          st = 0;
+        }
+      }
       if(busy && xf_busy_since == 0) {
         xf_busy_since = cyc;
       }
@@ -3200,6 +3238,11 @@ int main(int argc, char **argv) {
             (unsigned long long)(xf_done ? xf_min : 0), (unsigned long long)(xf_done ? xf_sum / xf_done : 0),
             (unsigned long long)xf_max,
             xf_busy_since ? " -- a flush was STILL RUNNING at the end" : "");
+    if(xfpg_n) {
+      fprintf(stderr, "[extflush] page list base 0x%llx x %llu %s: dirty lines found by drops = %u\n",
+              (unsigned long long)xfpg_base, (unsigned long long)xfpg_n, xfpg_drop ? "drop" : "wbinv",
+              (unsigned)((tb->ext_flush_stat >> 2) & 0x3fff));
+    }
     if(xf_busy_since) {
       fprintf(stderr, "[extflush] outstanding flush started at cycle %llu\n", (unsigned long long)xf_busy_since);
     }

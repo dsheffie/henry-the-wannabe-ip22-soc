@@ -220,8 +220,16 @@ module henry_soc
    /* whole-cache flush + invalidate requested by the ARM (L1I, L1D, then L2; dirty
     * lines written back).  Level input: a 0->1 edge starts one flush. */
    input  logic                  ext_flush_ctl,
-   output logic [31:0]           ext_flush_stat,     // {completed[15:0], 15'd0, busy}
-   output logic [31:0]           ext_flush_cycles    // cycles the last flush took
+   /* page list (DMA buffers): push up to N_XF_PAGES physical page numbers, then `go`
+    * runs one core page op per page -- ext_pg_drop=0: write back + invalidate (before
+    * a transfer), 1: drop without write back (after a deposit).  More pages than
+    * that is the ARM's cue to use the whole-cache flush instead. */
+   input  logic                  ext_pg_push,        // 1-cycle: append ext_pg_ppn
+   input  logic [31:0]           ext_pg_ppn,
+   input  logic                  ext_pg_go,          // 1-cycle: walk the list
+   input  logic                  ext_pg_drop,
+   output logic [31:0]           ext_flush_stat,     // {completed[15:0], dirty[13:0], 1'b0, busy}
+   output logic [31:0]           ext_flush_cycles    // cycles the last flush / page list took
    );
 
    localparam int unsigned DEV_LAT = 2;   // device response latency (cycles)
@@ -299,7 +307,22 @@ module henry_soc
     * ext_flush_ctl (AXI control bit) around its DMA helper ops; each 0->1 edge
     * starts one flush, and ext_flush_stat / ext_flush_cycles let it poll for
     * completion and measure what a flush costs.  An edge while a flush is still
-    * running is ignored -- the ARM waits for the completed count to move. */
+    * running is ignored -- the ARM waits for the completed count to move.
+    *
+    * The page list shares the sequencer: `go` issues ext_flush_req once per listed
+    * page (the core latches the page and op with the request) and counts ONE
+    * completion when the last page is done.  Pushes and `go` are ignored while busy;
+    * a push past N_XF_PAGES sets overflow, and a `go` with overflow does the whole
+    * flush instead (always correct).  `go` consumes the list. */
+   localparam LG_XF_PAGES = 4;
+   localparam N_XF_PAGES = 1 << LG_XF_PAGES;
+   logic [`PA_WIDTH-`LG_PG_SZ-1:0] r_xf_pg [N_XF_PAGES-1:0];
+   logic [LG_XF_PAGES:0]  r_xf_npg, n_xf_npg;       /* pages in the list */
+   logic [LG_XF_PAGES-1:0] r_xf_idx, n_xf_idx;      /* page being flushed */
+   logic        r_xf_ovf, n_xf_ovf;
+   logic        r_xf_whole, n_xf_whole;
+   logic        r_xf_drop, n_xf_drop;
+   wire [15:0]  w_xf_dirty;
    logic        r_ext_flush_ctl, r_ext_flush_ctl_d;
    logic        r_ext_flush_req, n_ext_flush_req;
    logic        r_ext_flush_busy, n_ext_flush_busy;
@@ -323,6 +346,11 @@ module henry_soc
              r_ext_flush_cnt   <= 16'd0;
              r_ext_flush_cyc   <= 31'd0;
              r_ext_flush_last  <= 31'd0;
+             r_xf_npg          <= 'd0;
+             r_xf_idx          <= 'd0;
+             r_xf_ovf          <= 1'b0;
+             r_xf_whole        <= 1'b1;
+             r_xf_drop         <= 1'b0;
           end
         else
           begin
@@ -333,6 +361,19 @@ module henry_soc
              r_ext_flush_cnt   <= n_ext_flush_cnt;
              r_ext_flush_cyc   <= n_ext_flush_cyc;
              r_ext_flush_last  <= n_ext_flush_last;
+             r_xf_npg          <= n_xf_npg;
+             r_xf_idx          <= n_xf_idx;
+             r_xf_ovf          <= n_xf_ovf;
+             r_xf_whole        <= n_xf_whole;
+             r_xf_drop         <= n_xf_drop;
+          end
+     end // always_ff
+
+   always_ff @(posedge clk)
+     begin
+        if(ext_pg_push & !r_ext_flush_busy & !r_xf_npg[LG_XF_PAGES])
+          begin
+             r_xf_pg[r_xf_npg[LG_XF_PAGES-1:0]] <= ext_pg_ppn[`PA_WIDTH-`LG_PG_SZ-1:0];
           end
      end // always_ff
 
@@ -343,25 +384,75 @@ module henry_soc
         n_ext_flush_cnt  = r_ext_flush_cnt;
         n_ext_flush_cyc  = r_ext_flush_cyc;
         n_ext_flush_last = r_ext_flush_last;
+        n_xf_npg         = r_xf_npg;
+        n_xf_idx         = r_xf_idx;
+        n_xf_ovf         = r_xf_ovf;
+        n_xf_whole       = r_xf_whole;
+        n_xf_drop        = r_xf_drop;
+        if(ext_pg_push & !r_ext_flush_busy)
+          begin
+             if(r_xf_npg[LG_XF_PAGES])
+               begin
+                  n_xf_ovf = 1'b1;
+               end
+             else
+               begin
+                  n_xf_npg = r_xf_npg + 'd1;
+               end
+          end
         if(w_ext_flush_edge & !r_ext_flush_busy)
           begin
              n_ext_flush_req  = 1'b1;
              n_ext_flush_busy = 1'b1;
              n_ext_flush_cyc  = 31'd0;
+             n_xf_whole       = 1'b1;
+          end
+        else if(ext_pg_go & !r_ext_flush_busy)
+          begin
+             n_ext_flush_cyc  = 31'd0;
+             n_xf_whole       = r_xf_ovf;
+             n_xf_drop        = ext_pg_drop;
+             n_xf_idx         = 'd0;
+             n_xf_npg         = 'd0;
+             n_xf_ovf         = 1'b0;
+             if(r_xf_ovf | (r_xf_npg != 'd0))
+               begin
+                  n_ext_flush_req  = 1'b1;
+                  n_ext_flush_busy = 1'b1;
+                  /* hold the page count for the walk; consumed when it completes */
+                  n_xf_npg         = r_xf_npg;
+               end
+             else
+               begin
+                  /* empty list: nothing to flush, complete at once */
+                  n_ext_flush_cnt  = r_ext_flush_cnt + 16'd1;
+                  n_ext_flush_last = 31'd0;
+               end
           end
         else if(r_ext_flush_busy)
           begin
              n_ext_flush_cyc = r_ext_flush_cyc + 31'd1;
              if(w_ext_flush_done)
                begin
-                  n_ext_flush_busy = 1'b0;
-                  n_ext_flush_cnt  = r_ext_flush_cnt + 16'd1;
-                  n_ext_flush_last = r_ext_flush_cyc + 31'd1;
+                  if(!r_xf_whole & ({1'b0, r_xf_idx} != (r_xf_npg - 'd1)))
+                    begin
+                       n_xf_idx        = r_xf_idx + 'd1;
+                       n_ext_flush_req = 1'b1;
+                    end
+                  else
+                    begin
+                       n_ext_flush_busy = 1'b0;
+                       n_ext_flush_cnt  = r_ext_flush_cnt + 16'd1;
+                       n_ext_flush_last = r_ext_flush_cyc + 31'd1;
+                       n_xf_npg         = 'd0;
+                    end
                end
           end
      end // always_comb
 
-   assign ext_flush_stat   = {r_ext_flush_cnt, 15'd0, r_ext_flush_busy};
+   assign ext_flush_stat   = {r_ext_flush_cnt,
+                              (w_xf_dirty > 16'h3fff) ? 14'h3fff : w_xf_dirty[13:0],
+                              1'b0, r_ext_flush_busy};
    assign ext_flush_cycles = {1'b0, r_ext_flush_last};
 
    core_l1d_l1i cpu
@@ -390,6 +481,10 @@ module henry_soc
       .in_flush_mode(),
       .ext_flush_req(r_ext_flush_req),
       .ext_flush_done(w_ext_flush_done),
+      .ext_flush_ppn(r_xf_pg[r_xf_idx]),
+      .ext_flush_whole(r_xf_whole),
+      .ext_flush_drop(r_xf_drop),
+      .ext_flush_dirty_cnt(w_xf_dirty),
       .resume(resume),
       .resume_pc(resume_pc),
       .ready_for_resume(ready_for_resume),
