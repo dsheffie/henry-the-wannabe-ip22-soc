@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -29,7 +29,7 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -482,7 +482,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; silicon-refined 2026-07 — see the hidden-L2 DMA section)"></span>
   
 
   
@@ -1970,7 +1970,7 @@
 <h2 id="phase-0-kernel-entry-the-arcs-handoff">Phase 0 — Kernel entry &amp; the ARCS handoff<a class="headerlink" href="#phase-0-kernel-entry-the-arcs-handoff" title="Permanent link">&para;</a></h2>
 <p><code>sash</code> (the standalone shell / OSLoader) loads <code>/unix</code>, then enters the kernel at <strong><code>start</code> (<code>0x88005960</code>)</strong> following the ARC "Loaded Program Conventions": <code>Invoke(ExecAddr, StackAddr, Argc, Argv, Envp)</code>.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>a0 = argc = 8
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>a1 = argv = 0x88fff300     ; &quot;/unix&quot; + boot args
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>a1 = argv = 0x88fff300     ; "/unix" + boot args
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>a2 = envp = 0x88fff908     ; ARCS environment (console=, eaddr=, …)
 </code></pre></div>
 <p><code>start</code> stashes these into the globals <code>_argc</code> / <code>_argv</code> / <code>_envirn</code>, establishes <code>gp</code> and the boot stack, runs <code>_check_dbg</code> (is a kernel debugger attached?), and jumps to <code>mlsetup</code>. Everything after this is C.</p>
@@ -2026,8 +2026,8 @@
 <h2 id="phase-9-vm-pools-kernel-heap">Phase 9 — VM pools &amp; kernel heap<a class="headerlink" href="#phase-9-vm-pools-kernel-heap" title="Permanent link">&para;</a></h2>
 <p>On top of the pfdat, <strong><code>meminit</code></strong> stands up the VM system: free-page pools, large-page pools (<code>lpage_init</code>), and reserves. <strong><code>init_kheap</code></strong> brings up the kernel heap; <strong><code>kvpalloc</code></strong> — the workhorse virtual-page allocator (page coloring via <code>color_validation</code>/<code>pfd_set_vcolor</code>, reserve, dequeue) — and <strong><code>kmem_avail</code></strong> start servicing allocations. <code>tlbinfo_init</code> sets up TLB management (wired count, random bound, ASIDs).</p>
 <div class="admonition danger">
-<p class="admonition-title">Henry/RTL gotcha — the boot blocker</p>
-<p>The allocator helper under <strong><code>kmem_avail</code></strong> computes a kseg0/xkphys pointer with the 64-bit idiom from Phase 3. The r9999 RTL <strong>truncated the upper 32 bits</strong>, handing <code>bzero</code> a kuseg address (<code>0x0838e000</code>) instead of <code>0x8838e000</code> → TLB fault → panic. This is the current IRIX-on-RTL blocker (MAME_QUESTIONS Q6 round-2).</p>
+<p class="admonition-title">Henry/RTL gotcha — a former boot blocker (now fixed)</p>
+<p>The allocator helper under <strong><code>kmem_avail</code></strong> computes a kseg0/xkphys pointer with the 64-bit idiom from Phase 3. The r9999 RTL <strong>truncated the upper 32 bits</strong>, handing <code>bzero</code> a kuseg address (<code>0x0838e000</code>) instead of <code>0x8838e000</code> → TLB fault → panic. This <em>was</em> the IRIX-on-RTL blocker (MAME_QUESTIONS Q6 round-2); it has since been <strong>fixed</strong> — IRIX now boots past it to userspace on FPGA silicon.</p>
 </div>
 <h2 id="phase-10-zones-credentials-kernel-threads">Phase 10 — Zones, credentials &amp; kernel threads<a class="headerlink" href="#phase-10-zones-credentials-kernel-threads" title="Permanent link">&para;</a></h2>
 <p>The slab/zone allocator (<strong><code>kmem_zone_init</code></strong>, <code>kmem_zone_alloc</code>, <code>kmem_zalloc</code>) comes up, contiguous-memory allocation (<code>contmemall</code>, <code>lpage_alloc_contig_physmem</code>) is enabled, the credential subsystem (<code>cred_init</code>) initializes, and the <strong>kernel-thread framework</strong> (<code>sthread_init</code>, <code>sthread0_init</code>, <strong><code>kthread_init</code></strong>) — the basis for every kernel execution context — is established.</p>
@@ -3493,7 +3493,7 @@
       <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "navigation.indexes", "navigation.tracking", "toc.follow", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>

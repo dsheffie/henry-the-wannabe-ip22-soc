@@ -17,7 +17,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -25,7 +25,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -478,7 +478,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; silicon-refined 2026-07 — see the hidden-L2 DMA section)"></span>
   
 
   
@@ -1254,7 +1254,7 @@ write regs (WR0..WR15) and 16 read regs (RR0..RR15) through a <strong>pointer</s
 <a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>  read          → RR[ptr], ptr→0          RR3 = chip-wide interrupt-pending (gated by TxIE)
 <a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>
 <a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>  Enable the Tx-buffer-empty interrupt (WR1.TxIE, bit1):
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>     CONTROL &lt;= 0x01   ; WR0 &quot;point to register 1&quot;   ptr 0 → 1
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>     CONTROL &lt;= 0x01   ; WR0 "point to register 1"   ptr 0 → 1
 <a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>     CONTROL &lt;= 0x02   ; WR1 = 0x02 (TxIE)            ptr 1 → 0   ← carries the data byte
 </code></pre></div>
 <h2 id="2-address-decode-16-byte-bus-line-channel-ctrldata">2. Address decode (16-byte bus line → channel / ctrl|data)<a class="headerlink" href="#2-address-decode-16-byte-bus-line-channel-ctrldata" title="Permanent link">&para;</a></h2>
@@ -1307,7 +1307,7 @@ only raises <code>tx_ip</code> for the interrupt model.</p>
 <code>CHBTxIP=0x02</code> (gated by <code>WR1.TxIE</code>).</p>
 <h2 id="5-fixed-bug-control-write-data-byte-dropped-tx-interrupt-dead">5. ⚠️ Fixed bug: control-write data byte dropped → Tx interrupt dead<a class="headerlink" href="#5-fixed-bug-control-write-data-byte-dropped-tx-interrupt-dead" title="Permanent link">&para;</a></h2>
 <p><code>ioc.sv</code> classified each masked byte but captured <code>w_scc_wbyte</code> <strong>only on the data branch</strong>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="w">   </span><span class="n">w_scc_wbyte</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mh">8&#39;h0</span><span class="p">;</span><span class="w">                       </span><span class="c1">// default</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="w">   </span><span class="n">w_scc_wbyte</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mh">8'h0</span><span class="p">;</span><span class="w">                       </span><span class="c1">// default</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">   </span><span class="k">for</span><span class="w"> </span><span class="nl">b:</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">mask</span><span class="p">[</span><span class="n">b</span><span class="p">]</span><span class="o">:</span>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">     </span><span class="n">ch</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">b</span><span class="o">&gt;&gt;</span><span class="mi">3</span><span class="p">)</span><span class="o">&amp;</span><span class="mi">1</span><span class="p">;</span>
 <a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">     </span><span class="k">if</span><span class="w"> </span><span class="nl">is_data:</span><span class="w"> </span><span class="n">w_scc_data</span><span class="o">=</span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">w_scc_wbyte</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">wdata</span><span class="p">[</span><span class="mi">8</span><span class="o">*</span><span class="n">b</span><span class="o">+:</span><span class="mi">8</span><span class="p">];</span><span class="w">   </span><span class="c1">// ◄ captured</span>
@@ -1393,7 +1393,7 @@ chars via CP0-$7, SCC-polled, and SCC-Tx-IRQ; the IRQ path exposed the dead inte
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.top", "navigation.indexes", "navigation.tracking", "toc.follow", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>

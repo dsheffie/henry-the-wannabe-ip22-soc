@@ -19,7 +19,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -27,7 +27,7 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -480,7 +480,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; silicon-refined 2026-07 — see the hidden-L2 DMA section)"></span>
   
 
   
@@ -1431,8 +1431,8 @@ what IRIX <em>actually</em> requires (vs. what's merely architecturally possible
 <h2 id="exact-single-instruction-breakpoints-the-workhorse">Exact single-instruction breakpoints (the workhorse)<a class="headerlink" href="#exact-single-instruction-breakpoints-the-workhorse" title="Permanent link">&para;</a></h2>
 <p>Lua + the debugger <em>core</em> (<code>-debug -debugger none</code>) gives precise PC traps without a display:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kd">local</span><span class="w"> </span><span class="nv">dbg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">manager</span><span class="p">.</span><span class="py">machine</span><span class="p">.</span><span class="py">debugger</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nv">cpu</span><span class="p">.</span><span class="py">debug</span><span class="p">:</span><span class="nf">bpset</span><span class="p">(</span><span class="mh">0x88005960</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;1&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;&quot;</span><span class="p">)</span><span class="w">     </span><span class="c1">-- 3 args required; fewer SEGFAULTS the binding</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="c1">-- in register_periodic: if dbg.execution_state == &quot;stop&quot; then read state; dbg.execution_state = &quot;running&quot;</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nv">cpu</span><span class="p">.</span><span class="py">debug</span><span class="p">:</span><span class="nf">bpset</span><span class="p">(</span><span class="mh">0x88005960</span><span class="p">,</span><span class="w"> </span><span class="s2">"1"</span><span class="p">,</span><span class="w"> </span><span class="s2">""</span><span class="p">)</span><span class="w">     </span><span class="c1">-- 3 args required; fewer SEGFAULTS the binding</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="c1">-- in register_periodic: if dbg.execution_state == "stop" then read state; dbg.execution_state = "running"</span>
 </code></pre></div>
 <p>Caveats learned the hard way: <code>execution_state</code> reads <code>"stop"</code> (not <code>"stopped"</code>); the periodic still fires
 while paused; poll-resume adds <strong>~16 ms wall per hit</strong>, so never breakpoint high-frequency sites. <strong>Register
@@ -1495,14 +1495,19 @@ ambiguity), so the C++ SCC hook is the reliable headless serial sink. Getting se
 sim/synth timing hazard, or (as here) IRIX wedging somewhere MAME never reaches — you have to catch state
 <em>on the running part</em>. The workflow that cracked the IRIX <code>bad istack</code> panic:</p>
 <p><strong>1. Freeze the pipeline at the offending instruction (core.sv).</strong> Reuse the single-step gate: a
-breakpoint/watchpoint that latches a "hit" flop and folds it into <code>w_step_ok</code>, so the core <strong>stops retiring
-without a reset</strong> — the register file and DRAM stay coherent at the moment of interest.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1">// PC breakpoint: freeze after retiring BP_PC.  VALUE watchpoint: freeze after a</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="c1">// retiring insn writes a target value into a target reg (here $29/sp).</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="kt">wire</span><span class="w"> </span><span class="n">w_wp_match</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">bp_enable</span><span class="w"> </span><span class="o">&amp;</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span><span class="p">((</span><span class="n">retire_reg_valid</span><span class="w">     </span><span class="o">&amp;</span><span class="w"> </span><span class="p">(</span><span class="n">retire_reg_ptr</span><span class="o">==</span><span class="mh">5</span><span class="mi">&#39;d29</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="p">((</span><span class="n">retire_reg_data</span><span class="p">[</span><span class="mh">31</span><span class="o">:</span><span class="mh">0</span><span class="p">]</span><span class="o">&amp;</span><span class="n">WP_MASK</span><span class="p">)</span><span class="o">==</span><span class="n">WP_VAL</span><span class="p">))</span><span class="w"> </span><span class="o">|</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">   </span><span class="p">(</span><span class="n">retire_reg_two_valid</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="p">(</span><span class="n">retire_reg_two_ptr</span><span class="o">==</span><span class="mh">5</span><span class="mi">&#39;d29</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="p">((</span><span class="n">retire_reg_two_data</span><span class="p">[</span><span class="mh">31</span><span class="o">:</span><span class="mh">0</span><span class="p">]</span><span class="o">&amp;</span><span class="n">WP_MASK</span><span class="p">)</span><span class="o">==</span><span class="n">WP_VAL</span><span class="p">)));</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="kt">wire</span><span class="w"> </span><span class="n">w_step_ok</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">r_single_step</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">r_bp_hit</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">r_wp_hit</span><span class="p">)</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="n">t_step_edge</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="mh">1</span><span class="mb">&#39;b1</span><span class="p">;</span><span class="w">  </span><span class="c1">// no step edge -&gt; frozen</span>
+<strong>driver-programmable</strong> breakpoint + store watchpoint (<code>bp_pc</code>/<code>bp_wp_addr</code>/<code>bp_wp_val</code> from AXI
+<code>slv_reg9-11</code>, guarded by <code>`ifdef ENABLE_DEBUG_WATCHPOINT</code>) that latches a "hit" flop and folds it into
+<code>w_step_ok</code>, so the core <strong>stops retiring without a reset</strong> — the register file and DRAM stay coherent at the
+moment of interest. Because the trap PC/addr/value are ports, moving the breakpoint no longer needs a re-synth.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1">// bp_pc / bp_wp_addr / bp_wp_val are DRIVER-PROGRAMMABLE input ports (slv_reg9-11) --</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="c1">// no re-synth to move the trap.  PC breakpoint: freeze after retiring bp_pc.  STORE</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="c1">// watchpoint: freeze after a retiring store of bp_wp_val to bp_wp_addr</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1">// (bp_wp_val==0xffffffff = wildcard: any store to that address).</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="kt">wire</span><span class="w"> </span><span class="n">w_bp_match</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">bp_enable</span><span class="w"> </span><span class="o">&amp;</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">  </span><span class="p">((</span><span class="n">t_retire</span><span class="w">     </span><span class="o">&amp;</span><span class="w"> </span><span class="p">(</span><span class="n">t_rob_head</span><span class="p">.</span><span class="n">pc</span><span class="p">[</span><span class="mh">31</span><span class="o">:</span><span class="mh">0</span><span class="p">]</span><span class="w">      </span><span class="o">==</span><span class="w"> </span><span class="n">bp_pc</span><span class="p">))</span><span class="w"> </span><span class="o">|</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">   </span><span class="p">(</span><span class="n">t_retire_two</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="p">(</span><span class="n">t_rob_next_head</span><span class="p">.</span><span class="n">pc</span><span class="p">[</span><span class="mh">31</span><span class="o">:</span><span class="mh">0</span><span class="p">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">bp_pc</span><span class="p">)));</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="kt">wire</span><span class="w"> </span><span class="n">w_wp_match</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">w_wp_data_here</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="p">((</span><span class="n">bp_wp_val</span><span class="o">==</span><span class="mh">32'hffffffff</span><span class="p">)</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="p">(</span><span class="n">core_store_data</span><span class="p">.</span><span class="n">data</span><span class="p">[</span><span class="mh">31</span><span class="o">:</span><span class="mh">0</span><span class="p">]</span><span class="o">==</span><span class="n">bp_wp_val</span><span class="p">));</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="kt">wire</span><span class="w"> </span><span class="n">w_step_ok</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">r_single_step</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">r_bp_hit</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">r_wp_hit</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">r_fault_hit</span><span class="p">)</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="n">t_step_edge</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="mh">1</span><span class="mb">'b1</span><span class="p">;</span><span class="w">  </span><span class="c1">// no step edge -&gt; frozen</span>
 </code></pre></div>
 <ul>
 <li><strong>Timing trap:</strong> compare the <em>flopped</em> retire outputs (<code>retire_reg_data/ptr/valid</code>), <strong>not</strong> the
@@ -1538,14 +1543,17 @@ region. But reading that idle-sp global (<code>mem[0xFFFFA164]</code>) in the <s
 <code>VEC_int</code>'s int-stack-only exit rejects it → panic. The ISS never hits it because with a working disk it
 mounts root and stays <em>busy</em>. <strong>The value of the tooling wasn't finding a corruption — it was <em>definitively
 ruling one out</em>,</strong> redirecting the hunt from the CPU to the SCSI/root-mount path. (Full trail:
-<code>~/.../memory/project_irix_boot.md</code>.)</p>
+<code>~/.../memory/project_irix_boot.md</code>.) At the time this trap was a hardcoded <code>BP_PC</code> + sp-watchpoint compiled
+into the bitstream; it is now <strong>driver-programmed</strong> (<code>bp_pc</code>/<code>bp_wp_*</code> via <code>slv_reg9-11</code>), so the same hunt no
+longer costs a re-synth to move the breakpoint.</p>
 <p><strong>Reading FPGA timing/util after a probe:</strong> the routed reports live in <code>…/&lt;proj&gt;.runs/impl_N/</code>
 (<code>*_timing_summary_routed.rpt</code> WNS, <code>*_utilization_placed.rpt</code>). Grep the <em>fresh</em> one — the
 <code>utilization_synth.rpt</code> is easy to misread if a prior run's copy is stale. Two knobs that bought timing
-margin for the probe on a 94%-LUT-full die: <strong>ALU matrix scheduler 8→4</strong> (<code>LG_INT_SCHED_ENTRIES 3→2</code> — not
-an area win since the FPU dominates the LUTs, but the O(N²) wakeup/select was <em>on the critical path</em>, so it
-was a real WNS win) and <strong>L2 1024→8 lines</strong> (a BRAM knob, no LUT/correctness impact — caches are
-non-inclusive so shrinking is safe).</p>
+margin for the probe on a 94%-LUT-full die: shrinking the <strong>ALU matrix scheduler 8→4</strong>
+(<code>LG_INT_SCHED_ENTRIES 3→2</code>) — the O(N²) wakeup/select is <em>on the critical path</em>, so it's a real WNS lever
+(not an area win; the FPU dominates the LUTs) — <strong>but that downsize proved buggy (mis-issue → replay) and was
+reverted, so the live config stays 8 entries (<code>LG_INT_SCHED_ENTRIES=3</code>)</strong>; and <strong>L2 1024→8 lines</strong> (a BRAM
+knob, no LUT/correctness impact — caches are non-inclusive so shrinking is safe).</p>
 <h2 id="related-work">Related work<a class="headerlink" href="#related-work" title="Permanent link">&para;</a></h2>
 <p><strong>Project CYAN</strong> (<a href="https://wiki.unix-haters.org/doku.php?id=sgimips:cyan">wiki.unix-haters.org</a>)
 is a from-scratch FPGA SoC of the SGI <strong>Indigo IP20</strong>, the board generation just
@@ -1637,7 +1645,7 @@ useful here: where CYAN and MAME agree, Henry's spec is on solid ground.</p>
       <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "navigation.indexes", "navigation.tracking", "toc.follow", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>

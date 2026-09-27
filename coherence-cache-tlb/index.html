@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -29,7 +29,7 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -491,7 +491,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; silicon-refined 2026-07 — see the hidden-L2 DMA section)"></span>
   
 
   
@@ -516,7 +516,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; silicon-refined 2026-07 — see the hidden-L2 DMA section)"></span>
   
 
   
@@ -557,6 +557,89 @@
       
     </span>
   </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#r9999s-hidden-l2-and-the-dma-coherence-gap-silicon-2026-07" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        r9999's hidden L2 and the DMA-coherence gap (silicon, 2026-07)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="r9999&#39;s hidden L2 and the DMA-coherence gap (silicon, 2026-07)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-bug-it-causes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The bug it causes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-irix-never-invalidates-the-l2-confirmed-in-irixs-own-binary-ghidra" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why IRIX never invalidates the L2 — confirmed in IRIX's own binary (Ghidra)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-secondary-cache-probe-what-sc0-must-satisfy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The secondary-cache probe (what SC=0 must satisfy)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#prid-mismatch-rtl-vs-iss" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ⚠️ PRId mismatch (RTL vs ISS)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fix-options-silicon-results-all-attempted-this-session" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fix options + silicon results (all attempted this session)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#artifacts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Artifacts
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1316,6 +1399,89 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#r9999s-hidden-l2-and-the-dma-coherence-gap-silicon-2026-07" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        r9999's hidden L2 and the DMA-coherence gap (silicon, 2026-07)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="r9999&#39;s hidden L2 and the DMA-coherence gap (silicon, 2026-07)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-bug-it-causes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The bug it causes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-irix-never-invalidates-the-l2-confirmed-in-irixs-own-binary-ghidra" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why IRIX never invalidates the L2 — confirmed in IRIX's own binary (Ghidra)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-secondary-cache-probe-what-sc0-must-satisfy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The secondary-cache probe (what SC=0 must satisfy)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#prid-mismatch-rtl-vs-iss" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ⚠️ PRId mismatch (RTL vs ISS)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fix-options-silicon-results-all-attempted-this-session" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fix options + silicon results (all attempted this session)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#artifacts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Artifacts
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#tlb" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1454,6 +1620,15 @@ bus agent (a second CPU or a snooping DMA engine). Henry is a faithful <strong>u
 (not NOP them)</strong> — drive the L1i flush on I-cache invalidate (code coherence), and invalidate-<em>without</em>-
 writeback on <code>Hit-Invalidate-D</code> (DMA-in). See the routing table below. Not building snoop logic is a
 genuine <strong>simplification</strong>, not a shortcut.</p>
+<blockquote>
+<p>⚠️ <strong>Refined by silicon (2026-07): still no <em>snoops</em>, but there IS a second obligation.</strong> Because
+r9999 has a <strong>hidden L2</strong> (unlike the real Indy), executing the <em>primary</em> cache ops isn't enough —
+IRIX's DMA invalidates never reach the L2, so DMA reads go stale. The answer is <em>not</em> to build
+snoop hardware (we tried — it corrupts); it's to make r9999 report <strong><code>Config.SC=0</code></strong> so IRIX issues
+its <strong>secondary</strong> (<code>cache_sel=11</code>) invalidates, and to honor those SD ops against the L2 (8-beat,
+128 B → 8×16 B, inclusive of L1D). That keeps the "software coherence, no snoops" model intact —
+it just requires honoring the L2 ops IRIX is currently <em>told not to issue</em>. See the hidden-L2 section.</p>
+</blockquote>
 <p>Snoops would only ever be needed if Henry went <strong>multiprocessor</strong> (multiple r9999 cores sharing memory) or
 chose to model <strong>coherent DMA hardware</strong> to spare IRIX the flushes — neither is in scope, and the latter
 would diverge from the real IP22.</p>
@@ -1536,7 +1711,13 @@ D-Hit-Invalidate dropping the line without writeback. Field decode of the op reg
 </table>
 <p><strong>Four primary-cache ops = 99.94%.</strong> Secondary/L2 ops are ~0 (just a 6-hit probe). This Indy has no
 L2 visible to software (<code>Config.SC=1</code>), so the ~30 static <code>cache_sel=2/3</code> code sites never execute —
-<strong>no L2 modeling needed</strong>.</p>
+<strong>no L2 modeling needed</strong> <em>on the real Indy</em>.</p>
+<blockquote>
+<p>⚠️ <strong>True for the real Indy, NOT for r9999.</strong> r9999 <em>has</em> a hidden L2 but still reports <code>Config.SC=1</code>,
+so IRIX skips those secondary (<code>cache_sel=2/3</code>) ops — which is exactly why the L2 is never invalidated
+and DMA reads go stale. The fix (<code>SC=0</code>) is to make IRIX <strong>start</strong> issuing the SD ops so r9999 can
+invalidate its L2. See <a href="#r9999s-hidden-l2-and-the-dma-coherence-gap-silicon-2026-07">r9999's hidden L2 and the DMA-coherence gap</a>.</p>
+</blockquote>
 <p><strong>Decode/handling obligations:</strong>
 - Decode the full op field; <strong>privilege-check</strong> (<code>cache</code> is kernel/CU0-only → user mode raises
   Coprocessor-Unusable); compute EA = <code>base + signext(offset)</code>.</p>
@@ -1626,6 +1807,127 @@ L2 visible to software (<code>Config.SC=1</code>), so the ~30 static <code>cache
 </table>
 <p>D-cache ops are <strong>NOP-safe while I/O stays backdoored</strong> (no snoop logic, no incoherent DMA behind L1d).
 If real incoherent DMA is ever added, honor the invalidate-vs-writeback distinction — especially <code>0x11</code>.</p>
+<blockquote>
+<p>⚠️ <strong>This "NOP-safe" conclusion is now SUPERSEDED on silicon.</strong> It held for the <em>real Indy</em> (which
+has <strong>no</strong> L2 — <code>Config.SC=1</code> is truthful there) analyzed in MAME. <strong>r9999 diverges: it has a real,
+transparent 128 KB L2 that IRIX cannot see</strong>, and with real SCSI DMA behind it (henry silicon), the
+D-cache ops are <strong>NOT</strong> NOP-safe — the L2 silently serves stale DMA data. See the next section.</p>
+</blockquote>
+<h2 id="r9999s-hidden-l2-and-the-dma-coherence-gap-silicon-2026-07">r9999's hidden L2 and the DMA-coherence gap (silicon, 2026-07)<a class="headerlink" href="#r9999s-hidden-l2-and-the-dma-coherence-gap-silicon-2026-07" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p><strong>⚠️ UPDATE (2026-07): this gap is now CLOSED in RTL — no <code>SC=0</code> and no snoop needed.</strong> <code>l1d.sv</code>
+forwards a D-side <code>Hit-Invalidate</code> (<code>MEM_INVL</code>) to the <strong>L2 unconditionally — even on an L1D miss</strong>
+("scrub the L2 copy, DMA-in drop"; <code>l1d.sv</code> ~2138–2145), and pushes <code>Hit-Writeback-Invalidate</code>
+through to DRAM via <code>MEM_WB</code>. So IRIX's primary-only <code>dma_cache_inv</code> (an L1 <code>Hit-Invalidate</code> under
+<code>Config.SC=1</code>) <strong>does</strong> reach and invalidate the hidden L2 — the 128 KB L2 boots IRIX clean on
+silicon. The <code>SC=0</code> / snoop / head-of-ROB-fence / NOCACHE forensics below are retained as history;
+the shipped fix was this CACHE-op forwarding. (A DMA snoop and an <code>ENABLE_L2_NOCACHE</code> bypass exist
+in RTL but are <strong>OFF by default</strong>.)</p>
+<p><strong>The single most important divergence from the real IP22.</strong> r9999 has a <strong>transparent write-back
+L2</strong> (128 KB, <strong>16-byte lines</strong>, <code>LG_L2_NUM_SETS=13</code>) between L1 and DRAM. The real Indy has <strong>no L2</strong>
+and says so (<code>Config.SC=1</code>). r9999 <strong>also</strong> reports <code>Config.SC=1</code> (<code>exec.sv</code> sets <code>Config=0x0002e4b3</code>),
+so IRIX believes there is no secondary cache — but the L2 is physically there, caching lines the
+kernel doesn't know it must invalidate. On silicon with the real SCSI DMA path, this is a genuine
+<strong>non-coherent-DMA bug</strong> the MAME/real-Indy analysis above could never see (real Indy: no L2 → nothing
+to go stale).</p>
+</blockquote>
+<h3 id="the-bug-it-causes">The bug it causes<a class="headerlink" href="#the-bug-it-causes" title="Permanent link">&para;</a></h3>
+<p>IRIX 6.5 boots on henry silicon to the kernel banner, "coming up", and reconfigure — then <strong>every
+<code>/etc/rc2</code> o32 process dies with <code>Memory fault(coredump)</code></strong> (and <code>cc</code>'s backend bus-errors during the
+kernel reconfigure). Root cause: <strong>R10000-class speculative non-coherent DMA</strong>. The OOO core
+speculatively pulls a DMA read-buffer line into cache; the SCSI DMA overwrites DRAM behind it; IRIX
+never invalidates the <strong>hidden L2</strong> copy (see below); a later read gets the stale line → bad pointer →
+fault. <strong>Proven in <code>interp_mips</code>:</strong> a spec-fill cache model reproduces it (16 stale reads → boot dies);
+adding a coherent-DMA invalidate → 0 stale reads, clean. The on-disk image is <strong>not</strong> corrupted
+(rsync <code>--checksum</code> identical to pristine) — the corruption is purely <em>live</em> in-memory stale reads.</p>
+<h3 id="why-irix-never-invalidates-the-l2-confirmed-in-irixs-own-binary-ghidra">Why IRIX never invalidates the L2 — confirmed in IRIX's own binary (Ghidra)<a class="headerlink" href="#why-irix-never-invalidates-the-l2-confirmed-in-irixs-own-binary-ghidra" title="Permanent link">&para;</a></h3>
+<p>Decompiling the extracted IRIX kernel objects (<code>~/code/iris/IP22boot/*.o</code>, unstripped N32/DWARF) settled
+this definitively. <code>kernel.o :: __dcache_inval</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">scache_size</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">*</span><span class="p">(</span><span class="n">uint</span><span class="w"> </span><span class="o">*</span><span class="p">)(</span><span class="n">zero</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mh">-0x5d50</span><span class="p">);</span><span class="w">        </span><span class="c1">// the detected secondary-cache size</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">scache_size</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">flag</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w">            </span><span class="c1">// ONLY if a secondary cache exists:</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="n">cacheOp</span><span class="p">(</span><span class="mh">0x03</span><span class="p">,</span><span class="w"> </span><span class="n">addr</span><span class="p">);</span><span class="w">   </span><span class="c1">// Index_WB_Invalidate_SD   (cache_sel=11 = Secondary Data)</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">    </span><span class="n">cacheOp</span><span class="p">(</span><span class="mh">0x17</span><span class="p">,</span><span class="w"> </span><span class="n">addr</span><span class="p">);</span><span class="w">   </span><span class="c1">// Hit_WB_Invalidate_SD</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">    </span><span class="n">cacheOp</span><span class="p">(</span><span class="mh">0x13</span><span class="p">,</span><span class="w"> </span><span class="n">addr</span><span class="p">);</span><span class="w">   </span><span class="c1">// Hit_Invalidate_SD    &lt;-- THE L2 INVALIDATE</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">    </span><span class="c1">// stride 0x80 (128-byte secondary line)</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">}</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="c1">// else -&gt; primary-cache ops only  (r9999's case, because scache_size == 0)</span>
+</code></pre></div>
+<p>So <strong>IRIX has a complete, correct secondary-cache invalidate path</strong> — it just gates it on
+<code>scache_size != 0</code>. Because r9999 reports <code>Config.SC=1</code>, <code>config_cache</code>/<code>size_2nd_cache</code> set
+<code>scache_size = 0</code>, so <code>__dcache_inval</code> runs <strong>primary-only</strong> and the L2 is <strong>never</strong> invalidated.</p>
+<p><strong>And IRIX genuinely tries to sync its DMA buffers</strong> — <code>dksc.o</code> (the SCSI disk driver) does the
+textbook, even R10000-<em>speculation-safe</em> pattern:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">read</span><span class="p">)</span><span class="w">  </span><span class="n">dki_dcache_inval</span><span class="p">(</span><span class="n">buf</span><span class="p">,</span><span class="w"> </span><span class="n">len</span><span class="p">);</span><span class="w">   </span><span class="c1">// PRE-DMA invalidate</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="k">else</span><span class="w">       </span><span class="n">dki_dcache_wb</span><span class="p">(</span><span class="n">buf</span><span class="p">,</span><span class="w"> </span><span class="n">len</span><span class="p">);</span><span class="w">      </span><span class="c1">// PRE-DMA writeback (DMA-out)</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">dk_sendcmd</span><span class="p">(...);</span><span class="w">  </span><span class="n">dk_chkcond</span><span class="p">(...);</span><span class="w">        </span><span class="c1">// issue DMA + wait for completion</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">read</span><span class="p">)</span><span class="w">  </span><span class="n">dki_dcache_inval</span><span class="p">(</span><span class="n">buf</span><span class="p">,</span><span class="w"> </span><span class="n">len</span><span class="p">);</span><span class="w">   </span><span class="c1">// POST-DMA invalidate (the speculation-safe flush!)</span>
+</code></pre></div>
+<p>Every one of those calls flows into <code>__dcache_inval</code> → primary-only → <strong>misses the L2</strong>. IRIX is doing
+the <em>right</em> software; r9999 just hid the cache it needs to reach.</p>
+<h3 id="the-secondary-cache-probe-what-sc0-must-satisfy">The secondary-cache probe (what <code>SC=0</code> must satisfy)<a class="headerlink" href="#the-secondary-cache-probe-what-sc0-must-satisfy" title="Permanent link">&para;</a></h3>
+<p><code>config_cache</code> → <code>size_2nd_cache</code> is <strong>PRId-dispatched</strong> and reads <code>Config</code>/<code>PRId</code>:
+- <strong>R4600</strong> (<code>imp 0x2000</code>): reads an IP22 system register <code>0xbfa00034</code> for the secondary size.
+- <strong>R4600 <code>0x2300</code> variant</strong>: <code>Config</code>-based (SC bit + size field) <strong>plus</strong> a cache-aliasing probe
+  (<code>cache 0x08/0x09/0x0b</code> = <code>Index_Store/Load_Tag_SD</code> + tag reads).
+- <strong>R4000/R4400</strong>: <code>Config</code>-based secondary detect (simpler — no IP22-register / aliasing probe).</p>
+<p>Then <code>_r4600sc_enable_scache</code> writes <code>Config</code>/<code>TagLo</code> (<code>mtc0</code>) to turn it on. <strong>Line size is hard-coded
+128 B</strong> (<code>config_cache</code> does <code>li 127 -&gt; scache_linemask</code>; the op loops use immediate <code>128</code>/<code>0x7f</code>
+strides) — <strong>not</strong> detected, so it can't be reconfigured to r9999's 16 B; the RTL must bridge it.</p>
+<h3 id="prid-mismatch-rtl-vs-iss">⚠️ PRId mismatch (RTL vs ISS)<a class="headerlink" href="#prid-mismatch-rtl-vs-iss" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>RTL / silicon: <code>PRID_R4400</code> = 0x00000440</strong> (<code>machine.vh:216</code>).</li>
+<li><strong><code>interp_mips</code> golden ISS: <code>PRID_R4600</code> = 0x2020</strong> (<code>interpret.hh:389</code>).</li>
+</ul>
+<p><strong>Silicon presents R4400</strong>, so it takes the <strong>simpler <code>Config</code>-based</strong> secondary-detect path (not the
+R4600 <code>0xbfa00034</code>/aliasing probe). This mismatch also means the co-sim checker has been comparing an
+R4600 ISS to an R4400 core — worth fixing regardless.</p>
+<h3 id="fix-options-silicon-results-all-attempted-this-session">Fix options + silicon results (all attempted this session)<a class="headerlink" href="#fix-options-silicon-results-all-attempted-this-session" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>approach</th>
+<th>idea</th>
+<th>silicon result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong><code>SC=0</code> (principled)</strong></td>
+<td>Advertise the L2 as an R4x00 secondary cache (flip <code>Config.SC=0</code>, satisfy the R4400 probe) + an <strong>8-beat SD-op handler</strong> (128 B / 16 B → drop/WB 8 lines, inclusive of L1D). Enables IRIX's <em>own</em> correct+speculation-safe invalidates to reach the L2.</td>
+<td><strong>Not yet built</strong> (~days). The right fix.</td>
+</tr>
+<tr>
+<td>DMA→L2 snoop</td>
+<td>Arbiter emits a snoop on each DMA store → L2 invalidates the line.</td>
+<td><strong>Corrupted</strong> silicon (over-invalidated live/dirty lines; new <code>xfs_da_do_buf</code> alerts). Reverted. Its <code>snoop_addr</code>/RAM-latency were racy; discard-even-dirty threw away live data.</td>
+</tr>
+<tr>
+<td>Head-of-ROB fence</td>
+<td>Serialize every cached load/store to ROB head (no speculative fill). <code>l1d.sv ENABLE_MEM_HEAD_SERIALIZE</code>.</td>
+<td><strong>Partial</strong>: reconfigure-death → ran <em>all</em> of rc2 (S30→S99), but residual <code>xfs</code>/loader-not-found remained. A fill path still speculates (port-2/replay/L1I?).</td>
+</tr>
+<tr>
+<td>Tiny L2 (<code>LG_L2_NUM_SETS=2</code>)</td>
+<td>4-line L2, ~no retention.</td>
+<td><code>cc</code> <strong>bus-error</strong> at reconfigure — <strong>confounded</strong>: a 4-line L2 inclusive of a bigger L1D is itself broken. Not it.</td>
+</tr>
+<tr>
+<td>NOCACHE bypass</td>
+<td><code>l1d.sv/machine.vh ENABLE_L2_NOCACHE</code>: route data ops (opcode &lt;24) straight to DRAM so the L2 holds <strong>nothing</strong> (no inclusivity confound); keep <code>MEM_WB</code>/<code>MEM_INVL</code> (≥24) on real handlers.</td>
+<td>under test. Definitive: boots clean → L2 was the reservoir; still crashes → stale data is in the L1D.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Key insight across all four:</strong> they <em>substitute</em> for a coherence mechanism IRIX <strong>already has and
+wants to use</strong>. <code>SC=0</code> is the only one that lets IRIX invalidate the L2 with its own already-correct
+(and inclusive-of-L1D, so it covers whichever cache holds the stale line) secondary ops.</p>
+<h3 id="artifacts">Artifacts<a class="headerlink" href="#artifacts" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Ghidra decompiles</strong> (Java <code>DecompDump</code> script — Ghidra 12.1 needs Java, not PyGhidra):
+  <code>~/code/iris/{kernel,dksc,wd93,scsi,scsiha,hpc3plp}_decomp.c</code>.</li>
+<li>IRIX kernel objects: <code>~/code/iris/IP22boot/*.o</code> (unstripped, DWARF). Disassemble with
+  <code>mips-linux-gnu-objdump -d -EB</code>.</li>
+</ul>
 <h2 id="tlb">TLB<a class="headerlink" href="#tlb" title="Permanent link">&para;</a></h2>
 <div class="admonition info">
 <p class="admonition-title">Full TLB datapath write-up</p>
@@ -1665,11 +1967,11 @@ remaining check; unit coverage exists (<code>tests/cheri/tlb/test_tlb_xkseg.s</c
 </div>
 <p><code>wirepda</code> (@<code>0x881689b0</code>) <code>jal</code>s <code>tlbwired</code> (@<code>0x88004ba0</code>) to wire the per-CPU PDA. The golden wired
 entry captured at the <code>tlbwi</code> inside <code>tlbwired</code> (0x88004c28):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>EntryHi  = 0x00000000_FFFFA000   ; VPN2 for VA 0xFFFFFFFF_FFFFA000, ASID=0x00
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>EntryLo0 = 0x00000000_0020E39F   ; PFN=0x838E -&gt; PA 0x0838E000; C=3 (cached), D=1, V=1, G=1 (GLOBAL)
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>EntryLo1 = 0x00000000_00000001   ; V=0 -&gt; odd page INVALID; G=1
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>PageMask = 0                     ; 4 KB
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>Index    = 0     Wired = 8
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>EntryHi  = 0x00000000_FFFFA000   ; VPN2 for VA 0xFFFFFFFF_FFFFA000, ASID=0x00
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>EntryLo0 = 0x00000000_0020E39F   ; PFN=0x838E -&gt; PA 0x0838E000; C=3 (cached), D=1, V=1, G=1 (GLOBAL)
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>EntryLo1 = 0x00000000_00000001   ; V=0 -&gt; odd page INVALID; G=1
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>PageMask = 0                     ; 4 KB
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>Index    = 0     Wired = 8
 </code></pre></div>
 <p>So the <strong>PDA is wired in slot 0</strong>: VA <code>0xFFFFFFFF_FFFFA000</code> → PA <code>0x0838E000</code>, valid, dirty, cached,
 <strong>GLOBAL</strong> (matches any ASID).</p>
@@ -1799,7 +2101,7 @@ regression in the high-VA match (and would catch a re-introduction of the zero-e
       <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "navigation.indexes", "navigation.tracking", "toc.follow", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>

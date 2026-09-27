@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -29,7 +29,7 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -641,7 +641,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; silicon-refined 2026-07 — see the hidden-L2 DMA section)"></span>
   
 
   
@@ -1459,7 +1459,7 @@ Legend: ✅ confirmed in MAME, ⚠️ correction vs an earlier assumption.</p>
 <p>Henry jumps to <code>/unix</code> <code>start</code> (entry <strong><code>0x88005960</code></strong>, kseg0) with:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>a0 = 0x00000008          ; argc = 8
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>a1 = argv  (kseg0 ptr)   ; MAME: 0x88fff300 — array of 8 char* + NULL (boot path + OSLoad* strings)
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>a2 = envp  (kseg0 ptr)   ; MAME: 0x88fff908 — array of &quot;KEY=value&quot; char* + NULL (PROM env vars)
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>a2 = envp  (kseg0 ptr)   ; MAME: 0x88fff908 — array of "KEY=value" char* + NULL (PROM env vars)
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>a3 = 0
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>sp = 0   gp = 0   ra = 0   fp = 0          ; clean GPRs; the kernel sets up its own gp/sp
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>SR = 0x30004801                            ; CU1|BEV|... (MAME-observed entry Status)
@@ -1497,7 +1497,7 @@ first C routine <code>0x880255e8(a0,a1,a2,a3=0x880059b0)</code>. Everything else
 <p>The kernel finds <em>everything</em> through the SPB. Plant it verbatim at <strong>phys <code>0x1000</code></strong> (kseg1 <code>0xa0001000</code>,
 kseg0 <code>0x80001000</code>). All fields big-endian. Layout (72 bytes, <code>SPBLength=0x48</code>):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>off    value         field                         notes
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>+0x00  0x53435241    Signature = &quot;ARCS&quot;            BE bytes 41 52 43 53 (&#39;A&#39;&#39;R&#39;&#39;C&#39;&#39;S&#39;)
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>+0x00  0x53435241    Signature = "ARCS"            BE bytes 41 52 43 53 ('A''R''C''S')
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>+0x04  0x00000048    SPBLength = 72
 <a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>+0x08  0x0001000a    Version = 1, Revision = 10    (u16 Version=1, u16 Revision=10)
 <a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>+0x0c  0xa87484ec    RestartBlock ptr              PROM-internal; kernel does not deref on boot — any sane ptr
@@ -1611,7 +1611,7 @@ calls are pre-kernel and irrelevant to a sash-less boot. Instead, <code>szmem</c
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>lui  a5,0xbfa0        ; 0xbfa00000 kseg1 uncached -&gt; phys 0x1fa00000 = the MC
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>lw   a3,196(a5)       ; MEMCFG0 @ 0xbfa000c4  (BE +4 alias of table offset 0xc0)
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>lw   a3,204(a5)       ; MEMCFG1 @ 0xbfa000cc  (BE +c alias of 0xc8)
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>srlv v0,a3,a4         ; pick the bank&#39;s 16-bit half (two banks packed per 32-bit reg)
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>srlv v0,a3,a4         ; pick the bank's 16-bit half (two banks packed per 32-bit reg)
 <a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>andi v0,v0,0xffff
 </code></pre></div>
 <p><strong>Implication for Henry:</strong> the shim does <strong>NOT</strong> need a working <code>GetMemoryDescriptor</code> (idx 18 may stub→NULL). It
@@ -1622,8 +1622,10 @@ in <strong><code>peripherals/mc.md</code></strong> — implement those registers
   size from the MSIZE table (<code>0b01111</code>=16 MB, <code>0b11111</code>=32 MB, …), <code>VLD</code> valid bit, <code>BNK</code> sub-banks.</li>
 <li>Live golden values (16 MB Indy): <code>MEMCFG0=0x23200000</code> (hiBank base=0x20→<code>0x08000000</code>, MSIZE=0b00011=16 MB,
   VLD=1; loBank invalid), <code>MEMCFG1=0x00000000</code>, <code>CPU_MEMACC (0xd0)=0x11453433</code> (opaque DRAM timing — store/return).</li>
-<li>For Henry's DRAM (e.g. 128 MB at <code>0x08000000</code>): set bank base <code>0x20</code>, widen MSIZE / add banks so the decoded
-  base+size cover <code>0x08000000–0x0fffffff</code>. Cross-check the decoded total against <code>physmem</code>/<code>maxmem</code>
+<li>For Henry's DRAM (256 MB at <code>0x08000000</code>): set bank base <code>0x20</code>, widen MSIZE / add banks so the decoded
+  base+size cover <code>0x08000000–0x17ffffff</code> (the arcs FSBL programs these MEMCFG regs at POST → <code>hinv</code> reports
+  256 MB; a single bank can be up to 256 MB, and the values are programmable without a re-synth). Cross-check the
+  decoded total against <code>physmem</code>/<code>maxmem</code>
   (<code>0x8832d1f0</code>/<code>0x8832d1f8</code>) after <code>szmem</code> runs, and against <code>_physmem_start = 0x08000000</code>.</li>
 </ul>
 <p>So memory-map correctness is an <strong>MC peripheral</strong> problem, not a firmware-data problem — keep the romvec
@@ -1641,7 +1643,7 @@ in <strong><code>peripherals/mc.md</code></strong> — implement those registers
    <code>OSLoad*</code>/<code>SystemPartition</code>/<code>root</code>.</li>
 <li><strong>Exception-vector area</strong> — page 0 is real RAM; alias phys <code>0x0</code>/<code>0x80</code> to <code>0x08000000</code>/<code>0x08000080</code> (MC low
    alias). SPB sits just above at <code>0x1000</code>. The kernel installs its own GE/UTLB handlers early.</li>
-<li><strong>Enter <code>start</code> (<code>0x88005960</code>) with <code>a0=8, a1=0, a2=0</code></strong>, a clean GPR file, gp/sp = 0 (kernel sets them).</li>
+<li><strong>Enter <code>start</code> (<code>0x88005960</code>) with <code>a0=8 (argc), a1=argv, a2=envp</code></strong> (see the ✅ 2026-06-15 correction above — the earlier <code>a1=a2=0</code> was wrong), a clean GPR file, gp/sp = 0 (kernel sets them).</li>
 </ol>
 <p><strong>Not needed:</strong> a live <code>GetMemoryDescriptor</code> (kernel reads MC MEMCFG — see above), live <code>GetTime</code> (kernel uses the
 CP0 Count/Compare timer for the scheduler tick), the config tree, or any file-I/O romvec entry (sash did all disk
@@ -1660,7 +1662,7 @@ I/O; Henry already loaded <code>/unix</code>).</p>
 <p>Source of truth: <strong><code>r9999/IRIX_CPU_REQUIREMENTS.md</code></strong> (P0-A/B/C, MAME-validated 2026-06-12) and the <strong>ARCS section
 of <code>r9999/IP22_CHIP_REGISTERS.md</code></strong> (mined from <code>arcs_spec.pdf</code> ARC 1.2 + cross-checked vs MAME, 2026-06-14).</p>
 <ul>
-<li><strong>P0-A — the handoff at <code>start</code> (0x88005960):</strong> entry register state (<code>a0=8,a1=a2=0</code>, SR=0x30004801, clean
+<li><strong>P0-A — the handoff at <code>start</code> (0x88005960):</strong> entry register state (<code>a0=8 (argc), a1=argv, a2=envp</code>, SR=0x30004801, clean
   GPRs), the verified <code>start</code> prologue, the SPB @ <code>0x1000</code> byte layout, the 35-entry FirmwareVector dump, and the
   13-entry PrivateVector dump.</li>
 <li><strong>P0-B — who calls the romvec, and when:</strong> breakpoint-tag every entry as sash/PROM <code>[s]</code> vs kernel <code>[K]</code>. Result:
@@ -1673,7 +1675,7 @@ of <code>r9999/IP22_CHIP_REGISTERS.md</code></strong> (mined from <code>arcs_spe
   ARCS. Register layout / SIMM-size table / golden live values — see <code>peripherals/mc.md</code>. ⚠️ Earlier "size=base"
   reading corrected: <code>0x23200000</code> = base <code>0x20&lt;&lt;22=0x08000000</code>, MSIZE <code>0b00011</code> = 16 MB bank.</li>
 </ul>
-<p>⚠️ Other corrections folded in from <code>IP22_CHIP_REGISTERS.md</code>: the <code>a0=8/a1=0/a2=0</code> entry is the SGI sash→<code>/unix</code>
+<p>⚠️ Other corrections folded in from <code>IP22_CHIP_REGISTERS.md</code>: the <code>a0=8/a1=argv/a2=envp</code> entry is the SGI sash→<code>/unix</code>
 handoff (NOT ARC <code>Main(argc,argv,envp)</code> — that's the ARC→sash convention Henry replaces); the romvec is 35 entries
 (<code>FirmwareVectorLength=0x8c</code>), not the 37 of the full ARC spec (TestUnicodeCharacter/GetDisplayStatus absent here).</p>
 
@@ -1737,7 +1739,7 @@ handoff (NOT ARC <code>Main(argc,argv,envp)</code> — that's the ARC→sash con
       <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "navigation.indexes", "navigation.tracking", "toc.follow", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>

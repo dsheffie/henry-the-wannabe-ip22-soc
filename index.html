@@ -19,7 +19,7 @@
       
       
       <link rel="icon" href="assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -27,7 +27,7 @@
       
     
     
-      <link rel="stylesheet" href="assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="assets/stylesheets/palette.ab4e12ef.min.css">
@@ -578,7 +578,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; silicon-refined 2026-07 — see the hidden-L2 DMA section)"></span>
   
 
   
@@ -1454,11 +1454,14 @@ vectors. Tags: ✅ = confirmed in MAME, ⚠️ = a correction to an earlier reve
 </tbody>
 </table>
 <h2 id="status">Status<a class="headerlink" href="#status" title="Permanent link">&para;</a></h2>
-<p>First-pass foundation. Peripheral specs (MC, IOC2, HPC3, GIO64, VDMA) and the cross-cutting docs are drafted from
-the SGI IP22 chip documents + MAME validation. Not yet covered: <code>dmux1</code>, the Newport graphics set, audio (HAL2),
-and the actual RTL (<code>rtl/</code>) and co-simulation harness (<code>sim/</code>). The detailed working notes live in the
-<a href="https://github.com/dsheffie/r9999"><code>r9999/</code></a> submodule (<code>IRIX_CPU_REQUIREMENTS.md</code>, <code>IRIX_KERNEL_GAPS.md</code>,
-<code>IP22_CHIP_REGISTERS.md</code>, <code>MAME_QUESTIONS.md</code>).</p>
+<p>Henry <strong>boots IRIX 6.5.22 on real FPGA silicon</strong> (Ultra96-v2, Zynq UltraScale+): PROM/ARCS → IRIX kernel
+banners → SCSI DMA → miniroot → IRIX userspace (INIT / syslogd). The RTL (<code>rtl/</code>) and the Verilator
+co-simulation harness (<code>sim/</code>, <code>henry_tb</code>) are implemented and working. Peripheral RTL implemented: MC, HPC3,
+IOC2/SCC (Z8530 console), the ds1386 RTC, plus an ARM/PS-serviced SCSI disk bridge (the driver polls the <code>scsi_shim</code> doorbell and walks the HPC3 <code>{BP,BC,DP}</code> descriptor chain in shared DRAM, depositing disk data into guest buffers). The peripheral specs (MC, IOC2,
+HPC3, GIO64, VDMA) and the cross-cutting docs are drafted from the SGI IP22 chip documents + MAME validation.
+Newport graphics and audio (HAL2) are documented but <strong>not</strong> in the boot path — Henry runs headless on the serial
+console. The detailed working notes live in the <a href="https://github.com/dsheffie/r9999"><code>r9999/</code></a> submodule
+(<code>IRIX_CPU_REQUIREMENTS.md</code>, <code>IRIX_KERNEL_GAPS.md</code>, <code>IP22_CHIP_REGISTERS.md</code>, <code>MAME_QUESTIONS.md</code>).</p>
 
 
 
@@ -1520,7 +1523,7 @@ and the actual RTL (<code>rtl/</code>) and co-simulation harness (<code>sim/</co
       <script id="__config" type="application/json">{"annotate": null, "base": ".", "features": ["navigation.sections", "navigation.top", "navigation.indexes", "navigation.tracking", "toc.follow", "content.code.copy"], "search": "assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>

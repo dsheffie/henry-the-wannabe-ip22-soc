@@ -17,7 +17,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -25,7 +25,7 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -478,7 +478,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; silicon-refined 2026-07 — see the hidden-L2 DMA section)"></span>
   
 
   
@@ -1159,6 +1159,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#2026-07-19-r9999-2edef07-submodule-on-main-16-kb-l1il1d-128-kb-l2-find_lowest_set_bit-programmable-debug-watchpoint" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2026-07-19 -- r9999 2edef07 (submodule-on-main: 16 KB L1I+L1D, 128 KB L2, find_lowest_set_bit, programmable debug watchpoint)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#2026-07-03-1fdc585-mem-pipe-cache-hit-ops-wns-full-lut-breakdown-by-hierarchy" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1246,6 +1257,61 @@ The WNS path has long been the <strong>icache -&gt; ITLB -&gt; <code>pa_reg</cod
 fully-associative TLB CAM), and it is <strong>route-dominated</strong> (~63% route) -- so area
 reductions that shrink the TLB array tend to help WNS more than logic-level
 counting suggests. Newest block first.</p>
+<h2 id="2026-07-19-r9999-2edef07-submodule-on-main-16-kb-l1il1d-128-kb-l2-find_lowest_set_bit-programmable-debug-watchpoint">2026-07-19 -- r9999 2edef07 (submodule-on-main: 16 KB L1I+L1D, 128 KB L2, find_lowest_set_bit, programmable debug watchpoint)<a class="headerlink" href="#2026-07-19-r9999-2edef07-submodule-on-main-16-kb-l1il1d-128-kb-l2-find_lowest_set_bit-programmable-debug-watchpoint" title="Permanent link">&para;</a></h2>
+<p>First synth after the <code>r9999</code> submodule was repointed at a <strong>clean <code>origin/main</code></strong> (2edef07):
+<strong>16 KB L1I + 16 KB L1D</strong> (was 4 KB each; VIPT tag-widened so alias-safe above the 4 KB page),
+<strong>128 KB write-back L2</strong>, the <code>find_first_set</code> -&gt; <code>find_lowest_set_bit</code> priority-encoder fix, and
+the driver-<strong>programmable</strong> debug breakpoint/store-watchpoint/fault-trap interface
+(<code>ENABLE_DEBUG_WATCHPOINT</code>, injected at build by <code>gen_mipscore.sh</code> via <code>SV2V_DEFINES</code>). Built with
+the watchpoint <strong>ON</strong>.</p>
+<table>
+<thead>
+<tr>
+<th>metric</th>
+<th>value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>WNS @ 100 MHz</td>
+<td><strong>+0.096 ns</strong> (all met, 0 failing endpoints; impl_11)</td>
+</tr>
+<tr>
+<td>Worst path</td>
+<td>icache -&gt; 48-way ITLB CAM -&gt; <code>pa</code> (route-dominated, unchanged)</td>
+</tr>
+<tr>
+<td>CLB LUTs (post-route)</td>
+<td>52094 (73.83%)</td>
+</tr>
+<tr>
+<td>LUT as Memory (LUTRAM)</td>
+<td>1813 (6.30%)</td>
+</tr>
+<tr>
+<td>CLB Registers (FF)</td>
+<td>35665 (25.27%)</td>
+</tr>
+<tr>
+<td>Block RAM</td>
+<td>60.5 (28.01%)</td>
+</tr>
+<tr>
+<td>DSP</td>
+<td>43 (11.94%)</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>The 4x L1 bump (4 KB -&gt; 16 KB each) is the big structural delta vs the 2026-07-03 build below:
+<strong>Block RAM 25 -&gt; 60.5</strong> (the larger tag/data/predecode arrays), the point of the tag-widening
+work that makes &gt;4 KB VIPT L1 alias-safe. <strong>CLB LUTs are <em>lower</em> than the last logged build</strong>
+(62320 -&gt; 52094) thanks to the area-reduction work landed since (banked ROB, the
+<code>find_lowest_set_bit</code> rewrite, clustered FP register file). <strong>WNS +0.096 ns</strong> holds on the same
+route-bound ITLB-CAM path -- the micro-TLB in front of the JTLB remains the structural fix for
+real margin. (The per-hierarchy LUT breakdown below is from the 2026-07-03 netlist; the
+<code>find_first_set</code> row there is the pre-fix encoder, now <code>find_lowest_set_bit</code>.)</p>
+</blockquote>
 <h2 id="2026-07-03-1fdc585-mem-pipe-cache-hit-ops-wns-full-lut-breakdown-by-hierarchy">2026-07-03 -- 1fdc585 (mem-pipe CACHE hit-ops) -- WNS + full LUT breakdown by hierarchy<a class="headerlink" href="#2026-07-03-1fdc585-mem-pipe-cache-hit-ops-wns-full-lut-breakdown-by-hierarchy" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -1711,7 +1777,7 @@ front of the JTLB, or narrowing other per-entry fields (dead <code>pagemask</cod
       <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "navigation.indexes", "navigation.tracking", "toc.follow", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>
