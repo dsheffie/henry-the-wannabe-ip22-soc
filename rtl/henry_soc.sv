@@ -44,12 +44,30 @@
 `define ENABLE_SCSI_DMA 1
 
 module henry_soc
-  #(// MC MEMCFG0 (bank0 cfg) as STORED: BE lw -> bswap.  0x00002023 -> 0x23200000
-    // = 16 MB @ 0x08000000 (IRIX).  For 128 MB use 0x0000203f (-> 0x3f200000).
-    parameter [31:0] MEMCFG0 = 32'h0000_2023
+  #(// MC MEMCFG0 (bank0 cfg) as STORED: BE lw -> bswap.  0x0000203f -> 0x3f200000
+    // = 128 MB @ 0x08000000 (IRIX); was 0x00002023 -> 0x23200000 = 16 MB.
+    parameter [31:0] MEMCFG0 = 32'h0000_203f
     )
   (input  logic                  clk,
    input  logic                  reset,
+
+   // debug control (wired from the AXI control reg; previously stubbed off)
+   input  logic                  single_step,
+   input  logic                  step,
+   input  logic                  bp_enable,     // arms the resettable fault-trap
+   input  logic                  fault_clear,   // clear fault-trap latch + re-arm + un-freeze
+   input  logic [31:0]           bp_pc,         // driver-programmable breakpoint PC
+   input  logic [31:0]           bp_wp_addr,    // driver-programmable store-address watchpoint VA
+   input  logic [31:0]           bp_wp_val,     // expected corrupt store value (freeze-on)
+   input  logic                  bp_fault_only, // freeze ONLY on a fault at bp_pc (ctrl bit19)
+   input  logic                  rt_oneshot,    // rewind+arm the retire ring for one pass (ctrl bit22)
+   input  logic                  l2_nocache,    // set-before-go: L2 behaves as no-cache (ctrl bit20)
+   input  logic                  trace_arm,     // arm the DRAM control-flow deep trace (ctrl bit21)
+   input  logic [7:0]            trace_target_asid, // ASID filter target (record only this process)
+   input  logic                  trace_filter_en,   // enable the ASID filter
+   input  logic                  trace_loadval,     // deep trace records {pc,val} load records (ctrl bit14)
+   input  logic                  trace_throttle,    // stall retirement on trace FIFO high-water -> lossless (ctrl bit13)
+   input  logic                  trace_pcfilt,      // record+throttle only be-text-range PCs (ctrl bit12)
 
    // SCC serial Rx: host/TB pushes a byte -> IOC2 SCC Rx FIFO -> INT3 serial IRQ (IP2)
    input  logic                  scc_rx_valid,
@@ -92,6 +110,9 @@ module henry_soc
    output logic [31:0]           status_reg,
    output logic [`M_WIDTH-1:0]   badvaddr,
    output logic [4:0]            cause,
+   output logic [2:0]            dbg_frozen,
+   output logic [31:0]           dbg_wp_data,
+   output logic [7:0]            cause_ip,
    output logic                  took_irq,
    // retire register writeback taps (64-bit-address-bug localization)
    output logic [4:0]            retire_reg_ptr,
@@ -100,6 +121,25 @@ module henry_soc
    output logic [`M_WIDTH-1:0]   retire_reg_two_data,
    output logic                  retire_reg_valid,
    output logic                  retire_reg_two_valid,
+   output logic [4:0]            retire_fp_reg_ptr,
+   output logic [`M_WIDTH-1:0]   retire_fp_reg_data,
+   output logic                  retire_fp_reg_valid,
+   output logic [4:0]            retire_fp_reg_two_ptr,
+   output logic [`M_WIDTH-1:0]   retire_fp_reg_two_data,
+   output logic                  retire_fp_reg_two_valid,
+   output logic [4:0]            retire_fcr_reg_ptr,
+   output logic [`M_WIDTH-1:0]   retire_fcr_reg_data,
+   output logic                  retire_fcr_reg_valid,
+   output logic [4:0]            retire_fcr_reg_two_ptr,
+   output logic [`M_WIDTH-1:0]   retire_fcr_reg_two_data,
+   output logic                  retire_fcr_reg_two_valid,
+   output logic [7:0]            retire_op,      // retiree opcodes (loadval co-sim validation)
+   output logic [7:0]            retire_two_op,
+   output logic [31:0]           retire_load_addr,     // retiring loads' effective VA (loadval addr)
+   output logic [31:0]           retire_load_addr_two,
+   output logic [31:0]           wf_epc,               // wild-fault latch: EPC of the poison deref
+   output logic [31:0]           wf_badv,              // wild-fault latch: BadVaddr = the poison pointer P
+   output logic [31:0]           wf_stat,              // {wild-fault count[15:0], 11'd0, cause[4:0]}
    output logic [31:0]           cp0_count,
    // FSM-state + trace-buffer taps (were tied off in the AXI wrapper)
    output logic [4:0]            core_state,
@@ -108,9 +148,20 @@ module henry_soc
    output logic [3:0]            l2_state,
    output logic [3:0]            l2_rsp_state,
    output logic [`LG_ROB_ENTRIES:0] inflight,
-   input  logic [11:0]           dbg_trace_index,
+   output logic [31:0] dbg_rob_inflight,
+   input  logic [19:0]           dbg_trace_index,
+   output logic [63:0]           l1i_cache_accesses,
+   output logic [63:0]           l1i_cache_hits,
+   output logic [63:0]           l1d_cache_accesses,
+   output logic [63:0]           l1d_cache_hits,
+   output logic [63:0]           l2_cache_accesses,
+   output logic [63:0]           l2_cache_hits,
    output logic [31:0]           dbg_trace_data,
-   output logic [8:0]            dbg_trace_wptr,
+   output logic [15:0]           dbg_trace_wptr,
+   output logic [31:0]           dbg_rdchk,   /* reader-agreement checker status -> AXI 0x26[21:20] */
+   output logic [31:0]           trace_ring_wptr,   // DRAM deep-trace: bytes written since arm
+   output logic                  trace_overflow,    // DRAM deep-trace: a record was dropped (sticky)
+   output logic [7:0]            cur_asid,          // current EntryHi ASID (readback for be-ASID discovery)
    // ---- SCSI shim mailbox (scsi_shim.sv): request out / completion in ----
    // FPGA: map to AXI-lite slv_regs; sim: henry_tb reads req_* / drives rsp_*.
    // (Tied off unless `ENABLE_SCSI_SHIM.)
@@ -136,6 +187,22 @@ module henry_soc
    output logic [127:0]          scsi_disk_wr_data,  // WRITE: mem -> disk beat
    output logic                  scsi_dma_done,      // engine finished the chain (TB sync)
    output logic [31:0]           scsi_dbg,           // shim debug viz (AXI PMU readback)
+   // ---- enet_dma engine host side: the tap servicer (ARM/TB) pushes 16B beats of
+   //      an ALREADY-FORMATTED rx frame ([2 pad][frame][1 status]); the engine is the
+   //      ONLY agent that touches MIPS memory, so ENET writes become visible to the
+   //      L2 (and the snoop FIFO) instead of bypassing the RTL entirely.
+   input  logic                  enet_rx_frame_go,   // 1-cycle: a formatted frame is queued
+   input  logic [13:0]           enet_rx_frame_len,  // its length in bytes (2+frame+1)
+   input  logic                  enet_rx_beat_push,  // 1-cycle: enqueue enet_rx_beat_data
+   input  logic [127:0]          enet_rx_beat_data,
+   output logic                  enet_rx_beat_full,  // flow control
+   output logic                  enet_tx_beat_valid, // TX: a beat is queued for the host
+   input  logic                  enet_tx_beat_pop,   // host consumed it (1-cycle)
+   output logic [127:0]          enet_tx_beat_data,
+   output logic                  enet_dma_rx_done,   // frame delivered + descriptor released
+   output logic                  enet_dma_rx_dropped,// ring full / buffer unusable
+   output logic [31:0]           enet_dma_crbdp,     // descriptor just filled
+   output logic                  enet_dma_tx_done,   // TX chain complete (host writes the tap)
    // ---- ENET shim mailbox (enet_shim.sv): Seeq 8003 + HPC3 ENET DMA channels ----
    // FPGA: map to AXI-lite slv_regs; sim: henry_tb tap servicer.  (Tied off unless
    // `ENABLE_ENET_SHIM.)  TX = guest-initiated doorbell; RX = service free-runs.
@@ -146,9 +213,23 @@ module henry_soc
    output logic [31:0]           enet_rx_nbdp,       // RX ring head (phys)
    input  logic [31:0]           enet_rx_rsp_seq,    // ++ by service per injected frame
    input  logic [31:0]           enet_rx_crbdp,      // service-maintained current RX desc
+   input  logic [31:0]           enet_tx_crbdp,      // service-maintained current TX desc
    output logic [47:0]           enet_station,       // programmed station MAC (for RX filter)
    output logic [7:0]            enet_rx_cmd,        // Seeq RX command (match mode)
-   output logic [31:0]           enet_dbg            // ENET shim debug viz (AXI PMU readback)
+   output logic [31:0]           enet_dbg,           // ENET shim debug viz (AXI PMU readback)
+   /* whole-cache flush + invalidate requested by the ARM (L1I, L1D, then L2; dirty
+    * lines written back).  Level input: a 0->1 edge starts one flush. */
+   input  logic                  ext_flush_ctl,
+   /* page list (DMA buffers): push up to N_XF_PAGES physical page numbers, then `go`
+    * runs one core page op per page -- ext_pg_drop=0: write back + invalidate (before
+    * a transfer), 1: drop without write back (after a deposit).  More pages than
+    * that is the ARM's cue to use the whole-cache flush instead. */
+   input  logic                  ext_pg_push,        // 1-cycle: append ext_pg_ppn
+   input  logic [31:0]           ext_pg_ppn,
+   input  logic                  ext_pg_go,          // 1-cycle: walk the list
+   input  logic                  ext_pg_drop,
+   output logic [31:0]           ext_flush_stat,     // {completed[15:0], dirty[13:0], 1'b0, busy}
+   output logic [31:0]           ext_flush_cycles    // cycles the last flush / page list took
    );
 
    localparam int unsigned DEV_LAT = 2;   // device response latency (cycles)
@@ -209,10 +290,175 @@ module henry_soc
    // =====================================================================
    // INT3 (IOC2 interrupt mux) drives the 5 CPU hardware interrupt pins.
    wire w_int3_ip2, w_int3_ip3, w_int3_ip4, w_int3_ip5, w_int3_ip6;
+   // ---- DMA-coherence snoop (task #51) -------------------------------------
+   // A DMA master writes DRAM behind the CPU caches, and IRIX cannot invalidate
+   // r9999's L2 (Config.SC hides it -> the kernel issues zero SD ops), so nothing
+   // in software can drop a stale L2 line for an address a device just wrote.
+   // snoop_fifo collects every DMA line-store address and feeds the L2's snoop
+   // port, which synthesizes a MEM_INVL per entry.
+   wire                 w_snoop_valid;
+   wire [`PA_WIDTH-1:0] w_snoop_addr;
+   wire                 w_snoop_ack;
+   wire                 w_snoop_full;
+
+   /* ================= ARM-requested whole-cache flush =================
+    * The core already has the flush + invalidate sequencer behind ext_flush_req /
+    * ext_flush_done (the one the CPU's CACHE_FLUSH uses).  The ARM raises
+    * ext_flush_ctl (AXI control bit) around its DMA helper ops; each 0->1 edge
+    * starts one flush, and ext_flush_stat / ext_flush_cycles let it poll for
+    * completion and measure what a flush costs.  An edge while a flush is still
+    * running is ignored -- the ARM waits for the completed count to move.
+    *
+    * The page list shares the sequencer: `go` issues ext_flush_req once per listed
+    * page (the core latches the page and op with the request) and counts ONE
+    * completion when the last page is done.  Pushes and `go` are ignored while busy;
+    * a push past N_XF_PAGES sets overflow, and a `go` with overflow does the whole
+    * flush instead (always correct).  `go` consumes the list. */
+   localparam LG_XF_PAGES = 4;
+   localparam N_XF_PAGES = 1 << LG_XF_PAGES;
+   logic [`PA_WIDTH-`LG_PG_SZ-1:0] r_xf_pg [N_XF_PAGES-1:0];
+   logic [LG_XF_PAGES:0]  r_xf_npg, n_xf_npg;       /* pages in the list */
+   logic [LG_XF_PAGES-1:0] r_xf_idx, n_xf_idx;      /* page being flushed */
+   logic        r_xf_ovf, n_xf_ovf;
+   logic        r_xf_whole, n_xf_whole;
+   logic        r_xf_drop, n_xf_drop;
+   wire [15:0]  w_xf_dirty;
+   logic        r_ext_flush_ctl, r_ext_flush_ctl_d;
+   logic        r_ext_flush_req, n_ext_flush_req;
+   logic        r_ext_flush_busy, n_ext_flush_busy;
+   logic [15:0] r_ext_flush_cnt, n_ext_flush_cnt;
+   logic [30:0] r_ext_flush_cyc, n_ext_flush_cyc;
+   logic [30:0] r_ext_flush_last, n_ext_flush_last;
+   wire         w_ext_flush_done;
+   /* register the control bit before edge-detecting it: it comes from the AXI
+    * slave, and a combinational edge off a raw input is also invisible to a
+    * testbench that changes inputs without an eval before the clock edge. */
+   wire         w_ext_flush_edge = r_ext_flush_ctl & ~r_ext_flush_ctl_d;
+
+   always_ff @(posedge clk)
+     begin
+        if(reset)
+          begin
+             r_ext_flush_ctl   <= 1'b0;
+             r_ext_flush_ctl_d <= 1'b0;
+             r_ext_flush_req   <= 1'b0;
+             r_ext_flush_busy  <= 1'b0;
+             r_ext_flush_cnt   <= 16'd0;
+             r_ext_flush_cyc   <= 31'd0;
+             r_ext_flush_last  <= 31'd0;
+             r_xf_npg          <= 'd0;
+             r_xf_idx          <= 'd0;
+             r_xf_ovf          <= 1'b0;
+             r_xf_whole        <= 1'b1;
+             r_xf_drop         <= 1'b0;
+          end
+        else
+          begin
+             r_ext_flush_ctl   <= ext_flush_ctl;
+             r_ext_flush_ctl_d <= r_ext_flush_ctl;
+             r_ext_flush_req   <= n_ext_flush_req;
+             r_ext_flush_busy  <= n_ext_flush_busy;
+             r_ext_flush_cnt   <= n_ext_flush_cnt;
+             r_ext_flush_cyc   <= n_ext_flush_cyc;
+             r_ext_flush_last  <= n_ext_flush_last;
+             r_xf_npg          <= n_xf_npg;
+             r_xf_idx          <= n_xf_idx;
+             r_xf_ovf          <= n_xf_ovf;
+             r_xf_whole        <= n_xf_whole;
+             r_xf_drop         <= n_xf_drop;
+          end
+     end // always_ff
+
+   always_ff @(posedge clk)
+     begin
+        if(ext_pg_push & !r_ext_flush_busy & !r_xf_npg[LG_XF_PAGES])
+          begin
+             r_xf_pg[r_xf_npg[LG_XF_PAGES-1:0]] <= ext_pg_ppn[`PA_WIDTH-`LG_PG_SZ-1:0];
+          end
+     end // always_ff
+
+   always_comb
+     begin
+        n_ext_flush_req  = 1'b0;
+        n_ext_flush_busy = r_ext_flush_busy;
+        n_ext_flush_cnt  = r_ext_flush_cnt;
+        n_ext_flush_cyc  = r_ext_flush_cyc;
+        n_ext_flush_last = r_ext_flush_last;
+        n_xf_npg         = r_xf_npg;
+        n_xf_idx         = r_xf_idx;
+        n_xf_ovf         = r_xf_ovf;
+        n_xf_whole       = r_xf_whole;
+        n_xf_drop        = r_xf_drop;
+        if(ext_pg_push & !r_ext_flush_busy)
+          begin
+             if(r_xf_npg[LG_XF_PAGES])
+               begin
+                  n_xf_ovf = 1'b1;
+               end
+             else
+               begin
+                  n_xf_npg = r_xf_npg + 'd1;
+               end
+          end
+        if(w_ext_flush_edge & !r_ext_flush_busy)
+          begin
+             n_ext_flush_req  = 1'b1;
+             n_ext_flush_busy = 1'b1;
+             n_ext_flush_cyc  = 31'd0;
+             n_xf_whole       = 1'b1;
+          end
+        else if(ext_pg_go & !r_ext_flush_busy)
+          begin
+             n_ext_flush_cyc  = 31'd0;
+             n_xf_whole       = r_xf_ovf;
+             n_xf_drop        = ext_pg_drop;
+             n_xf_idx         = 'd0;
+             n_xf_npg         = 'd0;
+             n_xf_ovf         = 1'b0;
+             if(r_xf_ovf | (r_xf_npg != 'd0))
+               begin
+                  n_ext_flush_req  = 1'b1;
+                  n_ext_flush_busy = 1'b1;
+                  /* hold the page count for the walk; consumed when it completes */
+                  n_xf_npg         = r_xf_npg;
+               end
+             else
+               begin
+                  /* empty list: nothing to flush, complete at once */
+                  n_ext_flush_cnt  = r_ext_flush_cnt + 16'd1;
+                  n_ext_flush_last = 31'd0;
+               end
+          end
+        else if(r_ext_flush_busy)
+          begin
+             n_ext_flush_cyc = r_ext_flush_cyc + 31'd1;
+             if(w_ext_flush_done)
+               begin
+                  if(!r_xf_whole & ({1'b0, r_xf_idx} != (r_xf_npg - 'd1)))
+                    begin
+                       n_xf_idx        = r_xf_idx + 'd1;
+                       n_ext_flush_req = 1'b1;
+                    end
+                  else
+                    begin
+                       n_ext_flush_busy = 1'b0;
+                       n_ext_flush_cnt  = r_ext_flush_cnt + 16'd1;
+                       n_ext_flush_last = r_ext_flush_cyc + 31'd1;
+                       n_xf_npg         = 'd0;
+                    end
+               end
+          end
+     end // always_comb
+
+   assign ext_flush_stat   = {r_ext_flush_cnt,
+                              (w_xf_dirty > 16'h3fff) ? 14'h3fff : w_xf_dirty[13:0],
+                              1'b0, r_ext_flush_busy};
+   assign ext_flush_cycles = {1'b0, r_ext_flush_last};
+
    core_l1d_l1i cpu
      (.clk(clk),
       .reset(reset),
-      .retire_allowed(1'b1),
+      .retire_allowed(~w_trace_stall),
       .putchar_fifo_out(cp_out),
       .putchar_fifo_empty(cp_empty),
       .putchar_fifo_pop(cp_pop),
@@ -223,9 +469,22 @@ module henry_soc
       .ip4(w_int3_ip4),
       .ip5(w_int3_ip5),
       .ip6(w_int3_ip6),
-      .single_step(1'b0),
-      .step(1'b0),
+      .single_step(single_step),
+      .step(step),
+      .bp_enable(bp_enable),
+      .fault_clear(fault_clear),
+      .bp_pc(bp_pc),
+      .bp_wp_addr(bp_wp_addr),
+      .bp_wp_val(bp_wp_val),
+      .bp_fault_only(bp_fault_only), .rt_oneshot(rt_oneshot),
+      .l2_nocache(l2_nocache),
       .in_flush_mode(),
+      .ext_flush_req(r_ext_flush_req),
+      .ext_flush_done(w_ext_flush_done),
+      .ext_flush_ppn(r_xf_pg[r_xf_idx]),
+      .ext_flush_whole(r_xf_whole),
+      .ext_flush_drop(r_xf_drop),
+      .ext_flush_dirty_cnt(w_xf_dirty),
       .resume(resume),
       .resume_pc(resume_pc),
       .ready_for_resume(ready_for_resume),
@@ -241,21 +500,43 @@ module henry_soc
 
       .retire_reg_ptr(retire_reg_ptr), .retire_reg_data(retire_reg_data), .retire_reg_valid(retire_reg_valid),
       .retire_reg_two_ptr(retire_reg_two_ptr), .retire_reg_two_data(retire_reg_two_data), .retire_reg_two_valid(retire_reg_two_valid),
+      .retire_fp_reg_ptr(retire_fp_reg_ptr),
+      .retire_fp_reg_data(retire_fp_reg_data),
+      .retire_fp_reg_valid(retire_fp_reg_valid),
+      .retire_fp_reg_two_ptr(retire_fp_reg_two_ptr),
+      .retire_fp_reg_two_data(retire_fp_reg_two_data),
+      .retire_fp_reg_two_valid(retire_fp_reg_two_valid),
+      .retire_fcr_reg_ptr(retire_fcr_reg_ptr),
+      .retire_fcr_reg_data(retire_fcr_reg_data),
+      .retire_fcr_reg_valid(retire_fcr_reg_valid),
+      .retire_fcr_reg_two_ptr(retire_fcr_reg_two_ptr),
+      .retire_fcr_reg_two_data(retire_fcr_reg_two_data),
+      .retire_fcr_reg_two_valid(retire_fcr_reg_two_valid),
       .retire_valid(retire_valid), .retire_two_valid(retire_two_valid),
       .retire_pc(retire_pc), .retire_two_pc(retire_two_pc),
-      .retire_op(), .retire_two_op(),
+      .asid(w_core_asid),
+      .retire_op(retire_op), .retire_two_op(retire_two_op),
+      .retire_load_addr(retire_load_addr), .retire_load_addr_two(retire_load_addr_two),
+      .wf_epc(wf_epc), .wf_badv(wf_badv), .wf_stat(wf_stat),
       .branch_pc(), .branch_pc_valid(), .branch_fault(),
-      .l1i_cache_accesses(), .l1i_cache_hits(),
-      .l1d_cache_accesses(), .l1d_cache_hits(),
-      .l2_cache_accesses(), .l2_cache_hits(),
+      /* were left UNCONNECTED: the core counts fine, henry_soc discarded the
+       * outputs, and the AXI wrapper fed the read mux literal 'd0 -- so every
+       * cache counter read 0 on silicon.  A silently no-op instrument. */
+      .l1i_cache_accesses(l1i_cache_accesses), .l1i_cache_hits(l1i_cache_hits),
+      .l1d_cache_accesses(l1d_cache_accesses), .l1d_cache_hits(l1d_cache_hits),
+      .l2_cache_accesses(l2_cache_accesses),   .l2_cache_hits(l2_cache_hits),
       .got_break(got_break), .got_ud(got_ud), .got_bad_addr(got_bad_addr),
       .core_state(core_state), .l1i_state(l1i_state), .l1d_state(l1d_state), .l2_state(l2_state), .l2_rsp_state(l2_rsp_state),
-      .inflight(inflight), .epc(epc), .status_reg(status_reg), .badvaddr(badvaddr), .cause(cause),
+      .inflight(inflight), .dbg_rob_inflight(dbg_rob_inflight), .epc(epc), .status_reg(status_reg), .badvaddr(badvaddr), .cause(cause), .cause_ip(cause_ip), .dbg_frozen(dbg_frozen), .dbg_wp_data(dbg_wp_data),
       .l1i_flush_done(), .l1d_flush_done(), .l2_flush_done(),
+      .snoop_req_valid(w_snoop_valid),
+      .snoop_req_addr(w_snoop_addr),
+      .snoop_req_ack(w_snoop_ack),
       .took_irq(took_irq), .cp0_count(cp0_count),
       .dbg_head_pc(dbg_head_pc), .dbg_head_status(dbg_head_status), .dbg_head_fetch_cycle(), .dbg_head_alloc_cycle(),
       .dbg_serialize_cycle(), .dbg_cycle(), .dbg_oldest_first_pending(),
-      .dbg_trace_index(dbg_trace_index), .dbg_trace_data(dbg_trace_data), .dbg_trace_wptr(dbg_trace_wptr)
+      .dbg_trace_index(dbg_trace_index), .dbg_trace_data(dbg_trace_data), .dbg_trace_wptr(dbg_trace_wptr),
+      .dbg_rdchk(dbg_rdchk)
       );
 
    // =====================================================================
@@ -289,6 +570,10 @@ module henry_soc
    wire        w_sdma_go, w_sdma_to_dev, w_sdma_abort;
    wire [31:0] w_sdma_nbdp;
    // arbiter master 1 select: SCSI DMA engine (ENABLE_SCSI_DMA) vs mem-to-mem hpc3.
+   /* were dangling: the engine already computes ch_active (busy) and the XIE pulse,
+    * which is exactly what hd0.cntl needs -- nothing consumed them before. */
+   wire                 w_eng_busy, w_eng_irq;
+   wire                 w_hpc_scsi_intr;   /* HPC3 XIE (DMA-complete) level */
    wire                 w_eng_req_valid, w_eng_done, w_eng_rd_stalled;
    wire [`PA_WIDTH-1:0] w_eng_req_addr;
    wire [127:0]         w_eng_req_store_data;
@@ -313,18 +598,67 @@ module henry_soc
                           ? {c_req_addr[`PA_WIDTH-1:28], 1'b1, c_req_addr[26:0]}
                           : c_req_addr;
 
-   // Parameterized weighted round-robin arbiter: master 0 = CPU, 1 = DMA.
-   // SLOT_MAP 4'b1000 = 4 slots, CPU owns slots 0..2, DMA owns slot 3 -> CPU:DMA
-   // = 3:1, DMA guaranteed a turn within 4 rounds.  Add masters / retune by the
-   // parameters (see mem_arbiter.sv).
-   wire [1:0] w_arb_rsp_valid;
-   mem_arbiter #(.N(2), .NSLOT(4), .LG_N(1), .SLOT_MAP(4'b1000)) u_arb
+   // ---- DRAM control-flow deep trace (master 2): streams a compressed userspace
+   // control-flow trace to the IP22 "Reserved / Future GIO Space" region, which
+   // sgi_mode passes through IDENTITY to free DRAM (0x18000000..0x1EFFFFFF, all
+   // <= addrmask).  Ring = 64 MB at 0x18000000; the ARM reads it at c_addr[base].
+   localparam [`PA_WIDTH-1:0] TRACE_BASE = `PA_WIDTH'(36'h018000000);
+   // 112 MB = the whole IP22 GIO-reserved free region 0x18000000..0x1EFFFFFF (<= addrmask).
+   // Non-2^k so dram_trace wraps via compare; big enough that be's crash (during
+   // reconfigure, ~96MB of trace) fits with no wrap -> ring stays linearly decodable.
+   localparam [`PA_WIDTH-1:0] TRACE_SIZE = `PA_WIDTH'(36'h007000000);   // 112 MB (circular)
+   wire [7:0]           w_core_asid;      // current EntryHi ASID exported by the core
+   assign cur_asid = w_core_asid;         // readback so the driver can capture be's ASID at crash
+   wire                 w_trace_stall;    // dram_trace FIFO high-water -> pause retirement (lossless)
+   wire                 w_trace_req_valid;
+   wire [`PA_WIDTH-1:0] w_trace_req_addr;
+   wire [127:0]         w_trace_req_store_data;
+   wire [4:0]           w_trace_req_opcode;
+   wire [15:0]          w_trace_req_mask;
+
+   dram_trace u_trace
      (.clk(clk), .reset(reset),
-      .m_req_valid     ({w_m1_req_valid,      w_cpu_dram_req}),
-      .m_req_addr      ({w_m1_req_addr,       w_cpu_req_addr}),
-      .m_req_store_data({w_m1_req_store_data, c_req_store_data}),
-      .m_req_opcode    ({w_m1_req_opcode,     c_req_opcode}),
-      .m_req_mask      ({w_m1_req_mask,       c_req_mask}),
+      .arm(trace_arm),
+      .ring_base(TRACE_BASE), .ring_size(TRACE_SIZE),
+      .retire0_valid(retire_valid),     .retire0_pc(retire_pc),
+      .retire1_valid(retire_two_valid), .retire1_pc(retire_two_pc),
+      .retire0_op(retire_op),        .retire0_reg_valid(retire_reg_valid),     .retire0_val(retire_reg_data),
+      .retire1_op(retire_two_op),    .retire1_reg_valid(retire_reg_two_valid), .retire1_val(retire_reg_two_data),
+      .retire0_addr(retire_load_addr), .retire1_addr(retire_load_addr_two),
+      .loadval_mode(trace_loadval),
+      .throttle_en(trace_throttle), .trace_stall(w_trace_stall),
+      .pc_range_en(trace_pcfilt),
+      .asid(w_core_asid), .target_asid(trace_target_asid), .filter_en(trace_filter_en),
+      .trace_req_valid(w_trace_req_valid),           .trace_req_addr(w_trace_req_addr),
+      .trace_req_store_data(w_trace_req_store_data), .trace_req_opcode(w_trace_req_opcode),
+      .trace_req_mask(w_trace_req_mask),
+      .trace_rsp_valid(w_arb_rsp_valid[2]),          .trace_rsp_bad(mem_rsp_bad),
+      .trace_ring_wptr(trace_ring_wptr), .trace_overflow(trace_overflow));
+
+   // Parameterized weighted round-robin arbiter: master 0 = CPU, 1 = DMA, 2 = trace.
+   // NSLOT=8, SLOT_MAP gives CPU slots 0..5, DMA slot 6, trace slot 7 -> CPU:DMA:trace
+   // = 6:1:1.  Trace is low-weight (its FIFO absorbs bursts) so it cannot starve CPU
+   // line fills.  Add masters / retune by the parameters (see mem_arbiter.sv).
+   /* WAS [2:0] while the arbiter below is N(4) and ENET is master 3, so
+    * `w_mem_rsp_enet = w_arb_rsp_valid[3]` read a bit that does not exist and
+    * synthesized to CONSTANT 0 (netlist mipscore.v:15842/15910).  enet_dma's FSM
+    * advances only on dma_rsp_valid, so the first tx_go latched dma_req_valid and
+    * the engine re-requested its TX descriptor FOREVER -- ~3.1M AXI reads/s on one
+    * address -- starving the CPU off this arbiter until nothing retired at all.
+    * Captured on silicon 2026-09-14 (db08ab69, IRIX): enet_tx_nbdp == the hammered
+    * address, l2 IDLE, l1i parked in WAIT_FOR_NOT_FULL.  Widening also revives the
+    * ENET L2 snoop, which is gated on the same dead signal. */
+   wire [3:0] w_arb_rsp_valid;
+   /* master 3 = ENET DMA.  Slots: CPU x5, SCSI x1, trace x1, ENET x1 -- ENET moves
+    * at most an MTU per frame so one slot in eight is ample, and starving the CPU
+    * to service a NIC would be the wrong trade. */
+   mem_arbiter #(.N(4), .NSLOT(8), .LG_N(2), .SLOT_MAP(16'b11_10_01_00_00_00_00_00)) u_arb
+     (.clk(clk), .reset(reset),
+      .m_req_valid     ({w_enet_req_valid,      w_trace_req_valid,      w_m1_req_valid,      w_cpu_dram_req}),
+      .m_req_addr      ({w_enet_req_addr,       w_trace_req_addr,       w_m1_req_addr,       w_cpu_req_addr}),
+      .m_req_store_data({w_enet_req_store_data, w_trace_req_store_data, w_m1_req_store_data, c_req_store_data}),
+      .m_req_opcode    ({w_enet_req_opcode,     w_trace_req_opcode,     w_m1_req_opcode,     c_req_opcode}),
+      .m_req_mask      ({w_enet_req_mask,       w_trace_req_mask,       w_m1_req_mask,       c_req_mask}),
       .m_rsp_valid     (w_arb_rsp_valid),
       .m_rsp_load_data (),                // CPU/DMA read mem_rsp_load_data directly
       .m_rsp_bad       (),
@@ -336,6 +670,167 @@ module henry_soc
 
    wire w_mem_rsp_cpu = w_arb_rsp_valid[0];   // master 0 = CPU
    wire w_mem_rsp_dma = w_arb_rsp_valid[1];   // master 1 = DMA
+
+   wire w_mem_rsp_enet = w_arb_rsp_valid[3];  // master 3 = ENET DMA
+
+   // =====================================================================
+   //  ENET DMA engine (arbiter master 3).  Replaces the host-served path in
+   //  which henry_tb / the ARM wrote the guest's RX buffers DIRECTLY, invisible
+   //  to the L2.  Now every ENET byte lands via the same ordered DRAM port the
+   //  CPU uses, so the snoop FIFO above sees it and the L2 cannot serve a stale
+   //  line for a buffer the NIC just filled.
+   // =====================================================================
+   wire                 w_enet_req_valid;
+   wire [`PA_WIDTH-1:0] w_enet_req_addr;
+   wire [127:0]         w_enet_req_store_data;
+   wire [4:0]           w_enet_req_opcode;
+   wire [15:0]          w_enet_req_mask;
+   wire                 w_enet_rx_pop, w_enet_rx_empty;
+   wire [127:0]         w_enet_rx_rdata;
+
+   /* TX doorbell: enet_shim bumps enet_tx_req_seq when the guest kicks a transmit.
+    * Edge-detect it here -- with the engine present the RTL consumes the doorbell
+    * itself instead of handing it to the host servicer. */
+   logic [31:0] r_enet_tx_seq;
+   wire         w_enet_tx_go = (r_enet_tx_seq != enet_tx_req_seq);
+   always_ff@(posedge clk)
+     begin
+	r_enet_tx_seq <= reset ? 32'd0 : enet_tx_req_seq;
+     end
+
+   /* TX beats leave the engine as a 1-cycle pulse; the ARM/TB polls over AXI and
+    * cannot catch pulses, so buffer them.  Consumer pops via enet_tx_beat_pop. */
+   wire         w_enet_tx_fifo_full, w_enet_tx_fifo_empty;
+   wire [127:0] w_enet_tx_fifo_rdata;
+   wire         w_enet_tx_beat_en_i;
+   wire [127:0] w_enet_tx_beat_data_i;
+   scsi_beat_fifo u_enet_tx_fifo
+     (.clk(clk), .reset(reset),
+      .push(w_enet_tx_beat_en_i), .wdata(w_enet_tx_beat_data_i), .full(w_enet_tx_fifo_full),
+      .pop(enet_tx_beat_pop), .rdata(w_enet_tx_fifo_rdata), .empty(w_enet_tx_fifo_empty));
+   assign enet_tx_beat_data  = w_enet_tx_fifo_rdata;
+   assign enet_tx_beat_valid = ~w_enet_tx_fifo_empty;
+
+   scsi_beat_fifo u_enet_rx_fifo
+     (.clk(clk), .reset(reset),
+      .push(enet_rx_beat_push), .wdata(enet_rx_beat_data), .full(enet_rx_beat_full),
+      .pop(w_enet_rx_pop), .rdata(w_enet_rx_rdata), .empty(w_enet_rx_empty));
+
+`ifndef ENABLE_ENET_DMA   /* engine is OPT-IN: default build ties it off */
+   /* ENET RTL DMA engine OFF BY DEFAULT (2026-09-14; made default 2026-09-22).  The engine and the HOST servicer
+    * (axi.cc enet_arm.h) both walk the guest's {BP,BC,DP} descriptor chain, so with
+    * the engine live there are TWO owners and neither completes a frame: the guest
+    * counts Opkts with Oerrs=0 while tap0 never sees the bytes.  The engine-aware
+    * host driver (enet_arm.h.engine) was written 2026-08-07 but could never be
+    * exercised -- the engine was livelocked by the w_arb_rsp_valid[3] truncation --
+    * and on first real use its RX framing errors 2 frames in 3 (guest ec0 Ierrs=28
+    * vs Ipkts=14).  The pure-SOFTWARE path has worked for months, and a real Indy
+    * did DMA incoherently anyway, so removing the engine restores the known-good
+    * configuration.  It ALSO keeps the 1.9x speedup: a removed engine cannot
+    * head-of-line block the one-outstanding mem_arbiter the way the livelocked one
+    * did.  See [[project_enet_dma_livelock]]. */
+   assign w_enet_req_valid      = 1'b0;
+   assign w_enet_req_addr       = '0;
+   assign w_enet_req_opcode     = 5'd0;
+   assign w_enet_req_store_data = '0;
+   assign w_enet_req_mask       = 16'd0;
+   assign enet_dma_rx_done      = 1'b0;
+   assign enet_dma_rx_dropped   = 1'b0;
+   assign enet_dma_crbdp        = 32'd0;
+   assign enet_dma_tx_done      = 1'b0;
+   assign w_enet_rx_pop         = 1'b0;
+   assign w_enet_tx_beat_en_i   = 1'b0;
+   assign w_enet_tx_beat_data_i = '0;
+`else
+   enet_dma u_enet_dma
+     (.clk(clk), .reset(reset),
+      .rx_go(enet_rx_frame_go), .rx_nbdp(enet_rx_nbdp), .rx_len(enet_rx_frame_len),
+      .rx_busy(), .rx_done(enet_dma_rx_done), .rx_dropped(enet_dma_rx_dropped),
+      .rx_crbdp(enet_dma_crbdp), .rx_next_nbdp(),
+      .tx_go(w_enet_tx_go), .tx_nbdp(enet_tx_nbdp), .tx_busy(),
+      .tx_done(enet_dma_tx_done), .irq(),
+      .dma_req_valid(w_enet_req_valid), .dma_req_addr(w_enet_req_addr),
+      .dma_req_opcode(w_enet_req_opcode), .dma_req_store_data(w_enet_req_store_data),
+      .dma_req_mask(w_enet_req_mask),
+      .dma_rsp_valid(w_mem_rsp_enet), .dma_rsp_load_data(mem_rsp_load_data),
+      .rx_rd_en(w_enet_rx_pop), .rx_rd_data(w_enet_rx_rdata),
+      .rx_rd_valid(~w_enet_rx_empty),
+      .tx_wr_en(w_enet_tx_beat_en_i), .tx_wr_data(w_enet_tx_beat_data_i));
+`endif
+
+   // ---- DMA-coherence snoop: SCSI + ENET producers -------------------------
+   // Push the line address of every DMA *store* that DRAM actually completed.
+   // Sampled on the RESPONSE, not on req_valid: the arbiter is one-outstanding
+   // and a master holds its request asserted until granted, so counting
+   // assertions would push the same line many times.  scsi_dma drives its
+   // request combinationally from r_state and only advances on dma_rsp_valid,
+   // so w_m1_req_addr/opcode still describe the completing access this cycle.
+   // opcode 5'd7 = line store (5'd4 = line load, which needs no invalidate).
+   wire w_dma_store_done  = w_mem_rsp_dma  & (w_m1_req_opcode   == 5'd7);
+   wire w_enet_store_done = w_mem_rsp_enet & (w_enet_req_opcode == 5'd7);
+   /* The arbiter grants one master at a time, so at most one of these can be true
+    * in a cycle -- no arbitration needed on the FIFO push port. */
+   /* DISABLE_DMA_SNOOP: build-time A/B knob for the DMA->L2 snoop.  Default is
+    * unchanged (snoop ON); pass +define+DISABLE_DMA_SNOOP to hold the FIFO push low
+    * so the L2 never sees a DMA invalidate.  Added to run the controlled pair against
+    * the 4MB-L2 kernel panic -- proving whether the snoop is load-bearing needs an
+    * otherwise byte-identical build with it off. */
+`ifdef DISABLE_DMA_SNOOP
+   wire                 w_snoop_push = 1'b0;
+`else
+   wire                 w_snoop_push = w_dma_store_done | w_enet_store_done;
+`endif
+   wire [`PA_WIDTH-1:0] w_snoop_push_addr = w_dma_store_done ? w_m1_req_addr
+                                                            : w_enet_req_addr;
+
+   /* LOG_DMA_PA: log every DMA line-store PA (SCSI + ENET) so a corrupt value read
+    * back from memory can be checked against DMA traffic to the SAME physical line.
+    * Motivation: the xlog_find_zeroed crash (EPC 8820b62c, `lw a0,4(s2)') traces back
+    * to `ld s2,48(sp)' -- s2 was READ FROM MEMORY, not computed, so the question is
+    * whether DMA (or a stale line) clobbered that stack slot.  Answering it needs the
+    * set of physical addresses DMA actually wrote.
+    * Deliberately taken off *_store_done (the arbiter RESPONSE, one pulse per completed
+    * line store) and NOT off the snoop push -- the push is compiled out by
+    * DISABLE_DMA_SNOOP, and the log must work in BOTH arms of that A/B.
+    * Sim-only ($display); no effect on the synthesizable path. */
+`ifdef LOG_DMA_PA
+   /* henry_soc has no cycle counter of its own; keep a local one so the log is
+    * correlatable with the [tb] cyc prints and the retire trace. */
+   logic [63:0] r_dmapa_cyc;
+   always_ff@(posedge clk)
+     begin
+        r_dmapa_cyc <= reset ? 64'd0 : (r_dmapa_cyc + 64'd1);
+     end // always_ff
+   /* posedge, NOT the usual negedge logging idiom -- deliberately, and MEASURED:
+    *   - negedge always_ff DOES fire here (both-edge canary), and the verilated C++
+    *     dispatches both edges correctly (_sequent__TOP__8 on rising, __15 on falling).
+    *   - but logging THIS signal on both edges in one run gave posedge 17, negedge 0.
+    * w_dma_store_done is combinational off the arbiter response, true w.r.t. the state
+    * ENTERING the posedge; Verilator re-settles comb logic against the post-posedge
+    * state, so the pulse is already gone by the negedge dispatch.  A one-cycle comb
+    * pulse must be sampled on the edge that produces it.  (negedge stays correct for
+    * REGISTERED state -- that is what the other 36 negedge loggers sample.) */
+   always_ff@(posedge clk)
+     begin
+        if(w_dma_store_done)
+          begin
+             $display("[dmapa] cyc=%0d master=scsi pa=%x", r_dmapa_cyc, w_m1_req_addr);
+          end
+        if(w_enet_store_done)
+          begin
+             $display("[dmapa] cyc=%0d master=enet pa=%x", r_dmapa_cyc, w_enet_req_addr);
+          end
+     end // always_ff
+`endif
+
+   snoop_fifo #(.LG_DEPTH(4)) u_snoop
+     (.clk(clk), .reset(reset),
+      .push_valid(w_snoop_push),
+      .push_addr(w_snoop_push_addr),
+      .full(w_snoop_full),
+      .snoop_req_valid(w_snoop_valid),
+      .snoop_req_addr(w_snoop_addr),
+      .snoop_req_ack(w_snoop_ack));
 
    // =====================================================================
    //  Device request FSM: one outstanding at a time (matches the core bus).
@@ -365,6 +860,10 @@ module henry_soc
       .sel(w_dev_accept & w_is_hpc3), .is_store(~w_is_load),
       .offs(c_req_addr[18:0]), .mask(c_req_mask), .wdata(c_req_store_data),
       .rdata(w_rd_hpc3),
+      /* SCSI0 DMA channel status -> hd0.bc / hd0.cntl.  The engine has no residual
+       * output yet, so bc reads 0 (== chain complete), which is what it read before. */
+      .scsi0_dma_busy(w_eng_busy), .scsi0_dma_irq(w_eng_irq), .scsi0_dma_bc(14'd0),
+      .scsi0_hpc_intr(w_hpc_scsi_intr),
       // mem-to-mem DMA master -> DRAM arbiter
       .dma_req_valid(w_dma_req_valid),
       .dma_req_addr(w_dma_req_addr),
@@ -427,7 +926,7 @@ module henry_soc
       .enet_tx_req_seq(enet_tx_req_seq), .enet_tx_nbdp(enet_tx_nbdp),
       .enet_tx_rsp_seq(enet_tx_rsp_seq),
       .enet_rx_arm_seq(enet_rx_arm_seq), .enet_rx_nbdp(enet_rx_nbdp),
-      .enet_rx_rsp_seq(enet_rx_rsp_seq), .enet_rx_crbdp(enet_rx_crbdp),
+      .enet_rx_rsp_seq(enet_rx_rsp_seq), .enet_rx_crbdp(enet_rx_crbdp), .enet_tx_crbdp(enet_tx_crbdp),
       .enet_station(enet_station), .enet_rx_cmd(enet_rx_cmd),
       .enet_intrq(w_enet_intrq), .dbg(enet_dbg));
 `else
@@ -455,7 +954,7 @@ module henry_soc
    scsi_dma u_scsi_dma
      (.clk(clk), .reset(reset),
       .go(w_sdma_go), .nbdp(w_sdma_nbdp), .to_device(w_sdma_to_dev),
-      .busy(), .done(w_eng_done), .irq(), .rd_stalled(w_eng_rd_stalled),
+      .busy(w_eng_busy), .done(w_eng_done), .irq(w_eng_irq), .rd_stalled(w_eng_rd_stalled),
       .dma_req_valid(w_eng_req_valid), .dma_req_addr(w_eng_req_addr),
       .dma_req_opcode(w_eng_req_opcode), .dma_req_store_data(w_eng_req_store_data),
       .dma_req_mask(w_eng_req_mask),
@@ -494,7 +993,7 @@ module henry_soc
       .sel(w_dev_accept & w_is_ioc), .is_store(~w_is_load),
       .offs(c_req_addr[7:0]), .mask(c_req_mask), .wdata(c_req_store_data),
       .rdata(w_rd_int3),
-      .local0_src({3'd0, w_enet_intrq, 1'b0, w_scsi_intrq, 1'b0}), .local1_src(8'd0),  // local0[3]=ENET [1]=SCSI0
+      .local0_src({3'd0, w_enet_intrq, 1'b0, w_scsi_intrq | w_hpc_scsi_intr, 1'b0}), .local1_src(8'd0),  // local0[3]=ENET [1]=SCSI0
       .map_src({2'd0, w_scc_rx_avail | w_scc_tx_int, 5'd0}),  // bit5 = Serial DUART (SCC Rx|Tx)
       .buserr(3'd0),
       .timer0_irq(w_ioc_timer0), .timer1_irq(1'b0),

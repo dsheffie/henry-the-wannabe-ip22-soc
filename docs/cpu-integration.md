@@ -84,7 +84,8 @@ flags go to `FCSR.Cause` on a trap or accumulate in the sticky `FCSR.Flags` othe
 
 **Validation:** `tests/fpu/*` co-sim clean + directed; the FPU Linux kernel boots to `/init`
 (lazy-FPU, no "orphaned FPU"); an `awk` double-precision self-test runs correctly on Henry **silicon**
-(including `sqrt` via soft-float); the FP-complete synth meets timing (**WNS +0.235 ns @ 100 MHz**).
+(including `sqrt` via soft-float); the FP-complete branch was synthesized separately and meets timing (the
+current henry synth, `ENABLE_DEBUG_WATCHPOINT` on, closes at **WNS +0.096 ns @ 100 MHz**).
 See `r9999/FPU_PORT_STUDY.md`, `r9999/FPU_ROUNDING_EXCEPTIONS.md`.
 
 ---

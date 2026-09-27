@@ -175,6 +175,17 @@ static inline void scsi_service_run(const scsi_req_t *req, scsi_rsp_t *rsp,
         uint64_t lba = cdb10_lba(cdb); uint32_t blk = cdb10_blocks(cdb);
         buf.assign((size_t)blk * 512, 0);
         for(uint32_t i = 0; i < blk; i++) disk->block_read(lba + i, buf.data() + (size_t)i*512);
+        /* SCSIHASH: identical format to interp_mips sgi_scsi.cc so the two boots can be
+         * diffed directly.  The LBA sequence is a far denser progress fingerprint than
+         * console milestones, and the payload hash also catches data-path corruption. */
+        if(getenv("SCSIHASH")) {
+          uint64_t h = 1469598103934665603ULL;
+          { uint64_t kk = ((uint64_t)lba << 16) ^ (uint64_t)blk;   /* LBA+count in the hash */
+            for(int b = 0; b < 8; b++) { h ^= (kk >> (8*b)) & 0xff; h *= 1099511628211ULL; } }
+          for(size_t z = 0; z < buf.size(); z++) { h ^= buf[z]; h *= 1099511628211ULL; }
+          fprintf(stderr, "[scsihash] op=28 lba=%llu nblk=%u bytes=%zu hash=%016llx\n",
+                  (unsigned long long)lba, blk, buf.size(), (unsigned long long)h);
+        }
         break;
     }
     case SCSI_WRITE10: {

@@ -108,8 +108,15 @@ module axi_is_the_worst_v1_0 #
    wire [31:0] 					w_controlreg,w_baseaddr,w_status;
    wire [31:0]					w_addrmask;
    
-   wire [31:0] 					w_mem_req_addr;
-   wire [31:0] 					w_axi_addr = w_baseaddr+(w_mem_req_addr);
+   /* Full 36-bit physical address.  henry_soc drives PA_WIDTH=36; truncating it
+    * here dropped PA[35:32] AND defeated the out-of-range poison, because
+    * M00_AXI's `w_bad_addr = (t_cpuaddr > addrmask)` then compared the ALREADY
+    * TRUNCATED value -- so a high-PFN access was laundered into an in-range
+    * address and read real DRAM at the wrong line instead of returning
+    * 0xA5A5A5A5.  The AXI bus itself is 32-bit and cannot widen, so the rule is:
+    * range-check at full width, truncate only at the bus. */
+   wire [35:0] 					w_mem_req_addr;
+   wire [31:0] 					w_axi_addr = w_baseaddr+(w_mem_req_addr[31:0]);
 
    wire [127:0]					w_mem_req_store_data;
    wire						w_axi_busy;
@@ -117,16 +124,52 @@ module axi_is_the_worst_v1_0 #
    
    //outputs to axi slave
    wire [31:0] 					w_rvcontrol, w_resume_pc;
+   wire [31:0] 					w_bp_pc;   // driver-programmable breakpoint PC (slv_reg9)
+   wire [31:0] 					w_bp_wp_addr; // store-address watchpoint VA (slv_reg10)
+   wire [31:0] 					w_bp_wp_val;  // expected corrupt store value (slv_reg11)
 
    //inputs to axi slave
-   wire [31:0] 					w_rvstatus, w_epc, w_badvaddr;
+   /* These carry `M_WIDTH (64b) values from henry_soc but the AXI readback
+    * registers are 32b, so only the low half is visible.  The truncation is
+    * made EXPLICIT below ([31:0] on the port connection) instead of being left
+    * to an implicit width mismatch: the limit is real (true 64b visibility
+    * needs new readback registers -- 0x1B-0x25 are free) but it should not be
+    * silent.  For the o32 userspace code in the 2026-09-02 captures this is
+    * lossless; a genuinely 64-bit-wrong value would NOT be visible. */
+   wire [63:0] 					w_epc64, w_badvaddr64;
+   wire [31:0] 					w_rvstatus;
+   wire [31:0] 					w_epc      = w_epc64[31:0];
+   wire [31:0] 					w_badvaddr = w_badvaddr64[31:0];
+   wire [31:0] 					w_wf_epc, w_wf_badv, w_wf_stat;   // wild-fault latch
    wire [31:0]					w_states;
    wire [4:0]					w_cause;
-   wire [11:0]					w_trace_index;
+   wire [2:0]					w_dbg_frozen;
+   wire [31:0]					w_dbg_wp_data;
+   /* MUST be 20 bits: dbg_trace_index is declared [19:0] at BOTH ends, but this
+    * intermediate wire was [11:0], silently dropping bits [19:12] -- which is the
+    * entire ring WORD select ({index[18], index[16:15]}).  Row/bank ([10:1]) fit
+    * in 12 bits and worked, so every dump returned word 0 (the pc) for all 7
+    * words and the ring was undecodable.  Verilog gives no width warning here.
+    * Stale comment on the S00_AXI side still says {row[7:0],word[3:0]}, which is
+    * what 12 bits was sized for before the ring grew to 2048 entries. */
+   wire [19:0]					w_trace_index;
    wire [31:0]					w_trace_data;
    wire [63:0]					w_dbg_head_pc;
    wire [31:0]					w_dbg_head_status;
-   wire [8:0]					w_trace_wptr;
+   /* WAS [8:0], which truncated a 16-bit bus: core.sv drives
+    * {r_rtrace_frozen, 4'd0, r_rtrace_ptr[9:0], 1'b0}, so bit15 is the ring's
+    * FROZEN flag and [10:1] the pair index.  At 9 bits the readback carried only
+    * ptr[7:0] and the frozen flag was UNREADABLE -- a freeze could only be
+    * inferred from wptr going static, which is ambiguous against a parked core.
+    * Widened to the full 16 the S00_AXI port already expects (reg 0x19). */
+   wire [15:0]					w_trace_wptr;
+   wire [31:0]					w_dbg_rdchk;
+   wire [31:0]					w_trace_ring_wptr;   // DRAM deep-trace: bytes written since arm
+   wire [31:0]					w_dbg_rob_inflight;   /* {l1d r_rob_inflight[15:0], core r_rob_inflight[15:0]} */
+   (* shreg_extract = "no", srl_style = "register" *) reg [31:0] r_dbg_rob_p1, r_dbg_rob_p2, r_dbg_rob_p3;
+   always @(posedge s00_axi_aclk) begin r_dbg_rob_p1 <= w_dbg_rob_inflight; r_dbg_rob_p2 <= r_dbg_rob_p1; r_dbg_rob_p3 <= r_dbg_rob_p2; end
+   wire						w_trace_overflow;    // DRAM deep-trace: a record was dropped
+   wire [7:0]					w_cur_asid;          // current EntryHi ASID readback (be-ASID discovery)
    wire						w_l1i_flush_done, w_l1d_flush_done, w_l2_flush_done;
    
    
@@ -148,12 +191,86 @@ module axi_is_the_worst_v1_0 #
    wire [2:0]					w_istate; //3
    
 
-   wire [63:0] 					w_l1i_cache_accesses = 'd0;
-   wire [63:0] 					w_l1i_cache_hits = 'd0;
-   wire [63:0] 					w_l1d_cache_accesses = 'd0;
-   wire [63:0] 					w_l1d_cache_hits = 'd0;
-   wire [63:0] 					w_l2_cache_accesses = 'd0;
-   wire [63:0] 					w_l2_cache_hits = 'd0;
+   /* ---- cache performance counters: PIPELINED, deliberately ------------------
+    * These six buses run from counter flops deep inside l1i/l1d/l2 all the way
+    * to the 64-entry AXI readback mux, and they have historically been a major
+    * source of timing pressure on this design: a long cross-chip route feeding
+    * wide combinational select logic.
+    *
+    * They are DEBUG counters that software samples at Hz rates, so latency is
+    * entirely free -- 10 cycles of skew is invisible.  Flopping the path lets the
+    * placer/router break one long hop into ten short ones.
+    *
+    * Only [31:0] is ever read back (regs 0x2C-0x2F, 0x36, 0x37; the upper halves
+    * were repurposed to make room for these very registers), so the pipeline is
+    * 32 bits wide, not 64 -- half the flops for the same benefit.
+    *
+    * THE TRAP: a plain flop chain gets absorbed into an SRL16/SRL32, which puts
+    * all ten stages in ONE LUT at ONE site and defeats the entire purpose while
+    * looking correct in simulation.  cnt_pipe carries shreg_extract="no" and
+    * srl_style="register" to force real distributed flops.  Check it held:
+    *   check "LUT as Memory" in the impl utilization report does not grow. */
+   wire [63:0] 					w_l1i_cache_accesses;
+   wire [63:0] 					w_l1i_cache_hits;
+   wire [63:0] 					w_l1d_cache_accesses;
+   wire [63:0] 					w_l1d_cache_hits;
+   wire [63:0] 					w_l2_cache_accesses;
+   wire [63:0] 					w_l2_cache_hits;
+   wire [31:0] 					w_l1i_acc_q;
+   wire [31:0] 					w_l1i_hit_q;
+   wire [31:0] 					w_l1d_acc_q;
+   wire [31:0] 					w_l1d_hit_q;
+   wire [31:0] 					w_l2_acc_q;
+   wire [31:0] 					w_l2_hit_q;
+
+   /* ---- CACHE COUNTERS DISABLED 2026-09-12 ---------------------------------
+    * Tied off to land a bitstream.  Two full impl runs of this design WITH the
+    * counters (both strategies, ~5h wall clock) failed to close: post-route
+    * phys_opt reached WNS +0.14 / +0.06 with TNS 0, and the following routing
+    * pass tore it back open every time.  These six buses run from counter flops
+    * deep inside l1i/l1d/l2 to the 64-entry AXI readback mux and have always put
+    * heavy timing pressure on the design.
+    *
+    * Pipelining them (cnt_pipe, 10 stages) was VERIFIED to work as intended --
+    * placed FFs 42160 -> 44082 (+1922 vs +1920 predicted), LUT-as-Memory and
+    * shift-registers both UNCHANGED at 2545/171, so the flops stayed real and
+    * were not absorbed into SRLs.  It still was not enough to close timing, so
+    * the counters come out entirely for now.
+    *
+    * TO RESTORE: uncomment the cnt_pipe instances below and swap the six
+    * .l1*_cache_* connections on the S00_AXI instance back to {32'd0, w_*_q}.
+    * The cnt_pipe module itself is kept (bottom of this file) -- unused modules
+    * cost nothing and the attributes on it are the non-obvious part. */
+//   cnt_pipe #(.W(32), .N(10)) pipe_l1i_acc (
+//	.clk(s00_axi_aclk),
+//	.in(w_l1i_cache_accesses[31:0]),
+//	.out(w_l1i_acc_q)
+//	);
+//   cnt_pipe #(.W(32), .N(10)) pipe_l1i_hit (
+//	.clk(s00_axi_aclk),
+//	.in(w_l1i_cache_hits[31:0]),
+//	.out(w_l1i_hit_q)
+//	);
+//   cnt_pipe #(.W(32), .N(10)) pipe_l1d_acc (
+//	.clk(s00_axi_aclk),
+//	.in(w_l1d_cache_accesses[31:0]),
+//	.out(w_l1d_acc_q)
+//	);
+//   cnt_pipe #(.W(32), .N(10)) pipe_l1d_hit (
+//	.clk(s00_axi_aclk),
+//	.in(w_l1d_cache_hits[31:0]),
+//	.out(w_l1d_hit_q)
+//	);
+//   cnt_pipe #(.W(32), .N(10)) pipe_l2_acc (
+//	.clk(s00_axi_aclk),
+//	.in(w_l2_cache_accesses[31:0]),
+//	.out(w_l2_acc_q)
+//	);
+//   cnt_pipe #(.W(32), .N(10)) pipe_l2_hit (
+//	.clk(s00_axi_aclk),
+//	.in(w_l2_cache_hits[31:0]),
+//	.out(w_l2_hit_q)
+//	);
    wire [63:0]					w_l2_early_accesses = 'd0;
    
 
@@ -181,7 +298,7 @@ module axi_is_the_worst_v1_0 #
    wire [127:0]					w_load_data;
    
    wire						w_memq_empty;
-   wire [5:0]					w_inflight;
+   wire [5:0]					w_inflight;   /* soc drives LG_ROB_ENTRIES+1 = 5b; upper bit reads 0 */
 
    wire [4:0]					w_reg_ptr0, w_reg_ptr1;
    wire [31:0]					w_reg_data0, w_reg_data1;
@@ -245,13 +362,25 @@ module axi_is_the_worst_v1_0 #
    wire [7:0]   w_scsi_req_dest, w_scsi_req_lun, w_scsi_rsp_scsi_status, w_scsi_rsp_tgt_status;
    wire         w_scsi_req_to_device;
    wire [15:0]  w_scsi_sel_delay;
+   // enet_dma conduit: S00_AXI (ARM) <-> henry_soc engine
+   wire         w_enet_rx_frame_go, w_enet_rx_beat_push, w_enet_rx_beat_full;
+   wire [13:0]  w_enet_rx_frame_len;
+   wire [127:0] w_enet_rx_beat_data;
+   wire         w_enet_tx_beat_valid, w_enet_tx_beat_pop;
+   wire [127:0] w_enet_tx_beat_data;
+   wire         w_enet_dma_rx_done, w_enet_dma_rx_dropped, w_enet_dma_tx_done;
+   wire [31:0]  w_enet_dma_crbdp;
+
    // SCSI beat conduit: S00_AXI (ARM pushes) -> henry_soc engine FIFO
    wire         w_scsi_beat_push, w_scsi_beat_full;
+   // ext flush page list: S00_AXI (ARM writes 0x3C/0x3D) -> henry_soc
+   wire         w_ext_pg_push, w_ext_pg_go, w_ext_pg_drop;
+   wire [31:0]  w_ext_pg_ppn;
    wire [127:0] w_scsi_beat_data;
    wire [31:0]  w_scsi_dbg;          // shim debug viz (AXI PMU readback)
    // ---- ENET mailbox wires: henry_soc publishes tx_req/rx_arm; S00_AXI returns rsp/crbdp ----
    wire [31:0]  w_enet_tx_req_seq, w_enet_tx_nbdp, w_enet_rx_arm_seq, w_enet_rx_nbdp;
-   wire [31:0]  w_enet_tx_rsp_seq, w_enet_rx_rsp_seq, w_enet_rx_crbdp;
+   wire [31:0]  w_enet_tx_rsp_seq, w_enet_rx_rsp_seq, w_enet_rx_crbdp, w_enet_tx_crbdp;
    axi_is_the_worst_v1_0_S00_AXI # ( .C_S_AXI_DATA_WIDTH(C_S00_AXI_DATA_WIDTH), .C_S_AXI_ADDR_WIDTH(C_S00_AXI_ADDR_WIDTH))
    axi_is_the_worst_v1_0_S00_AXI_inst (
 				       .controlreg(w_controlreg),
@@ -270,16 +399,28 @@ module axi_is_the_worst_v1_0 #
 				       .scc_rx_full(w_scc_rx_full),
 				       .control(w_rvcontrol),
 				       .resume_pc(w_resume_pc),
+				       .bp_pc(w_bp_pc),
+				       .bp_wp_addr(w_bp_wp_addr),
+				       .bp_wp_val(w_bp_wp_val),
 				       .rvstatus(w_rvstatus),
 				       .states(w_states),
 				       .sgi_mode(w_sgi_mode),				       
-				       .epc(w_epc),
+				       .epc(w_epc64),
 				       .status_reg(w_status_reg),
-				       .badvaddr(w_badvaddr),
+				       .badvaddr(w_badvaddr64),
+				       .wf_epc(w_wf_epc),
+				       .wf_badv(w_wf_badv),
+				       .wf_stat(w_wf_stat),
 				       .cause(w_cause),
+				       .dbg_frozen(w_dbg_frozen),
+				       .dbg_wp_data(w_dbg_wp_data),
 				       .dbg_trace_data(w_trace_data),
 				       .dbg_trace_wptr(w_trace_wptr),
+				       .dbg_rdchk(w_dbg_rdchk),
 				       .dbg_trace_index(w_trace_index),
+				       .trace_ring_wptr(r_dbg_rob_p3),  /* reg 0x1C repurposed: {l1d,core} r_rob_inflight */
+				       .trace_overflow(w_trace_overflow),
+				       .cur_asid(w_cur_asid),
 				       .dbg_head_pc(w_dbg_head_pc[31:0]),
 				       .dbg_head_status(w_dbg_head_status),
 				       .l1i_flush_done(w_l1i_flush_done),
@@ -310,12 +451,16 @@ module axi_is_the_worst_v1_0 #
 				       .retire_reg_two_valid(w_reg_val1),
 
 				       
-				       .l1i_cache_accesses(w_l1i_cache_accesses),
-				       .l1i_cache_hits(w_l1i_cache_hits),
-				       .l1d_cache_accesses(w_l1d_cache_accesses),
-				       .l1d_cache_hits(w_l1d_cache_hits),
-				       .l2_cache_accesses(w_l2_cache_accesses),
-				       .l2_cache_hits(w_l2_cache_hits),
+				       /* PIPELINED (cnt_pipe, 10 stages) -- see the
+					* declarations above.  Upper half is tied to 0
+					* because no readback register exposes it; the
+					* truncation is explicit, not implicit. */
+				       .l1i_cache_accesses(64'd0),
+				       .l1i_cache_hits(64'd0),
+				       .l1d_cache_accesses(64'd0),
+				       .l1d_cache_hits(64'd0),
+				       .l2_cache_accesses(64'd0),
+				       .l2_cache_hits(64'd0),
 				       /*.l2_early_accesses(w_l2_early_accesses), */
 				       .branch_faults('d0),
 				       .axi_busy(w_axi_busy),				       
@@ -337,9 +482,27 @@ module axi_is_the_worst_v1_0 #
 				       .scsi_rsp_scsi_status(w_scsi_rsp_scsi_status),
 				       .scsi_rsp_tgt_status(w_scsi_rsp_tgt_status),
 				       .scsi_sel_delay(w_scsi_sel_delay),
+				       .enet_rx_frame_go(w_enet_rx_frame_go),
+				       .enet_rx_frame_len(w_enet_rx_frame_len),
+				       .enet_rx_beat_push(w_enet_rx_beat_push),
+				       .enet_rx_beat_data(w_enet_rx_beat_data),
+				       .enet_rx_beat_full(w_enet_rx_beat_full),
+				       .enet_tx_beat_valid(w_enet_tx_beat_valid),
+				       .enet_tx_beat_pop(w_enet_tx_beat_pop),
+				       .enet_tx_beat_data(w_enet_tx_beat_data),
+				       .enet_dma_rx_done(w_enet_dma_rx_done),
+				       .enet_dma_rx_dropped(w_enet_dma_rx_dropped),
+				       .enet_dma_crbdp(w_enet_dma_crbdp),
+				       .enet_dma_tx_done(w_enet_dma_tx_done),
 				       .scsi_beat_push(w_scsi_beat_push),
 				       .scsi_beat_data(w_scsi_beat_data),
 				       .scsi_beat_full(w_scsi_beat_full),
+				       .ext_flush_stat(w_ext_flush_stat),
+				       .ext_flush_cycles(w_ext_flush_cycles),
+				       .ext_pg_push(w_ext_pg_push),
+				       .ext_pg_ppn(w_ext_pg_ppn),
+				       .ext_pg_go(w_ext_pg_go),
+				       .ext_pg_drop(w_ext_pg_drop),
 				       .scsi_dbg(w_scsi_dbg),
 				       .enet_tx_req_seq(w_enet_tx_req_seq),
 				       .enet_tx_nbdp(w_enet_tx_nbdp),
@@ -348,6 +511,8 @@ module axi_is_the_worst_v1_0 #
 				       .enet_tx_rsp_seq(w_enet_tx_rsp_seq),
 				       .enet_rx_rsp_seq(w_enet_rx_rsp_seq),
 				       .enet_rx_crbdp(w_enet_rx_crbdp),
+				       .enet_tx_crbdp(w_enet_tx_crbdp),
+
 				       .S_AXI_ACLK(s00_axi_aclk),
 				       .S_AXI_ARESETN(s00_axi_aresetn),
 				       .S_AXI_AWADDR(s00_axi_awaddr),
@@ -469,6 +634,8 @@ module axi_is_the_worst_v1_0 #
    wire [63:0]					w_resume_pc64 = { {32{w_resume_pc[31]}}, w_resume_pc};
    
    
+   wire [31:0] w_ext_flush_stat;     // henry_soc -> S00_AXI read 0x25 [31:1]
+   wire [31:0] w_ext_flush_cycles;   // henry_soc -> S00_AXI read 0x24 [31:1]
    // SoC-level integration: instantiate henry_soc (core + MC/HPC3/IOC2 device models,
    // incl. the Z8530 SCC console TX + RR0) in place of the bare core.  Device-region
    // accesses (MC 0x1fa....., IOC2 0x1fbd98.., HPC3) are handled INSIDE henry_soc and
@@ -479,8 +646,36 @@ module axi_is_the_worst_v1_0 #
    // readback are inactive in the Henry build.
    henry_soc
      henrysoc0 (
+       .l1i_cache_accesses(w_l1i_cache_accesses),
+       .l1i_cache_hits(w_l1i_cache_hits),
+       .l1d_cache_accesses(w_l1d_cache_accesses),
+       .l1d_cache_hits(w_l1d_cache_hits),
+       .l2_cache_accesses(w_l2_cache_accesses),
+       .l2_cache_hits(w_l2_cache_hits),
 	   .clk(s00_axi_aclk),
 	   .reset(w_reset | w_rvcontrol[0]),
+	   // debug control: [31]=single_step(freeze) [30]=step-pulse [17]=bp_enable(arm fault-trap)
+	   // [18]=fault_clear(clear latch + re-arm + un-freeze).  Previously stubbed in henry_soc.
+	   .single_step(w_rvcontrol[31]),
+	   .step(w_rvcontrol[30]),
+	   .bp_enable(w_rvcontrol[17]),
+	   .fault_clear(w_rvcontrol[18]),
+	   .bp_pc(w_bp_pc),
+	   .bp_wp_addr(w_bp_wp_addr),
+	   .bp_wp_val(w_bp_wp_val),
+	   .bp_fault_only(w_rvcontrol[19]),   // [19]=freeze only on a fault at bp_pc
+	   .rt_oneshot(w_rvcontrol[22]),      // [22]=rewind+arm retire ring, one pass, self-freeze
+	   .l2_nocache(w_rvcontrol[20]),   // [20]=L2 no-cache (set before go)
+	   .trace_arm(w_rvcontrol[21]),    // [21]=arm the DRAM control-flow deep trace
+	   .trace_filter_en(w_rvcontrol[15]),        // [15]=enable the deep-trace ASID filter
+	   .trace_loadval(w_rvcontrol[14]),          // [14]=deep trace records {pc,val} load records
+	   .trace_throttle(w_rvcontrol[13]),         // [13]=stall retirement on trace FIFO high-water (lossless)
+	   .trace_pcfilt(w_rvcontrol[12]),           // [12]=record+throttle only be-text-range PCs
+	   .wf_epc(w_wf_epc), .wf_badv(w_wf_badv), .wf_stat(w_wf_stat),   // wild-fault latch (poison pointer P)
+	   .trace_target_asid(w_rvcontrol[29:22]),   // [29:22]=ASID filter target (be's ASID)
+	   .trace_ring_wptr(w_trace_ring_wptr),
+	   .trace_overflow(w_trace_overflow),
+	   .cur_asid(w_cur_asid),
 	   // SCC serial Rx driven by the ARM/PS via S00_AXI reg 0x3B (push) /
 	   // reg 0x3A bit8 (full). A pushed byte lands in the core's Rx FIFO and
 	   // raises the INT3 serial IRQ (IP2) inside henry_soc.
@@ -508,8 +703,10 @@ module axi_is_the_worst_v1_0 #
 
 	   .retire_reg_ptr(w_reg_ptr0),
 	   .retire_reg_data(w_reg_data0),
+	   .retire_reg_valid(w_reg_val0),
 	   .retire_reg_two_ptr(w_reg_ptr1),
 	   .retire_reg_two_data(w_reg_data1),
+	   .retire_reg_two_valid(w_reg_val1),
 	   .retire_valid(w_pc_valid),
 	   .retire_two_valid(w_pc2_valid),
 	   .retire_pc(w_pc),
@@ -525,15 +722,19 @@ module axi_is_the_worst_v1_0 #
 	   .status_reg(w_status_reg),
 	   .badvaddr(w_badvaddr),
 	   .cause(w_cause),
+	   .dbg_frozen(w_dbg_frozen),
+	   .dbg_wp_data(w_dbg_wp_data),
 	   .core_state(w_state),
 	   .l1i_state(w_istate),
 	   .l1d_state(w_dstate),
 	   .l2_state(w_l2state),
 	   .l2_rsp_state(w_l2rsp_state),
 	   .inflight(w_inflight),
+	   .dbg_rob_inflight(w_dbg_rob_inflight),
 	   .dbg_trace_index(w_trace_index),
 	   .dbg_trace_data(w_trace_data),
 	   .dbg_trace_wptr(w_trace_wptr),
+	   .dbg_rdchk(w_dbg_rdchk),
 	   .scsi_req_seq(w_scsi_req_seq),
 	   .scsi_req_cdb(w_scsi_req_cdb),
 	   .scsi_req_nbdp(w_scsi_req_nbdp),
@@ -549,6 +750,22 @@ module axi_is_the_worst_v1_0 #
 	   .scsi_beat_data(w_scsi_beat_data),
 	   .scsi_beat_full(w_scsi_beat_full),
 	   .scsi_dbg(w_scsi_dbg),
+	   /* enet_dma host conduit, driven by S00_AXI (regs 0x2a-0x2f / 0x3a-0x3d).
+	    * NOTE the ARM driver (axilite-mips/enet_arm.h) must be rewritten to use it;
+	    * until then it never pushes a beat or pulses rx_frame_go, so the engine
+	    * simply idles and ENET keeps working over the legacy mailbox path. */
+	   .enet_rx_frame_go(w_enet_rx_frame_go),
+	   .enet_rx_frame_len(w_enet_rx_frame_len),
+	   .enet_rx_beat_push(w_enet_rx_beat_push),
+	   .enet_rx_beat_data(w_enet_rx_beat_data),
+	   .enet_rx_beat_full(w_enet_rx_beat_full),
+	   .enet_tx_beat_valid(w_enet_tx_beat_valid),
+	   .enet_tx_beat_pop(w_enet_tx_beat_pop),
+	   .enet_tx_beat_data(w_enet_tx_beat_data),
+	   .enet_dma_rx_done(w_enet_dma_rx_done),
+	   .enet_dma_rx_dropped(w_enet_dma_rx_dropped),
+	   .enet_dma_crbdp(w_enet_dma_crbdp),
+	   .enet_dma_tx_done(w_enet_dma_tx_done),
 	   .enet_tx_req_seq(w_enet_tx_req_seq),
 	   .enet_tx_nbdp(w_enet_tx_nbdp),
 	   .enet_tx_rsp_seq(w_enet_tx_rsp_seq),
@@ -556,15 +773,23 @@ module axi_is_the_worst_v1_0 #
 	   .enet_rx_nbdp(w_enet_rx_nbdp),
 	   .enet_rx_rsp_seq(w_enet_rx_rsp_seq),
 	   .enet_rx_crbdp(w_enet_rx_crbdp),
+	   .enet_tx_crbdp(w_enet_tx_crbdp),
 	   .enet_station(),          // not routed to AXI v1 (IRIX filters); leave open
 	   .enet_rx_cmd(),
-	   .enet_dbg()
+	   .enet_dbg(),
+	   // [2] = ARM-requested whole-cache flush + invalidate (0->1 edge starts one)
+	   .ext_flush_ctl(w_rvcontrol[2]),
+	   .ext_pg_push(w_ext_pg_push),
+	   .ext_pg_ppn(w_ext_pg_ppn),
+	   .ext_pg_go(w_ext_pg_go),
+	   .ext_pg_drop(w_ext_pg_drop),
+	   .ext_flush_stat(w_ext_flush_stat),
+	   .ext_flush_cycles(w_ext_flush_cycles)
 	   );
 
    // tie-offs for status/debug taps henry_soc does not expose
    assign w_in_flush       = 1'b0;
-   assign w_reg_val0       = 1'b0;
-   assign w_reg_val1       = 1'b0;
+   // w_reg_val0/1 now driven by henrysoc0 (retire_reg_valid) -> GPR shadow updates -> readback works
    assign w_op             = 7'd0;
    assign w_op2            = 7'd0;
    assign w_branch_pc      = 32'd0;
@@ -576,3 +801,50 @@ module axi_is_the_worst_v1_0 #
    assign w_l2_flush_done  = 1'b0;
 
 endmodule
+
+/* cnt_pipe -- N-stage register pipeline for a wide debug-counter bus.
+ *
+ * Lives in THIS file on purpose: the IP's component.xml lists exactly four
+ * source files, so a new cnt_pipe.v would be copied into hdl/ by
+ * gen_mipscore.sh and then silently NOT compiled -- synthesis would fail on an
+ * unresolved module.  Keeping it here means internal RTL edits still never
+ * require re-packaging the IP.
+ *
+ * WHY IT EXISTS: the cache performance counters (l1i/l1d/l2 accesses and hits)
+ * live deep inside the caches and feed a 64-entry AXI readback mux at the chip
+ * edge -- a long route into wide combinational select logic, historically a
+ * major source of timing pressure here.  Software samples these at Hz rates, so
+ * latency is entirely free; pipelining lets the placer/router turn one long hop
+ * into N short ones.
+ *
+ * THE ATTRIBUTES ARE NOT OPTIONAL.  A flop chain with no logic between stages is
+ * precisely what Vivado's SRL inference targets: it packs all N stages into one
+ * SRL16/SRL32 inside a SINGLE LUT at a SINGLE site.  That simulates identically
+ * and reports the same latency while completely defeating the purpose, because
+ * the long route remains a single hop into the SRL.  Both attributes are needed
+ * -- shreg_extract disables the inference, srl_style pins the implementation to
+ * real registers.  Verify it held: "LUT as Memory" in the utilization report
+ * must NOT grow when this is added (6 * 32 * 10 = 1920 new FFs instead).
+ */
+module cnt_pipe(clk, in, out);
+   parameter W = 32;
+   parameter N = 10;
+   input wire 		clk;
+   input wire [W-1:0] 	in;
+   output wire [W-1:0] 	out;
+
+   (* shreg_extract = "no", srl_style = "register" *)
+   reg [W-1:0] 		r_pipe [N-1:0];
+
+   integer 		i;
+   always @(posedge clk)
+     begin
+	r_pipe[0] <= in;
+	for(i = 1; i < N; i = i + 1)
+	  begin
+	     r_pipe[i] <= r_pipe[i-1];
+	  end
+     end // always
+
+   assign out = r_pipe[N-1];
+endmodule // cnt_pipe

@@ -213,7 +213,7 @@ module scsi_shim
          if(w_sasr_rd   & (r_cnt_rd    != 6'h3f)) r_cnt_rd    <= r_cnt_rd    + 6'd1;
          if(w_cmd_reset & (r_cnt_reset != 4'hf )) r_cnt_reset <= r_cnt_reset + 4'd1;
 
-`ifdef VERILATOR
+`ifdef SCSI_SHIM_DBG
          // sim-only trace of the WD33C93 control plane (grep the console log)
          if(sel & ((offs & 19'h78000) == 19'h40000))
            $display("[shim] offs=%05x st=%b mask=%04x b3=%02x b7=%02x r_sasr=%02x",

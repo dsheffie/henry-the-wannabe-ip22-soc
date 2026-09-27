@@ -39,18 +39,30 @@ module axi_is_the_worst_v1_0_S00_AXI #
     
     output wire [31:0]			      control,
     output wire [31:0]			      resume_pc,
+    output wire [31:0]			      bp_pc,
+    output wire [31:0]			      bp_wp_addr,
+    output wire [31:0]			      bp_wp_val,
     input wire [31:0]			      rvstatus,
     input wire [31:0]			      states,
     output wire				      sgi_mode,
     input wire [31:0]			      epc,
     input wire [31:0]                         status_reg,
     input wire [31:0]                         dbg_trace_data,
-    input wire [8:0]                          dbg_trace_wptr,
-    output wire [11:0]                        dbg_trace_index,
+    input wire [15:0]                         dbg_trace_wptr,
+    input wire [31:0]                         dbg_rdchk,
+    input wire [31:0]                         trace_ring_wptr,   // DRAM deep-trace: bytes written since arm
+    input wire                                trace_overflow,    // DRAM deep-trace: a record was dropped (sticky)
+    input wire [7:0]                          cur_asid,          // current EntryHi ASID (be-ASID readback, reg 0x26 [19:12])
+    output wire [19:0]                        dbg_trace_index,
     input wire [31:0]                         dbg_head_pc,
     input wire [31:0]                         dbg_head_status,
     input wire [31:0]			      badvaddr,
+    input wire [31:0]			      wf_epc,
+    input wire [31:0]			      wf_badv,
+    input wire [31:0]			      wf_stat,
     input wire [4:0]			      cause,
+    input wire [2:0]			      dbg_frozen,
+    input wire [31:0]			      dbg_wp_data,
     input wire				      l1i_flush_done,
     input wire				      l1d_flush_done,
     input wire				      l2_flush_done, 
@@ -68,7 +80,7 @@ module axi_is_the_worst_v1_0_S00_AXI #
     input wire				      mem_rsp_valid,
     input wire [127:0]			      mem_rsp_load_data,
     input wire				      mem_req_valid,
-    input wire [31:0]			      mem_req_addr,
+    input wire [35:0]			      mem_req_addr,
     
     input wire				      pc_valid,
     input wire				      pc2_valid,
@@ -112,13 +124,33 @@ module axi_is_the_worst_v1_0_S00_AXI #
     output wire [15:0]			      scsi_sel_delay,
     // ---- SCSI beat conduit (ARM -> engine FIFO): write the 16B beat words to
     //      regs 0x20..0x23 (push on the 0x23 write); read 0x25 for FIFO-full. ----
+    // ---- enet_dma host conduit (mirrors the SCSI beat conduit) ----
+    output wire				      enet_rx_frame_go,
+    output wire [13:0]			      enet_rx_frame_len,
+    output wire				      enet_rx_beat_push,
+    output wire [127:0]			      enet_rx_beat_data,
+    input  wire				      enet_rx_beat_full,
+    input  wire				      enet_tx_beat_valid,
+    output wire				      enet_tx_beat_pop,
+    input  wire [127:0]			      enet_tx_beat_data,
+    input  wire				      enet_dma_rx_done,
+    input  wire				      enet_dma_rx_dropped,
+    input  wire [31:0]			      enet_dma_crbdp,
+    input  wire				      enet_dma_tx_done,
     output wire				      scsi_beat_push,
     output wire [127:0]			      scsi_beat_data,
     input  wire				      scsi_beat_full,
+    input  wire [31:0]			      ext_flush_stat,    // {completed[15:0], dirty[13:0], 1'b0, busy}
+    input  wire [31:0]			      ext_flush_cycles,  // cycles the last flush / page list took
+    // page list: write 0x3C = push a physical page number, write 0x3D = go (bit0 = drop)
+    output wire				      ext_pg_push,
+    output wire [31:0]			      ext_pg_ppn,
+    output wire				      ext_pg_go,
+    output wire				      ext_pg_drop,
 
     // ---- ENET mailbox (Seeq 8003 + HPC3 ENET DMA; enet_shim.sv).  TX doorbell +
-    //      RX reverse-doorbell.  PS READS req/arm/nbdp (read addrs 0x39/0x3C/0x3D/
-    //      0x3E); PS WRITES rsp/crbdp (slv_reg18/19/20 = 0x12/0x13/0x14).
+    //      RX reverse-doorbell.  PS READS req/arm/nbdp (repurposed debug read addrs
+    //      0x39/0x3C/0x3D/0x3E); PS WRITES rsp/crbdp (slv_reg18/19/20 = 0x12/0x13/0x14).
     //      The PS servicer walks the {BP,BC,DP} chain in DRAM to a host tap. ----
     input  wire [31:0]			      enet_tx_req_seq,   // TX doorbell (read 0x39)
     input  wire [31:0]			      enet_tx_nbdp,      // TX chain head (read 0x3C)
@@ -127,6 +159,7 @@ module axi_is_the_worst_v1_0_S00_AXI #
     output wire [31:0]			      enet_tx_rsp_seq,   // PS write 0x12 (echo tx_req_seq)
     output wire [31:0]			      enet_rx_rsp_seq,   // PS write 0x13 (++ per RX frame)
     output wire [31:0]			      enet_rx_crbdp,     // PS write 0x14 (current RX desc ptr)
+    output wire [31:0]			      enet_tx_crbdp,     // PS write 0x15 (current TX desc ptr)
 
     // Global Clock Signal
     input wire				      S_AXI_ACLK,
@@ -411,10 +444,13 @@ module axi_is_the_worst_v1_0_S00_AXI #
    assign max_fetches = slv_reg2;	       
    assign control = slv_reg4;
    assign resume_pc = slv_reg5;
+   assign bp_pc = slv_reg9;   // driver-programmable breakpoint PC (write index 0x09)
+   assign bp_wp_addr = slv_reg10;   // store-address watchpoint VA (write index 0x0A)
+   assign bp_wp_val = slv_reg11;   // expected corrupt store value (write index 0x0B)
    assign base = slv_reg6;
    assign mask = slv_reg8;
    assign sgi_mode = slv_reg12[0];
-   assign dbg_trace_index = slv_reg23[11:0];   // trace buffer read index {row[7:0],word[3:0]}
+   assign dbg_trace_index = slv_reg23[19:0];   // trace buffer read index {row[7:0],word[3:0]}
    // SCSI completion (PS -> henry): the ARM writes these then echoes the doorbell.
    assign scsi_rsp_seq         = slv_reg13;        // write 0x0D (echo scsi_req_seq when done)
    assign scsi_rsp_residual    = slv_reg15;        // write 0x0F
@@ -424,6 +460,7 @@ module axi_is_the_worst_v1_0_S00_AXI #
    assign enet_tx_rsp_seq      = slv_reg18;        // write 0x12 (echo enet_tx_req_seq when sent)
    assign enet_rx_rsp_seq      = slv_reg19;        // write 0x13 (++ per injected RX frame)
    assign enet_rx_crbdp        = slv_reg20;        // write 0x14 (service-maintained RX desc ptr)
+   assign enet_tx_crbdp        = slv_reg21;        // write 0x15 (service-maintained TX desc ptr)
 
    // ---- SCSI beat conduit: assemble the 16B beat from slv_reg32..35 (0x20..0x23)
    //      and pulse scsi_beat_push the cycle AFTER the 0x23 write (so slv_reg35 has
@@ -435,6 +472,71 @@ module axi_is_the_worst_v1_0_S00_AXI #
      else        r_beat_push <= slv_reg_wren &&
                   (axi_awaddr[ADDR_LSB+OPT_MEM_ADDR_BITS:ADDR_LSB] == 6'h23);
    assign scsi_beat_push = r_beat_push;
+
+   // ---- ext flush page list: pulse the cycle AFTER the write (register settled),
+   //      same as the SCSI beat push.  0x3C = page number, 0x3D = go, bit0 = drop. ----
+   reg r_pg_push, r_pg_go;
+   always @( posedge S_AXI_ACLK )
+     if(w_reset)
+       begin
+	  r_pg_push <= 1'b0;
+	  r_pg_go <= 1'b0;
+       end
+     else
+       begin
+	  r_pg_push <= slv_reg_wren &&
+		       (axi_awaddr[ADDR_LSB+OPT_MEM_ADDR_BITS:ADDR_LSB] == 6'h3c);
+	  r_pg_go   <= slv_reg_wren &&
+		       (axi_awaddr[ADDR_LSB+OPT_MEM_ADDR_BITS:ADDR_LSB] == 6'h3d);
+       end
+   assign ext_pg_push = r_pg_push;
+   assign ext_pg_ppn  = slv_reg60;
+   assign ext_pg_go   = r_pg_go;
+   assign ext_pg_drop = slv_reg61[0];
+
+   // ---- enet_dma conduit ------------------------------------------------------
+   //  RX beat  : slv_reg42..45 (0x2a..0x2d); writing 0x2d pushes (same 1-cycle-late
+   //             trick as SCSI so the last word has settled).
+   //  RX frame : write 0x2e = start the ring walk, data[13:0] = formatted length
+   //             ([2 pad][frame][1 status]).
+   //  TX beat  : read 0x20..0x23 for the data, write 0x2f to pop.
+   //  Status   : rx_done / rx_dropped / tx_done are 1-CYCLE PULSES from the engine, so
+   //             latch them sticky -- the ARM polls and would otherwise miss every one.
+   //             Reading 0x05 returns and CLEARS them (read-to-clear).
+   assign enet_rx_beat_data = {slv_reg45, slv_reg44, slv_reg43, slv_reg42};
+   assign enet_rx_frame_len = slv_reg46[13:0];
+   reg r_erx_push, r_erx_go, r_etx_pop;
+   reg r_erx_done_s, r_erx_drop_s, r_etx_done_s;
+   /* BUGFIX 2026-08-07: this compared against 6'h2b, the status register's ORIGINAL
+    * address.  The read map was later reshuffled (0x2b now returns slv_reg43, an RX
+    * beat word) and status moved to 0x05, but this clear-trigger was not moved with
+    * it.  Net effect: polling 0x05 returned the sticky bits but NEVER cleared them, so
+    * after the first frame every poll reported done -- silently defeating the sticky
+    * latch.  Keep this address in sync with the 6'h05 case in the read mux below. */
+   wire w_rd_status = slv_reg_rden &&
+        (axi_araddr[ADDR_LSB+OPT_MEM_ADDR_BITS:ADDR_LSB] == 6'h05);
+   always @( posedge S_AXI_ACLK )
+     if(w_reset) begin
+        r_erx_push <= 1'b0; r_erx_go <= 1'b0; r_etx_pop <= 1'b0;
+        r_erx_done_s <= 1'b0; r_erx_drop_s <= 1'b0; r_etx_done_s <= 1'b0;
+     end
+     else begin
+        r_erx_push <= slv_reg_wren &&
+             (axi_awaddr[ADDR_LSB+OPT_MEM_ADDR_BITS:ADDR_LSB] == 6'h2d);
+        r_erx_go   <= slv_reg_wren &&
+             (axi_awaddr[ADDR_LSB+OPT_MEM_ADDR_BITS:ADDR_LSB] == 6'h2e);
+        r_etx_pop  <= slv_reg_wren &&
+             (axi_awaddr[ADDR_LSB+OPT_MEM_ADDR_BITS:ADDR_LSB] == 6'h2f);
+        /* set on the engine pulse, clear when the ARM reads the status word */
+        r_erx_done_s <= enet_dma_rx_done    ? 1'b1 : (w_rd_status ? 1'b0 : r_erx_done_s);
+        r_erx_drop_s <= enet_dma_rx_dropped ? 1'b1 : (w_rd_status ? 1'b0 : r_erx_drop_s);
+        /* tx_done is a 1-cycle pulse too -- the ARM polls, so it MUST be sticky or
+         * every TX completion is missed.  Same read-to-clear as the RX bits. */
+        r_etx_done_s <= enet_dma_tx_done    ? 1'b1 : (w_rd_status ? 1'b0 : r_etx_done_s);
+     end
+   assign enet_rx_beat_push = r_erx_push;
+   assign enet_rx_frame_go  = r_erx_go;
+   assign enet_tx_beat_pop  = r_etx_pop;
 
    
    assign S_AXI_AWREADY	= axi_awready;
@@ -1321,11 +1423,11 @@ module axi_is_the_worst_v1_0_S00_AXI #
 	case ( axi_araddr[ADDR_LSB+OPT_MEM_ADDR_BITS:ADDR_LSB] )
 	  6'h00   : reg_data_out <= r_insn_cnt[31:0];
 	  6'h01   : reg_data_out <= status;
-	  6'h02   : reg_data_out <= slv_reg2;
+	  6'h02   : reg_data_out <= {31'd0, enet_rx_beat_full};   // ENET RX beat FIFO full
 	  6'h03   : reg_data_out <= rvstatus;
 	  6'h04   : reg_data_out <= slv_reg4; //control
-	  6'h05   : reg_data_out <= slv_reg5; //resume pc
-	  6'h06   : reg_data_out <= slv_reg6; //base
+	  6'h05   : reg_data_out <= {29'd0, r_etx_done_s, r_erx_drop_s, r_erx_done_s};   // ENET status (read-to-clear) //resume pc
+	  6'h06   : reg_data_out <= enet_dma_crbdp;   // ENET desc just filled //base
 	  6'h07   : reg_data_out <= r_last_pc;
 	  6'h08   : reg_data_out <= 32'h7370696d;
 	  6'h09   : reg_data_out <= last_addr; 
@@ -1344,29 +1446,43 @@ module axi_is_the_worst_v1_0_S00_AXI #
 	  6'h16   : reg_data_out <= status_reg;
 	  6'h17   : reg_data_out <= slv_reg23;
 	  6'h18   : reg_data_out <= dbg_trace_data;
-	  6'h19   : reg_data_out <= {23'd0, dbg_trace_wptr};
+	  6'h19   : reg_data_out <= {16'd0, dbg_trace_wptr};
 	  6'h1A   : reg_data_out <= dbg_head_pc;      // ROB head PC (was slv_reg26 scratch)
 	  6'h1B   : reg_data_out <= dbg_head_status;  // ROB head status bits (was slv_reg27 scratch)
-	  6'h1C   : reg_data_out <= slv_reg28;
-	  6'h1D   : reg_data_out <= slv_reg29;
-	  6'h1E   : reg_data_out <= slv_reg30;
-	  6'h1F   : reg_data_out <= slv_reg31;
-	  6'h20   : reg_data_out <= slv_reg32;
-	  6'h21   : reg_data_out <= slv_reg33;
-	  6'h22   : reg_data_out <= slv_reg34;
-	  6'h23   : reg_data_out <= slv_reg35;
-	  6'h24   : reg_data_out <= slv_reg36;
-	  6'h25   : reg_data_out <= {31'd0, scsi_beat_full};   // SCSI beat FIFO full (flow control)
-	  6'h26   : reg_data_out <= {24'd0, l2_flush_done, l1i_flush_done, l1d_flush_done, cause};
-	  6'h27   : reg_data_out <= r_last_retire;
+	  6'h1C   : reg_data_out <= trace_ring_wptr;   // REPURPOSED: {l1d r_rob_inflight[15:0], core r_rob_inflight[15:0]}
+	  6'h1D   : reg_data_out <= wf_epc;  // wild-fault EPC (poison deref site)
+	  6'h1E   : reg_data_out <= wf_badv;  // wild-fault BadVaddr = poison pointer P
+	  6'h1F   : reg_data_out <= wf_stat;  // {wild-fault count[15:0],11'd0,cause[4:0]}
+	  6'h20   : reg_data_out <= enet_tx_beat_data[31:0];   // ENET TX beat word0
+	  6'h21   : reg_data_out <= enet_tx_beat_data[63:32];   // ENET TX beat word1
+	  6'h22   : reg_data_out <= enet_tx_beat_data[95:64];   // ENET TX beat word2
+	  6'h23   : reg_data_out <= enet_tx_beat_data[127:96];   // ENET TX beat word3
+	  /* bit 0 keeps its old meaning in both; readers MUST mask it (& 1).  The upper
+	   * bits carry the ARM-requested whole-cache flush: 0x24[31:1] = cycles the last
+	   * flush took, 0x25[31:16] = flushes completed, 0x25[1] = a flush is running. */
+	  6'h24   : reg_data_out <= {ext_flush_cycles[30:0], enet_tx_beat_valid};   // ENET TX beat queued
+	  6'h25   : reg_data_out <= {ext_flush_stat[31:16], ext_flush_stat[15:2], ext_flush_stat[0], scsi_beat_full};   // {flushes done, page-drop dirty lines, flush busy, SCSI beat FIFO full}
+	  // [31:22] = low 10 bits of the rdchk CHECKED counter -- a LIVENESS probe.
+	  // The hit bit alone cannot tell "no violation" from "checker is dead", and
+	  // the fault it hunts takes ~26h to appear, so quiet is the expected first
+	  // result.  Sample this field twice: it must CHANGE (~1e8 checks/s wraps a
+	  // 10-bit field constantly).  Costs no new register and no IP re-package --
+	  // dbg_rdchk is already a 32-bit port and these bits were tied to 0.
+	  6'h26   : reg_data_out <= {dbg_rdchk[11:2], dbg_rdchk[1:0], cur_asid, trace_overflow, dbg_frozen, l2_flush_done, l1i_flush_done, l1d_flush_done, cause};  // bit11=deep-trace overflow, [19:12]=cur_asid, [20]=rdchk hit, [21]=rdchk degraded, [31:22]=checked counter (liveness)
+	  6'h27   : reg_data_out <= dbg_wp_data;  /* was r_last_retire; overloaded for store-value capture */
 	  6'h28   : reg_data_out <= r_insn_cnt[31:0];
 	  6'h29   : reg_data_out <= r_insn_cnt[63:32];
 	  6'h2A   : reg_data_out <= r_cycle[31:0];
 	  6'h2B   : reg_data_out <= r_cycle[63:32];
 	  6'h2C   : reg_data_out <= l1i_cache_accesses[31:0];
-	  6'h2D   : reg_data_out <= l1i_cache_accesses[63:32];
+	  /* REPURPOSED: all 64 read regs were allocated, and the UPPER half of these
+	   * counters is dead weight -- we measure RATES over ~30s windows and a 32-bit
+	   * counter at ~4M events/s wraps in ~1000s.  Trading three unused high halves
+	   * for the three counters that were wired but never exposed at all, so CPI can
+	   * be decomposed without an IP re-package (widening the reg space needs one). */
+	  6'h2D   : reg_data_out <= l1d_cache_accesses[31:0];   // was l1i_cache_accesses[63:32]
 	  6'h2E   : reg_data_out <= l1i_cache_hits[31:0];
-	  6'h2F   : reg_data_out <= l1i_cache_hits[63:32];
+	  6'h2F   : reg_data_out <= l1d_cache_hits[31:0];       // was l1i_cache_hits[63:32]
 	  // SCSI request mailbox (was L1D/L2 cache perf counters): PS reads the pending
 	  // command here; 0x30 is the doorbell (++ per command) the ARM polls.
 	  6'h30   : reg_data_out <= scsi_req_seq;
@@ -1376,7 +1492,7 @@ module axi_is_the_worst_v1_0_S00_AXI #
 	  6'h34   : reg_data_out <= scsi_req_nbdp;
 	  6'h35   : reg_data_out <= {15'd0, scsi_req_to_device, scsi_req_lun, scsi_req_dest};
 	  6'h36   : reg_data_out <= l2_cache_hits[31:0];
-	  6'h37   : reg_data_out <= l2_cache_hits[63:32];
+	  6'h37   : reg_data_out <= l2_cache_accesses[31:0];    // was l2_cache_hits[63:32]
 	  // 0x38 repurposed (was branch_faults[31:0]) -> SCSI shim debug viz.
 	  // [31:28]=#resets [27:22]=#SASR-reads [21:16]=#SCMD-wr [15:10]=#SASR-wr
 	  // [9:8]=phase [7]=CIP [6]=BSY [5]=INTRQ [4:0]=SASR pointer
@@ -1396,7 +1512,15 @@ module axi_is_the_worst_v1_0_S00_AXI #
 	  // HD0-window decode fix (Linux scsi0_ext @ 0x44000 now reaches the shim).
 	  // 0x20260721 = + ENET mailbox (Seeq/HPC3 ethernet; enet_shim + AXI regs
 	  //              0x39/0x3C/0x3D/0x3E reads, 0x12/0x13/0x14 writes).
-	  6'h3F   : reg_data_out <= 32'h20260721;
+	  // 0x20260727 = + DRAM control-flow deep trace (dram_trace, arbiter N=3,
+	  //              arm=ctrl bit21, wptr rd 0x1C, overflow rd 0x26 bit11, ring @0x18000000).
+	  // 0x20260728 = + poison RD_BAD reads with 0xA5A5A5A5 (M00_AXI) so out-of-range
+	  //              (wild-pointer) reads are visible in the value, not silent 0.
+	  // 0x20260729 = deep trace now uses the bit-packed varint CODEC (dram_trace):
+	  //              ~0.3 B/rec (~5x), fits the 64MB ring, ~5x less DRAM slowdown.
+	  // 0x2026072a = codec packer PIPELINED (2-stage, WNS margin) + ring 64MB->112MB
+	  //              (whole GIO region, compare wrap) so be's crash-time trace fits, no wrap.
+	  6'h3F   : reg_data_out <= 32'h2026072b;
 	  default : reg_data_out <= 0;
 	endcase
      end

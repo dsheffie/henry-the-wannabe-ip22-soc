@@ -65,8 +65,11 @@ flowchart TD
 
 ## Status
 
-First-pass foundation. Peripheral specs (MC, IOC2, HPC3, GIO64, VDMA) and the cross-cutting docs are drafted from
-the SGI IP22 chip documents + MAME validation. Not yet covered: `dmux1`, the Newport graphics set, audio (HAL2),
-and the actual RTL (`rtl/`) and co-simulation harness (`sim/`). The detailed working notes live in the
-[`r9999/`](https://github.com/dsheffie/r9999) submodule (`IRIX_CPU_REQUIREMENTS.md`, `IRIX_KERNEL_GAPS.md`,
-`IP22_CHIP_REGISTERS.md`, `MAME_QUESTIONS.md`).
+Henry **boots IRIX 6.5.22 on real FPGA silicon** (Ultra96-v2, Zynq UltraScale+): PROM/ARCS → IRIX kernel
+banners → SCSI DMA → miniroot → IRIX userspace (INIT / syslogd). The RTL (`rtl/`) and the Verilator
+co-simulation harness (`sim/`, `henry_tb`) are implemented and working. Peripheral RTL implemented: MC, HPC3,
+IOC2/SCC (Z8530 console), the ds1386 RTC, plus an ARM/PS-serviced SCSI disk bridge (the driver polls the `scsi_shim` doorbell and walks the HPC3 `{BP,BC,DP}` descriptor chain in shared DRAM, depositing disk data into guest buffers). The peripheral specs (MC, IOC2,
+HPC3, GIO64, VDMA) and the cross-cutting docs are drafted from the SGI IP22 chip documents + MAME validation.
+Newport graphics and audio (HAL2) are documented but **not** in the boot path — Henry runs headless on the serial
+console. The detailed working notes live in the [`r9999/`](https://github.com/dsheffie/r9999) submodule
+(`IRIX_CPU_REQUIREMENTS.md`, `IRIX_KERNEL_GAPS.md`, `IP22_CHIP_REGISTERS.md`, `MAME_QUESTIONS.md`).
