@@ -616,6 +616,12 @@ module henry_soc
    wire [4:0]           w_trace_req_opcode;
    wire [15:0]          w_trace_req_mask;
 
+   /* ENABLE_DRAM_TRACE: the DRAM deep trace is OPT-IN (off by default).  It never
+    * produced a usable trace (decode proven, golden never aligned) and it costs LUTs
+    * the timing-bound builds need.  Off, master 2 of the arbiter is simply always idle
+    * -- exactly what it already was whenever trace_arm was 0 -- and the retire stall
+    * and the AXI readback (ring wptr, overflow) read 0. */
+`ifdef ENABLE_DRAM_TRACE
    dram_trace u_trace
      (.clk(clk), .reset(reset),
       .arm(trace_arm),
@@ -634,6 +640,16 @@ module henry_soc
       .trace_req_mask(w_trace_req_mask),
       .trace_rsp_valid(w_arb_rsp_valid[2]),          .trace_rsp_bad(mem_rsp_bad),
       .trace_ring_wptr(trace_ring_wptr), .trace_overflow(trace_overflow));
+`else
+   assign w_trace_stall          = 1'b0;
+   assign w_trace_req_valid      = 1'b0;
+   assign w_trace_req_addr       = 'd0;
+   assign w_trace_req_store_data = 'd0;
+   assign w_trace_req_opcode     = 'd0;
+   assign w_trace_req_mask       = 'd0;
+   assign trace_ring_wptr        = 'd0;
+   assign trace_overflow         = 1'b0;
+`endif
 
    // Parameterized weighted round-robin arbiter: master 0 = CPU, 1 = DMA, 2 = trace.
    // NSLOT=8, SLOT_MAP gives CPU slots 0..5, DMA slot 6, trace slot 7 -> CPU:DMA:trace
@@ -823,6 +839,11 @@ module henry_soc
      end // always_ff
 `endif
 
+   /* ENABLE_DMA_SNOOP: the DMA->L2 snoop FIFO is OPT-IN (off by default).  The core
+    * ties its L2 snoop request to 0 (r9999 core_l1d_l1i, task #51), so the L2 never
+    * acks: this FIFO filled after 16 DMA line stores and then silently dropped every
+    * push -- dead logic.  DMA coherence is the ARM-requested flush's job. */
+`ifdef ENABLE_DMA_SNOOP
    snoop_fifo #(.LG_DEPTH(4)) u_snoop
      (.clk(clk), .reset(reset),
       .push_valid(w_snoop_push),
@@ -831,6 +852,11 @@ module henry_soc
       .snoop_req_valid(w_snoop_valid),
       .snoop_req_addr(w_snoop_addr),
       .snoop_req_ack(w_snoop_ack));
+`else
+   assign w_snoop_valid = 1'b0;
+   assign w_snoop_addr  = 'd0;
+   assign w_snoop_full  = 1'b0;
+`endif
 
    // =====================================================================
    //  Device request FSM: one outstanding at a time (matches the core bus).
