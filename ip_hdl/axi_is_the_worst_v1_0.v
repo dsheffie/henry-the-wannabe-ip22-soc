@@ -163,7 +163,6 @@ module axi_is_the_worst_v1_0 #
     * inferred from wptr going static, which is ambiguous against a parked core.
     * Widened to the full 16 the S00_AXI port already expects (reg 0x19). */
    wire [15:0]					w_trace_wptr;
-   wire [31:0]					w_dbg_rdchk;
    wire [31:0]					w_trace_ring_wptr;   // DRAM deep-trace: bytes written since arm
    wire [31:0]					w_dbg_rob_inflight;   /* {l1d r_rob_inflight[15:0], core r_rob_inflight[15:0]} */
    (* shreg_extract = "no", srl_style = "register" *) reg [31:0] r_dbg_rob_p1, r_dbg_rob_p2, r_dbg_rob_p3;
@@ -416,7 +415,6 @@ module axi_is_the_worst_v1_0 #
 				       .dbg_wp_data(w_dbg_wp_data),
 				       .dbg_trace_data(w_trace_data),
 				       .dbg_trace_wptr(w_trace_wptr),
-				       .dbg_rdchk(w_dbg_rdchk),
 				       .dbg_trace_index(w_trace_index),
 				       .trace_ring_wptr(r_dbg_rob_p3),  /* reg 0x1C repurposed: {l1d,core} r_rob_inflight */
 				       .trace_overflow(w_trace_overflow),
@@ -734,7 +732,6 @@ module axi_is_the_worst_v1_0 #
 	   .dbg_trace_index(w_trace_index),
 	   .dbg_trace_data(w_trace_data),
 	   .dbg_trace_wptr(w_trace_wptr),
-	   .dbg_rdchk(w_dbg_rdchk),
 	   .scsi_req_seq(w_scsi_req_seq),
 	   .scsi_req_cdb(w_scsi_req_cdb),
 	   .scsi_req_nbdp(w_scsi_req_nbdp),

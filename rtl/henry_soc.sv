@@ -158,7 +158,6 @@ module henry_soc
    output logic [63:0]           l2_cache_hits,
    output logic [31:0]           dbg_trace_data,
    output logic [15:0]           dbg_trace_wptr,
-   output logic [31:0]           dbg_rdchk,   /* reader-agreement checker status -> AXI 0x26[21:20] */
    output logic [31:0]           trace_ring_wptr,   // DRAM deep-trace: bytes written since arm
    output logic                  trace_overflow,    // DRAM deep-trace: a record was dropped (sticky)
    output logic [7:0]            cur_asid,          // current EntryHi ASID (readback for be-ASID discovery)
@@ -535,8 +534,7 @@ module henry_soc
       .took_irq(took_irq), .cp0_count(cp0_count),
       .dbg_head_pc(dbg_head_pc), .dbg_head_status(dbg_head_status), .dbg_head_fetch_cycle(), .dbg_head_alloc_cycle(),
       .dbg_serialize_cycle(), .dbg_cycle(), .dbg_oldest_first_pending(),
-      .dbg_trace_index(dbg_trace_index), .dbg_trace_data(dbg_trace_data), .dbg_trace_wptr(dbg_trace_wptr),
-      .dbg_rdchk(dbg_rdchk)
+      .dbg_trace_index(dbg_trace_index), .dbg_trace_data(dbg_trace_data), .dbg_trace_wptr(dbg_trace_wptr)
       );
 
    // =====================================================================

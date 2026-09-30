@@ -49,7 +49,6 @@ module axi_is_the_worst_v1_0_S00_AXI #
     input wire [31:0]                         status_reg,
     input wire [31:0]                         dbg_trace_data,
     input wire [15:0]                         dbg_trace_wptr,
-    input wire [31:0]                         dbg_rdchk,
     input wire [31:0]                         trace_ring_wptr,   // DRAM deep-trace: bytes written since arm
     input wire                                trace_overflow,    // DRAM deep-trace: a record was dropped (sticky)
     input wire [7:0]                          cur_asid,          // current EntryHi ASID (be-ASID readback, reg 0x26 [19:12])
@@ -1462,13 +1461,7 @@ module axi_is_the_worst_v1_0_S00_AXI #
 	   * flush took, 0x25[31:16] = flushes completed, 0x25[1] = a flush is running. */
 	  6'h24   : reg_data_out <= {ext_flush_cycles[30:0], enet_tx_beat_valid};   // ENET TX beat queued
 	  6'h25   : reg_data_out <= {ext_flush_stat[31:16], ext_flush_stat[15:2], ext_flush_stat[0], scsi_beat_full};   // {flushes done, page-drop dirty lines, flush busy, SCSI beat FIFO full}
-	  // [31:22] = low 10 bits of the rdchk CHECKED counter -- a LIVENESS probe.
-	  // The hit bit alone cannot tell "no violation" from "checker is dead", and
-	  // the fault it hunts takes ~26h to appear, so quiet is the expected first
-	  // result.  Sample this field twice: it must CHANGE (~1e8 checks/s wraps a
-	  // 10-bit field constantly).  Costs no new register and no IP re-package --
-	  // dbg_rdchk is already a 32-bit port and these bits were tied to 0.
-	  6'h26   : reg_data_out <= {dbg_rdchk[11:2], dbg_rdchk[1:0], cur_asid, trace_overflow, dbg_frozen, l2_flush_done, l1i_flush_done, l1d_flush_done, cause};  // bit11=deep-trace overflow, [19:12]=cur_asid, [20]=rdchk hit, [21]=rdchk degraded, [31:22]=checked counter (liveness)
+	  6'h26   : reg_data_out <= {12'd0, cur_asid, trace_overflow, dbg_frozen, l2_flush_done, l1i_flush_done, l1d_flush_done, cause};  // bit11=deep-trace overflow, [19:12]=cur_asid
 	  6'h27   : reg_data_out <= dbg_wp_data;  /* was r_last_retire; overloaded for store-value capture */
 	  6'h28   : reg_data_out <= r_insn_cnt[31:0];
 	  6'h29   : reg_data_out <= r_insn_cnt[63:32];
