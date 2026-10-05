@@ -12,9 +12,9 @@ source: Harrell & Fouladi, "Graphics Rendering Architecture for a High Performan
 > "Elan-class" board: a SIMD array of floating-point **Geometry Engines** feeding a
 > hyper-pipelined **Raster Engine**.
 >
-> **NOT needed for headless Henry** — like Newport, a headless Henry bus-errors the GIO aperture so
-> IRIX never probes the slot (see [../peripherals/gio64.md](../peripherals/gio64.md)). This page is
-> reference / future-work: it captures the architecture and maps it onto the real Indy ASICs. If you
+> **Not implemented in Henry, and not planned** — Henry models no graphics hardware and boots
+> headless on the serial console (see [the overview](index.md#henry-relevance) for what the GIO
+> graphics aperture actually does today). This page is reference only: it captures the architecture and maps it onto the real Indy ASICs. If you
 > ever wanted Henry to do graphics, **Newport is the far smaller target** — Express adds a microcoded
 > SIMD FP array *and* a command-FIFO front-end on top of a REX3-class rasterizer.
 
@@ -164,9 +164,11 @@ token level and skip the microcode entirely.)
 | `0x7c` | `MYSTERY` | RO; **must read `0xDEADBEEF`** — the board-presence probe |
 | `0x80` | `REFRESH` | typ `0x10`/`0xf0` |
 
-So Henry's board-probe contract for this option is concrete: **`MYSTERY` returns `0xDEADBEEF`**, `VERSION`
-returns a sane version, and `ge[i].ram0[]` is read/write (the GE-count probe) — the equivalent of Newport's
-GIO Product-ID handshake.
+So the board-probe contract for this option is concrete: **`MYSTERY` returns `0xDEADBEEF`**, `VERSION`
+returns a sane version, and `ge[i].ram0[]` is read/write (the GE-count probe). Linux's
+`arch/mips/sgi-ip22/ip22-gio.c` uses exactly this check (`HQ2_MYSTERY_OFFS = 0x6A07C` from the slot base)
+before falling back to a GIO product-ID word and then to Newport's `USER_STATUS` (Newport has no product-ID
+word).
 
 **PROM textport tokens** (`PUC_*`, FIFO base `0x1f040000`) — the minimal set the PROM uses for the console
 *before* IRIX downloads its GL microcode:
@@ -209,8 +211,10 @@ antialiasing, genlock/stereo. (Indigo² uses the analogous **GR3** boards: XZ = 
 
 ## Henry relevance
 
-**Headless (current):** identical to Newport — Henry bus-errors the entire `0x1f000000–0x1fffffff` GIO
-region, the slot reads empty, and IRIX never probes for HQ2/GE7/RE3. Nothing here is on the boot path.
+**Status (current): not implemented.** Henry has no HQ2/GE7/RE3 model. As for Newport, the GIO graphics
+aperture is not decoded as a device; accesses fall through to plain DRAM rather than bus-erroring (see
+[the overview](index.md#henry-relevance)), so a probe of `MYSTERY` would read whatever that DRAM holds.
+Nothing here is on the boot path.
 
 **Future (graphics console):** Express is a **much bigger lift than Newport**, in roughly this order:
 
@@ -235,6 +239,8 @@ Fouladi paper to gfxinfo-visible Indy silicon — not as a build recommendation.
   names (HQ2 / GE7 / RE3 / VC1 / XMAP5→7 / ZRB4), `gfxinfo` IDs (HQ2.1, HQ3.1), the Indy **GR4** board set
   (GP1 + VB3), per-system summary table, and the functional-flow description. (This page cites the same
   Harrell & Fouladi paper as its reference.)
-- Henry GIO64 peripheral notes — [../peripherals/gio64.md](../peripherals/gio64.md) (slot map, Product-ID
-  probe, empty-slot bus-error behavior).
+- Henry GIO64 peripheral notes — [../peripherals/gio64.md](../peripherals/gio64.md) (slot map).
+- Linux `arch/mips/sgi-ip22/ip22-gio.c` (v6.12) — `ip22_is_gr2()`: HQ2 `MYSTERY` at slot + `0x6A07C`
+  must read `0xDEADBEEF`.
+- MAME `src/mame/sgi/sgi_re2.h` — RE2 `IR_*` command encodings (table above).
 - Newport overview (the other Indy graphics option) — [index.md](index.md).

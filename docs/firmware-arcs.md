@@ -1,7 +1,7 @@
 ---
 title: Firmware — the ARCS shim ("Henry's PROM")
-status: draft (MAME-validated)
-source: r9999/IRIX_CPU_REQUIREMENTS.md (P0-A/B/C); ARCS section of r9999/IP22_CHIP_REGISTERS.md; arcs_spec.pdf (ARC 1.2)
+status: draft (MAME-validated; Henry FSBL section checked 2026-10-04 against r9999/arcs/henry_arcs.S @ 5c89b70)
+source: r9999/IRIX_CPU_REQUIREMENTS.md (P0-A/B/C); ARCS section of r9999/IP22_CHIP_REGISTERS.md; arcs_spec.pdf (ARC 1.2); r9999/arcs/henry_arcs.S
 ---
 
 # Firmware — the ARCS shim
@@ -14,6 +14,46 @@ source: r9999/IRIX_CPU_REQUIREMENTS.md (P0-A/B/C); ARCS section of r9999/IP22_CH
 > a romvec, an env block, and the exception-vector area; enter `start` with the SGI handoff registers; let the
 > kernel read RAM geometry straight from the MC. Everything below is big-endian (SGI = BE, ARCS Ver 1 Rev 10).
 > Legend: ✅ confirmed in MAME, ⚠️ correction vs an earlier assumption.
+
+---
+
+## Henry's FSBL (`henry_arcs`)
+
+What Henry actually ships is **one** first-stage boot loader, `r9999/arcs/henry_arcs.S` (built to
+`henry_arcs.bin` by `r9999/arcs/Makefile`), that boots **both IP22 Linux and IRIX**. It replaces the
+older stub-style `arcs_irix.S` / `arcs_fw.S`. The host loads it at the PROM, physical `0x1fc00000`
+(`henry_tb --arcs`, default address; the ARM driver on the FPGA), loads the kernel ELF into DRAM, and
+patches the kernel entry into the word at **`0xBFC00008`** (`arcs_kentry_slot`, default `0x88005960`).
+The core resets to `0xBFC00000`, and the FSBL then:
+
+1. **Programs `MEMCFG0 = 0x3f203f40`** (2 × 128 MB banks = 256 MB), so IRIX `hinv` sees all of RAM.
+2. **Copies the SPB/romvec block** from the PROM to kseg1 `0xA0001000` (phys `0x1000`; Henry's
+   low-512 KB System Memory Alias, `henry_soc.sv:544-597`, puts it in DRAM at `0x08001000`, below the
+   kernel `_text` at `0x08004000`).
+3. Prints the heartbeat `r9999 PROM: CPU alive, handing off to the kernel` over the SCC (polls RR0 at
+   `0xbfbd9830`, writes the data byte at `0xbfbd9837`).
+4. Writes the station MAC `08:00:69:12:34:56` into the ds1386 bbRAM at `0xbfbe04e8…` (one byte per word).
+   It then prints that and the NMC93CS56 EEPROM words 125–127 back as hex (a `TEMP DEBUG` block still in
+   the source).
+5. Copies the `argv`/`envp` blob (the MAME strings below) to kseg0 `0x88fff000`.
+6. Sets `a0 = 8`, `a1 = argv`, `a2 = envp`, zeroes `a3`, `v0`/`v1` and `t0`–`t9`, and `jr`s to the patched
+   entry. It does **not** write Status, `gp` or `sp`: the kernel starts with r9999's reset Status
+   (`ERL=1`, `BEV=1`, `CU0=1`, `FR=1`) and sets up its own `gp`/`sp`.
+
+Its romvec (in the copied SPB block) is small:
+
+| idx | entry | Henry's stub |
+|---|---|---|
+| 3–6 | Halt / PowerDown / Restart / Reboot | store to the magic-halt register `0xBFD00000`, then spin |
+| 9 | GetPeer | NULL |
+| 10 | GetChild | root component (`SGI-IP22`) for a NULL query, else NULL |
+| 18 | GetMemoryDescriptor | one FreeContiguous descriptor: base `0x08004000`, 128 MB − 16 KB (Linux uses it) |
+| 27 | Write | writes bytes to the CP0 reg-7 putchar console |
+| 30 | GetEnvironmentVariable | returns `"08:00:69:12:34:56"` for **every** name (`-DSINGLE_USER` build: a name starting with `i`, i.e. `initstate`, returns `"SINGLE"`) |
+| all others, incl. 34 FlushAllCaches | `stub_default`: return 0 |
+
+The SPB it plants matches the layout below except that `RestartBlock`, `GeneralException` and
+`UTLB-miss` are **0**, and the PrivateVector is 13 `stub_default` entries.
 
 ---
 
@@ -62,7 +102,8 @@ first C routine `0x880255e8(a0,a1,a2,a3=0x880059b0)`. Everything else IRIX needs
 880059a8 jal   0x880255e8           ; first C call with the saved boot args
 ```
 
-**Henry leaves gp/sp = 0**; the kernel sets them itself in the prologue. Do not try to pre-seed them.
+The kernel sets `gp`/`sp` itself in the prologue, so there is no need to pre-seed them (Henry's FSBL
+leaves them untouched).
 
 ---
 
@@ -104,7 +145,8 @@ reserved NULL slots (idx 8, 19) match the MAME dump exactly, confirming the layo
 the running kernel calls almost none of these** — so most entries can be simple stubs that return cleanly. The one
 the kernel actually invokes is **GetEnvironmentVariable (30)**; the rest are sash-era. Addresses below are the real
 Indy PROM's (`indy_4610`) for reference — for Henry only the **semantics** and **whether the kernel calls it**
-matter. Mark which Henry must implement vs may stub:
+matter. The right-hand column is the requirement derived from MAME; what Henry's FSBL actually installs is in
+[Henry's FSBL](#henrys-fsbl-henry_arcs):
 
 ```
 idx  name                  PROM addr   caller   Henry
@@ -154,8 +196,10 @@ walkers (GetChild/GetPeer/GetParent) must return NULL cleanly or a tiny `System�
 tree; a garbage COMPONENT pointer crashes early probing. ARCS status codes are POSIX-numbered (`ESUCCESS=0`).
 
 The kernel's single call is `GetEnvironmentVariable(a0=NULL)` — likely fetching the env-block base or an init
-probe (exact return semantics: open item). Implement it to walk the env block (next section) by name, returning a
-pointer to the value string (or NULL if absent).
+probe (exact return semantics: open item). The general answer is to walk the env block (next section) by name and
+return a pointer to the value string (or NULL if absent). Henry's FSBL takes a shortcut: it returns the MAC string
+for every name. The [boot-flow trace](irix-boot-flow.md#phase-3-mlreset-platform-reset-system-identity) shows the
+kernel's call coming from `init_sysid` → `arcs_getenv("eaddr")`, so the shortcut is enough.
 
 `PrivateVector` (13 SGI extensions @ `0xa0001c00`) — semantics TBD; not observed called by the kernel. A table of
 NULLs is acceptable until something is found to need it.
@@ -223,9 +267,9 @@ in **`peripherals/mc.md`** — implement those registers there; here is the hand
   size from the MSIZE table (`0b01111`=16 MB, `0b11111`=32 MB, …), `VLD` valid bit, `BNK` sub-banks.
 - Live golden values (16 MB Indy): `MEMCFG0=0x23200000` (hiBank base=0x20→`0x08000000`, MSIZE=0b00011=16 MB,
   VLD=1; loBank invalid), `MEMCFG1=0x00000000`, `CPU_MEMACC (0xd0)=0x11453433` (opaque DRAM timing — store/return).
-- For Henry's DRAM (256 MB at `0x08000000`): set bank base `0x20`, widen MSIZE / add banks so the decoded
-  base+size cover `0x08000000–0x17ffffff` (the arcs FSBL programs these MEMCFG regs at POST → `hinv` reports
-  256 MB; a single bank can be up to 256 MB, and the values are programmable without a re-synth). Cross-check the
+- For Henry's DRAM (256 MB at `0x08000000`): the decoded base+size must cover `0x08000000–0x17ffffff`.
+  The `henry_arcs` FSBL writes **`MEMCFG0 = 0x3f203f40`** (two 128 MB banks) before handing off, so `hinv`
+  reports 256 MB. The registers are plain storage in `rtl/mc.sv`, so this needs no re-synth. Cross-check the
   decoded total against `physmem`/`maxmem`
   (`0x8832d1f0`/`0x8832d1f8`) after `szmem` runs, and against `_physmem_start = 0x08000000`.
 
@@ -247,7 +291,7 @@ Checklist (everything big-endian):
    `OSLoad*`/`SystemPartition`/`root`.
 4. **Exception-vector area** — page 0 is real RAM; alias phys `0x0`/`0x80` to `0x08000000`/`0x08000080` (MC low
    alias). SPB sits just above at `0x1000`. The kernel installs its own GE/UTLB handlers early.
-5. **Enter `start` (`0x88005960`) with `a0=8 (argc), a1=argv, a2=envp`** (see the ✅ 2026-06-15 correction above — the earlier `a1=a2=0` was wrong), a clean GPR file, gp/sp = 0 (kernel sets them).
+5. **Enter `start` (`0x88005960`) with `a0=8 (argc), a1=argv, a2=envp`** (see the ✅ 2026-06-15 correction above — the earlier `a1=a2=0` was wrong). A clean GPR file is fine, and gp/sp need no seeding (the kernel sets them).
 
 **Not needed:** a live `GetMemoryDescriptor` (kernel reads MC MEMCFG — see above), live `GetTime` (kernel uses the
 CP0 Count/Compare timer for the scheduler tick), the config tree, or any file-I/O romvec entry (sash did all disk
@@ -260,7 +304,8 @@ I/O; Henry already loaded `/unix`).
 - Decode the single kernel `GetEnvironmentVariable(a0=NULL)` call — exact name resolved / how the return is used
   (getenv-of-NULL to fetch the env-block base, vs an init probe). Determines how minimal idx-30 can be.
 - Exact meaning of `a0=8` to `start` (minor — `start` saves it and boot succeeds regardless).
-- Whether `FlushAllCaches` (idx 34) needs a real r9999 cache flush at the handoff or can be a no-op for direct boot.
+- Whether `FlushAllCaches` (idx 34) needs a real r9999 cache flush at the handoff. Henry's FSBL makes it
+  a no-op (`stub_default`), and both kernels boot with that.
 - Confirm no kernel-phase deref of `RestartBlock`/`PrivateVector` (so NULL/placeholder stays safe).
 
 ---

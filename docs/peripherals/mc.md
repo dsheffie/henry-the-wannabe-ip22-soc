@@ -1,7 +1,7 @@
 ---
 title: MC — Memory Controller
-status: draft (MAME-validated)
-source: SGI IP22 MC spec (mc.pdf); MAME golden reference
+status: draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)
+source: SGI IP22 MC spec (mc.pdf); MAME golden reference; henry rtl/mc.sv, rtl/henry_soc.sv, ip_hdl/axi_is_the_worst_v1_0_M00_AXI.v
 ---
 
 # MC — Memory Controller (Henry block spec)
@@ -12,6 +12,48 @@ source: SGI IP22 MC spec (mc.pdf); MAME golden reference
 > GIO64 arbiter, locks/semaphores, and the graphics/GIO DMA engine. **#1 gotcha: every MC register is on an
 > 8-byte stride and big-endian IRIX reads the +4/+c alias, not the table offset** — see the next section before
 > trusting any address. Legend: ✅ confirmed in MAME, ⚠️ correction vs the SGI doc / vs earlier MAME notes.
+
+## What henry implements (`rtl/mc.sv`)
+
+**Decode.** henry selects the MC for `pa[31:20] == 0x1fa` (`henry_soc.sv:255`). Inside, only `pa[16:0]` is
+decoded, so the 1 MB window aliases every 128 KB. Reads return data only for **full-word** accesses (all four
+byte-enables of a word). The core byte-swaps device word loads, so values are stored byte-reversed: stored
+`0x13000000` is read by IRIX as `0x13`.
+
+| Offset(s) decoded | Register | henry behaviour |
+|-------------------|----------|-----------------|
+| `0x00/0x04` | CPUCTRL0 | R/W storage, reset 0. No side effects: endian, refresh and watchdog bits are ignored |
+| `0x08/0x0c` | CPUCTRL1 | R/W storage, reset 0 |
+| `0x18/0x1c` | SYSID | constant; IRIX reads **`0x13`**, i.e. CHIP_REV = 3 and bit 4 (EISA) = 1. This matches MAME, whose Indy (`ip24_base`) config sets `eisa_present` = 1 on a rev C MC |
+| `0x2c` | RPSS_DIVIDER | write-only storage (reads 0, has no effect) |
+| `0x30` | EEROM | writes stored. A read **at `0x30` only** returns stored `0x00000010`. The BE alias `0x34` reads 0 |
+| `0x84` | GIO64_ARB | write-only storage (**reads 0**) |
+| `0xc4`, `0xcc` | MEMCFG0, MEMCFG1 | R/W **at the BE alias only** (`0xc0`/`0xc8` read 0). MEMCFG0 resets to the `MEMCFG0` parameter (below), MEMCFG1 to 0 |
+| `0xd4`, `0xdc` | CPU_MEMACC, GIO_MEMACC | R/W storage at the BE alias, reset 0 |
+| `0x1004` | RPSS_CTR | free-running core-clock counter ÷ 10 = **100 ns ticks at the 100 MHz core clock** |
+| everything else | CTRLD, REF_CTR, watchdog, error regs, semaphores, locks, DMA/VDMA, DMA µTLB | **read 0, writes ignored** |
+
+**MEMCFG0 default.** The parameter is `0x0000203f`, which IRIX reads as **`0x3f200000`**. That decodes to
+bank 0 base `0x20` (`0x08000000`), MSIZE `0x1f` (8M×36, a **128 MB** bank), VLD=1, BNK=0; banks 1/2/3 absent.
+The FSBL may rewrite it.
+
+The MC registers are **descriptive only**: henry does not decode DRAM from MEMCFG. Every CPU access that misses
+the MC/HPC3/IOC2 windows passes straight through to the external memory bus. Before arbitration, henry applies
+one remap, the **IP22 System Memory Alias**: a CPU PA below `0x80000` gets bit 27 set, so phys `0x0–0x7ffff`
+lands on `0x08000000–0x0807ffff` (`henry_soc.sv:549`, applied at `w_cpu_req_addr`). Only the CPU master is
+remapped; DMA masters use the address as given.
+
+**FPGA DRAM fold.** On the FPGA, the AXI master folds the guest PA in `sgi_mode`
+(`ip_hdl/axi_is_the_worst_v1_0_M00_AXI.v:363-399`):
+
+- `0x08000000–0x17ffffff` → `pa[27:0]`.
+- `0x1f000000–0x1fffffff` → `0x10000000 | pa[23:0]`. This is a 16 MB DRAM shadow that holds the PROM/ARCS image
+  and absorbs the GIO apertures.
+- Anything else → identity.
+- A result above the runtime `addrmask` is rejected: writes are dropped, and reads return the poison
+  `0xA5A5…`. It is never a bus error.
+
+The ARM-side `scsi_fpga_map` in `driver/scsi_arm.h` must stay in sync with this fold.
 
 ## Role in Henry
 
@@ -28,6 +70,7 @@ maskable/disabled at reset and are not needed for first boot.
 at TWO byte addresses 4 apart, and which one the CPU uses depends on endian mode** (mc.pdf p.25):
 
 - **Big-endian CPU (Henry/IRIX default): use the odd-word address — table offset `+4` (ends in `4` or `c`).**
+  (henry's `mc.sv` decodes *only* this alias for MEMCFG/MEMACC; see the table above.)
 - Little-endian CPU: use the even-word address — the table offset itself (ends in `0` or `8`).
 
 So the "table offset" column below is the canonical/LE address; the "BE alias" column (= offset `+4`) is **what
@@ -41,12 +84,15 @@ IRIX actually reads**. Concretely:
 
 Implementation: decode `pa[?:3]` (8-byte granule) for the register select and **ignore `pa[2]`** (the +4/+0
 alias bit) — both halves of the doubleword map to the same 32-bit register. Drive/return data on the low 32
-sysad bits in either case.
+sysad bits in either case. (henry implements this both-halves aliasing only for CPUCTRL0/1 and SYSID. The
+other registers decode a single offset.)
 
 Containing memory-map context (mc.pdf p.22): MC registers occupy `0x1fa00000–0x1faffff` (1 MB). Henry's RAM
 windows: **Low Local Memory `0x08000000–0x17ffffff` (256 MB)** and **High System Memory `0x20000000–0x2fffffff`
 (256 MB, kseg-mapped only)** ⇒ up to **30-bit PA** ⚠️ (not 29 — earlier 29-bit note was a small-RAM artifact).
 The **bottom 512 KB `0x0–0x7ffff` ALIASES low RAM** so exception vectors `0x0`/`0x80` hit `0x08000000`/`0x08000080`.
+henry implements this alias for CPU accesses (`henry_soc.sv:549`). On the FPGA, how much of the low/high RAM
+windows is actually backed depends on the AXI DRAM fold and `addrmask` (see above).
 
 ## Register map
 
@@ -103,22 +149,25 @@ the SGI doc p.33 text says MEMCFG0={0,1}/MEMCFG1={2,3}, but Henry follows the MA
 | `[30]` | BNK (high-half bank) | subbanks |
 | `[31]` | — | reserved |
 
-**SIMM size table** (MSIZE code → SIMM type → bank bytes, ×4 SIMMs/bank):
+**SIMM size table.** MSIZE code → SIMM type. A bank is 4 SIMMs. mc.pdf §3.1.1 puts the minimum system at
+"four 256Kx36 simms (4 MBytes)", consistent with Linux's `((memcfg & 0x1f00) + 0x100) << 14`. An earlier
+version of this table listed the *per-SIMM* size under "bank size".
 
-| MSIZE | SIMM | subbanks | bank size |
-|----|----|----|----|
-| `00000` | 256K×36 | 1 | 1 MB |
-| `00001` | 512K×36 | 2 | 2 MB |
-| `00011` | 1M×36 | 1 | 4 MB |
-| `00111` | 2M×36 | 2 | 8 MB |
-| `01111` | 4M×36 | 1 | 16 MB |
-| `11111` | 8M×36 | 2 | 32 MB |
+| MSIZE | SIMM | subbanks | per SIMM | bank (×4) |
+|----|----|----|----|----|
+| `00000` | 256K×36 | 1 | 1 MB | 4 MB |
+| `00001` | 512K×36 | 2 | 2 MB | 8 MB |
+| `00011` | 1M×36 | 1 | 4 MB | 16 MB |
+| `00111` | 2M×36 | 2 | 8 MB | 32 MB |
+| `01111` | 4M×36 | 1 | 16 MB | 64 MB |
+| `11111` | 8M×36 | 2 | 32 MB | 128 MB |
 
 Rules: SIMMs install in groups of 4 (one bank); all four must be same size; base must be aligned to bank size;
 configure largest SIMMs at lowest base (size-descending) or you get holes/overlap. If two banks decode the same
 address ⇒ bus-error interrupt and the access does not complete.
 
-**Worked decode of MEMCFG0 = `0x23200000`** ✅ (Henry's live MAME value):
+**Worked decode of MEMCFG0 = `0x23200000`** ✅ (the MAME value; henry's RTL default is `0x3f200000` = 128 MB,
+see the top of this page):
 - Bits `[31:16]` = `0x2320` → high-half bank (bank 0): BASE0 = `0x20`, MSIZE0 = `0b00011`, VLD0 = 1, BNK0 = 0.
 - Bits `[15:0]` = `0x0000` → low-half bank (bank 2): VLD2 = 0 (absent).
 - BASE0 `0x20` → base phys = `0x20 << 22 = 0x08000000` ✅ (start of Low Local Memory).
@@ -130,6 +179,8 @@ address ⇒ bus-error interrupt and the access does not complete.
 - **Refresh / CTRLD / REF_CTR:** CTRLD (reset `0x0C30`) is the preload for a down-counter clocked at the CPU rate
   (20 ns @ 50 MHz); on reaching 0 it reloads from CTRLD and issues a refresh burst. REF_CTR returns the live
   16-bit count. **REF_CTR must advance** between reads — the kernel busy-loops on it for clock calibration.
+  ⚠️ henry does **not** model CTRLD or REF_CTR (both read 0), and IRIX and Linux still boot on henry. Treat
+  the "must advance" claim as unconfirmed for the paths henry exercises.
 - **Watchdog (CPUCTRL0.DOG / DOGC / DOGR):** 20-bit counter counting refresh bursts (~64 µs each ⇒ rollover
   ~67 s). Enabled by CPUCTRL0.DOG; rollover to 0 resets the machine. Writing DOGR (any data) clears it; software
   must pet it at least every ~60 s. Off at reset.
@@ -145,11 +196,18 @@ address ⇒ bus-error interrupt and the access does not complete.
 
 ## Minimum for a Henry IRIX boot
 
+The list below is the original MAME-derived plan. What henry actually ships is the table at the top of this
+page:
+
+- REF_CTR, CTRLD and the error registers read 0.
+- CPUCTRL0 has no side effects.
+- MEMCFG is not used to route DRAM.
+
 Must-implement subset (everything else can be inert storage that reads back what was written):
 
 1. **CPUCTRL0** (`0x00`/+4) — R/W; honor LITTLE=0 (BE); reset value with REFS=2, RFE=1; the `0xbfa00004`
    uncached reads must return the stored CPUCTRL0. → verify: kernel's clock-calibration read loop doesn't hang.
-2. **SYSID** (`0x18`/+4) — R; return CHIP_REV in `[3:0]`, **EISA bit `[4]` = 0** (Indy has no EISA). → verify:
+2. **SYSID** (`0x18`/+4) — R; return CHIP_REV in `[3:0]` and the EISA bit in `[4]`. henry returns `0x13` (EISA = 1, as MAME's Indy config does), not the "EISA = 0" this plan originally assumed. → verify:
    IRIX MC-identification probe passes.
 3. **CTRLD + REF_CTR** (`0x40`,`0x48`) — REF_CTR must advance; CTRLD R/W storage. → verify: refresh-calibration
    loop terminates.
@@ -168,10 +226,10 @@ Concrete block test vectors (use as DV checks):
 |----|----|----|----|
 | `0xbfa000c4` | MEMCFG0 | `0x23200000` ✅ | bank0: base `0x08000000`, 16 MB, valid; bank2 absent |
 | read of `0xd4` | CPU_MEMACC | `0x11453433` ✅ | opaque DRAM timing word — store & return verbatim |
-| `0xbfa0001c` | SYSID | `[3:0]`=CHIP_REV (RevA=0/RevB=1), `[4]`=0 | EISA absent ⇒ Indy |
+| `0xbfa0001c` | SYSID | `[3:0]`=CHIP_REV, `[4]`=EISA | henry (and MAME) return `0x13`: rev 3, EISA bit set |
 | `0xbfa00004` | CPUCTRL0 alias ⚠️ | (stored value) | NOT a bus-sync reg; BE alias of CPUCTRL0@`0x00` |
 | `0xbfa00044` | CTRLD | `0x0C30` (reset) | refresh preload |
-| `0x1fa01000` | RPSS_CTR | monotonically increasing | +1 per 100 ns |
+| `0x1fa01004` | RPSS_CTR (BE) | monotonically increasing | +1 per 100 ns (henry: core clock ÷ 10) |
 
 Sanity: `BASE 0x20 << 22 == 0x08000000`; MSIZE `0b00011` ⇒ 16 MB; phys mask uses bits `[29:22]` (30-bit PA).
 

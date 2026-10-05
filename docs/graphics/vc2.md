@@ -9,8 +9,9 @@ source: SGI Newport VC2 spec (vc2.pdf)
 > crosshair) for the Newport graphics board. It interprets tables held in its own external SRAM:
 > a programmable video-timing state machine, a DID run-length stream, and a cursor pixel pattern.
 > It is **not** programmed directly by the host — it sits on REX3's Display Control Bus (DCB), and
-> the host pokes its registers/RAM through REX3. **Not needed for headless Henry** (graphics
-> space bus-errors); this is future-work for a real display console.
+> the host pokes its registers/RAM through REX3. **Not implemented in Henry** (no VC2 or REX3/DCB
+> logic in the RTL; Henry boots headless on the serial console). This page is reference +
+> future-work for a display console.
 
 Part: VC2, SGI 099-8918-001, Toshiba TC160G, 144 PQFP, ~27.5k gates (vc2.pdf p.2).
 
@@ -153,14 +154,22 @@ redo bring-up steps 1–4; DID and cursor tables/registers retain their values.
 
 ## Henry relevance
 
-- **Headless (now):** N/A. Henry has no Newport board; the graphics address space bus-errors, so
-  VC2 is never touched. Boot does not depend on it.
+- **Status (now): not implemented.** Henry models no Newport chip; there is no REX3, so no DCB and
+  no VC2. (Accesses to the Newport aperture fall through to plain DRAM rather than bus-erroring —
+  see [the overview](index.md#henry-relevance).) No vertical-retrace interrupt is generated: the IOC2
+  Local1 sources, including VRETRACE, are tied to 0 in `henry_soc.sv`. Boot does not depend on VC2.
 - **Future (graphics console):** required for a real display. VC2 is the piece that turns frame
   pointers + tables into CRT sync/blank, the hardware cursor, and per-pixel window DIDs. A Henry
   graphics block would need (a) a REX3-equivalent DCB master to reach VC2, (b) the external table
   SRAM, and (c) the XMAP9/CMAP/RAMDAC downstream. The hardware cursor and DID-based window IDs are
   the host-visible features X/IRIX would drive. Until that whole pipeline exists, VC2 is a
   reference spec only.
+- **Feasibility study (2026-10-02, `NEWPORT_FEASIBILITY.md`, study only):** the recommended hybrid
+  design does *not* rebuild VC2 as hardware. VC2 register/RAM state (cursor, DID tables) would live
+  in an ARM-side software model fed by the DCB writes, scanout would composite the VC2 cursor in
+  software, and the PL would supply a 60 Hz timer as the vertical-retrace interrupt (gated by DCR
+  bit 0, VINTR enable). The study found IRIX *requires* that interrupt: the kernel's retrace handler
+  does cursor, buffer-swap and gamma work, and IRIS GL `swapbuffers` waits on it.
 
 ## Sources
 

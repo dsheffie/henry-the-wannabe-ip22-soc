@@ -1,17 +1,38 @@
 ---
 title: Cache, coherence & TLB
-status: draft (MAME-validated; silicon-refined 2026-07 — see the hidden-L2 DMA section)
+status: draft (MAME-validated; silicon-refined 2026-07; RTL state re-checked 2026-10-04 against r9999 5c89b70)
 ---
 
 # Cache, coherence & TLB
 
 > Henry's caches are incoherent: r9999's L1i is **not** kept in sync with D-side stores, and the L2,
-> while transparent and coherent, is hidden from software (`Config.SC=1` → kernel sees "R4000PC").
+> while transparent, is hidden from software (`Config.SC=1` → kernel sees "R4000PC").
 > DMA masters — HPC3 (SCSI/Ethernet) and the MC's VDMA graphics engine — are **NON-coherent in
 > hardware** on a uniprocessor R4000 (HW snoop is R4000MP-only). So the `cache` instruction is
 > load-bearing: software coherence is mandatory, and r9999 must **honor specific cache ops, not NOP
-> them**. Every fact below was measured by booting real IRIX 6.5.22 in MAME (`indy_4610`, `-nodrc`
-> interpreter), including C++-instrumented op histograms.
+> them**. The IRIX-behavior facts below (op histograms, routing obligations) were measured by booting
+> real IRIX 6.5.22 in MAME (`indy_4610`, `-nodrc` interpreter). On henry **silicon**, the guest's own
+> cache ops are not enough because of the hidden L2, so DMA coherence is finished by **ARM-requested
+> page flushes** (XPG) — see [DMA coherence on silicon](#dma-coherence-on-silicon-arm-requested-flushes-xpg).
+
+## The r9999 memory hierarchy today (r9999 `5c89b70`)
+
+What the core in the `r9999` submodule actually builds (defaults in `machine.vh`; henry's
+`gen_mipscore.sh` adds only `ENABLE_DEBUG_WATCHPOINT`):
+
+| Structure | Current RTL | Where |
+|---|---|---|
+| L1I | 16 KB direct-mapped, 16 B lines (`LG_L1I_NUM_SETS=10`) | `l1i.sv`, `machine.vh` |
+| L1D | 16 KB direct-mapped, 16 B lines (`LG_L1D_NUM_SETS=10`, `LG_L1D_CL_LEN=4`); **non-blocking** misses through an 8-entry memory/retry queue (`LG_MRQ_ENTRIES=3`); holds the payload half of the LSU store buffer | `l1d.sv` |
+| LSU | age-ordered memory scheduler (`LG_MEM_SCHED_ENTRIES=3`): simple loads held until answered, stores held until retired and written; store→load forwarding from the store buffer | `exec.sv`, `l1d.sv` (`lsu_sb`) |
+| L2 | **128 KB** write-back, 16 B lines, direct-mapped (`LG_L2_NUM_SETS=13`); **not inclusive** of the L1D and no back-invalidate on main; `l2_nocache` (AXI control reg bit 20, set before `go`) turns it into a pass-through | `l2.sv` |
+| JTLB | 48 dual entries (`N_TLB_ENTRIES=48`, architecturally fixed for IRIX), full Sail `R`+`va[39:13]` match with **variable PageMask**; one copy as the D-side `dtlb`, one inside `itlb.sv` | `tlb.sv:158-181`, `itlb.sv` |
+| micro-ITLB | 2 entries (`N_UITLB_ENTRIES=2`) in front of the I-side JTLB; honors PageMask; flushed on TLBWR/TLBWI and ASID change | `itlb.sv` |
+| Config / PRId | `Config = 0x0002e4a3` (SC=1, DB=0 → 16 B L1 line), `PRId = 0x00000440` (R4400) | `exec.sv` CP0 r16, `machine.vh` `PRID_VALUE` |
+
+Uncached-by-TLB user loads (a kuseg page whose EntryLo C bit says uncached) only issue at the ROB
+head (r9999 `f8dabd4`), and CP0 writes commit at retire with all CP0 ops totally ordered (r9999
+`94e5e97`) — both matter for the TLB-refill and device paths below.
 
 ## The coherence contract
 
@@ -23,8 +44,10 @@ Two independent coherence axes, both software-managed:
      (`need_utlbmiss_patch`/`utlbmiss_patched`).
    - **Loadable kernel modules** — `doelfrelocs` relocating module text after load.
    - Re-patch of already-executed code (the case early boot can't get lucky on).
-   The L2 is coherent, so a *cold* L1i fetch pulls the patched line from L2 correctly; the failure mode
-   is a line that was already resident in L1i before the patch. **⇒ I-cache `cache` ops MUST flush L1i.**
+   r9999's L1D is write-back, so the patched line first has to leave the L1D (the D-side writeback op
+   in the kernel's I-sync sequence). After that, a *cold* L1i fetch pulls the patched line from L2 or
+   DRAM correctly; the failure mode is a line that was already resident in L1i before the patch.
+   **⇒ I-cache `cache` ops MUST flush L1i.**
 
 2. **D-cache vs DMA.** HPC3 and VDMA master directly to/from physical DRAM with no snoop. The driver
    issues the coherence ops by hand:
@@ -33,9 +56,9 @@ Two independent coherence axes, both software-managed:
    - **DMA-out** (memory → device): `cache Hit-Writeback-Invalidate-D` *before* the transfer — push
      dirty lines to DRAM so the device reads current data.
    This split is **architecturally mandated** (vdma.pdf p.1–2,7; hpc3.pdf has zero coherence language),
-   not an IRIX quirk. r9999's L1d has no snoop logic today, so while all I/O stays backdoored these
-   D-side ops are functionally moot — but the moment real incoherent DMA sits behind L1d, the
-   invalidate-vs-writeback distinction becomes correctness-critical (see routing table).
+   not an IRIX quirk. r9999's L1d has no snoop logic. Henry's SCSI and Ethernet data now really is
+   deposited behind the caches (by the ARM-served disk/tap paths), so the invalidate-vs-writeback
+   distinction is correctness-critical (see routing table).
 
 !!! note "External corroboration (independent R4000SC implementation)"
 
@@ -70,13 +93,14 @@ Two independent coherence axes, both software-managed:
     writeback on `Hit-Invalidate-D` (DMA-in). See the routing table below. Not building snoop logic is a
     genuine **simplification**, not a shortcut.
 
-    > ⚠️ **Refined by silicon (2026-07): still no *snoops*, but there IS a second obligation.** Because
-    > r9999 has a **hidden L2** (unlike the real Indy), executing the *primary* cache ops isn't enough —
-    > IRIX's DMA invalidates never reach the L2, so DMA reads go stale. The answer is *not* to build
-    > snoop hardware (we tried — it corrupts); it's to make r9999 report **`Config.SC=0`** so IRIX issues
-    > its **secondary** (`cache_sel=11`) invalidates, and to honor those SD ops against the L2 (8-beat,
-    > 128 B → 8×16 B, inclusive of L1D). That keeps the "software coherence, no snoops" model intact —
-    > it just requires honoring the L2 ops IRIX is currently *told not to issue*. See the hidden-L2 section.
+    > ⚠️ **Refined by silicon: still no *snoops*, but there IS a second obligation.** Because
+    > r9999 has a **hidden L2** (unlike the real Indy), executing the guest's *primary* cache ops isn't
+    > enough — a speculatively filled stale line can survive for a buffer IRIX never issued a CACHE op
+    > for. The 2026-07 plan was `Config.SC=0` so IRIX would issue its secondary invalidates; that was
+    > **never built** (Config still reports SC=1). What shipped instead keeps the "no snoops" model and
+    > moves the extra obligation to the **ARM host**, which owns the disk/network deposits: before and
+    > after each transfer it asks the core to write back / drop the affected pages (XPG). See
+    > [DMA coherence on silicon](#dma-coherence-on-silicon-arm-requested-flushes-xpg).
 
     Snoops would only ever be needed if Henry went **multiprocessor** (multiple r9999 cores sharing memory) or
     chose to model **coherent DMA hardware** to spare IRIX the flushes — neither is in scope, and the latter
@@ -85,12 +109,25 @@ Two independent coherence axes, both software-managed:
 ## The `cache` instruction — decode & routing
 
 r9999 must **fully decode `cache`** (opcode `0x2f`) and route by the op field — a blanket NOP is a
-latent bug. **Implemented** (`decode_mips.sv` → `CACHE_OP`, kernel-gated): I-cache ops drive a
-whole-L1i `flush_req`; D-cache ops do a per-line writeback (`l1d` `flush_cl` at the EA), with
-D-Hit-Invalidate dropping the line without writeback. Field decode of the op register field
-`op = instr[20:16]`:
+latent bug. Field decode of the op register field `op = instr[20:16]`:
 `cache_sel = op[1:0]` (0=I-primary, 1=D-primary, 2=SD secondary-data, 3=SI secondary-instr);
-`operation = op[4:2]`.
+`operation = op[4:2]`. **Implemented** in `decode_mips.sv` (opcode `6'd47`), in two paths:
+
+- **Primary-D Hit ops** (`0x11` Hit-Invalidate, `0x15` Hit-WB-Invalidate, `0x19` Hit-WB) are
+  **memory uops** `CHINV` / `CHWBINV` / `CHWB`: AGU → LSU → `l1d`, where the **dtlb translates the
+  EA** (IRIX invalidates *mapped* K2SEG buffer-cache lines; the older funnel masked `VA & 0x1fffffff`,
+  wrong for mapped EAs). The L1D admits one only when it is non-speculative (ROB head).
+  - `CHINV`: drop the L1D line **without** writeback, then send `MEM_INVL` to the L2.
+  - `CHWBINV` / `CHWB` (CHWB is treated as WB-invalidate): a dirty L1D hit goes to DRAM via
+    `MEM_WB` (the L2 copy is dropped); otherwise drop any L1D copy and send `MEM_INVL`.
+  - In `l2.sv`, `MEM_INVL` **writes a dirty L2 line back to DRAM, then drops it** (an L1D eviction
+    may have left the only valid copy there). `machine.vh`'s enum comment still says "no writeback";
+    the handler is authoritative.
+- **Every other kernel-mode CACHE op** is a serializing `CACHE_OP` executed at the ROB head
+  (`core.sv` `WAIT_FOR_SERIALIZE_AND_RESTART` → `CACHE_FLUSH`): any **I-side** op flushes the whole
+  L1I; any **D-side** op (incl. the Index ops and, because `insn[16]=1`, the SD/SI ops) does a
+  per-line `flush_cl` at `EA & 0x1fffffff`.
+- **User mode:** CACHE decodes to Coprocessor Unusable.
 
 **Boot histogram** — C++ instrumentation on MAME's mips3 `case 0x2f`, **5,208,585 cache ops over a
 120 s boot**:
@@ -112,51 +149,50 @@ L2 visible to software (`Config.SC=1`), so the ~30 static `cache_sel=2/3` code s
 **no L2 modeling needed** *on the real Indy*.
 
 > ⚠️ **True for the real Indy, NOT for r9999.** r9999 *has* a hidden L2 but still reports `Config.SC=1`,
-> so IRIX skips those secondary (`cache_sel=2/3`) ops — which is exactly why the L2 is never invalidated
-> and DMA reads go stale. The fix (`SC=0`) is to make IRIX **start** issuing the SD ops so r9999 can
-> invalidate its L2. See [r9999's hidden L2 and the DMA-coherence gap](#r9999s-hidden-l2-and-the-dma-coherence-gap-silicon-2026-07).
+> so IRIX skips those secondary (`cache_sel=2/3`) ops. r9999 compensates by carrying every primary
+> D-side op through to the L2 (above) and, on silicon, by the ARM-requested XPG page flushes. See
+> [r9999's hidden L2 and the DMA-coherence gap](#r9999s-hidden-l2-and-the-dma-coherence-gap-silicon-2026-07).
 
-**Decode/handling obligations:**
-- Decode the full op field; **privilege-check** (`cache` is kernel/CU0-only → user mode raises
-  Coprocessor-Unusable); compute EA = `base + signext(offset)`.
+**Routing table — MAME-derived obligation vs what r9999 does today:**
 
-**Routing table — what Henry must honor vs NOP:**
+| op | name | cache_sel | obligation (from MAME) | r9999 today |
+|----|------|-----------|------------------------|-------------|
+| 0x10 | I Hit-Invalidate | I | **MUST flush L1i** (code coherence) | whole-L1I flush |
+| 0x00 | I Index-Invalidate | I | **MUST flush L1i** | whole-L1I flush |
+| any I-side op | — | I | L1i is never dirty → a whole-L1i flush correctly over-approximates every I-cache op | whole-L1I flush (`0x08` Index-Store-Tag and `0x14` Fill included) |
+| 0x11 | **D Hit-Invalidate (NO writeback)** | D | invalidate WITHOUT writeback (DMA-in). **Do NOT promote to writeback** or a stale line overwrites fresh DMA data | `CHINV`: L1D drop, no WB; L2 `MEM_INVL` |
+| 0x15 | D Hit-Writeback-Invalidate | D | writeback + invalidate (DMA-out) | `CHWBINV` |
+| 0x19 | D Hit-Writeback | D | writeback | `CHWB` (as WB-invalidate) |
+| 0x01 | D Index-Writeback-Invalidate | D | writeback + invalidate | serializing per-line `flush_cl` |
+| 0x09 | D Index-Store-Tag | D | no-op is enough: caches reset clean, size comes from `Config` | per-line `flush_cl` (writeback; harmless) |
+| 0x0b | SI Index-Store-Tag | SI (L2) | no-op is enough: no software-visible L2 | decoded as a D-side `flush_cl` (`insn[16]=1`; harmless) |
 
-| op | name | cache_sel | Henry action | why |
-|----|------|-----------|--------------|-----|
-| 0x10 | I Hit-Invalidate | I | **MUST flush L1i** | code coherence — the one real obligation today |
-| 0x00 | I Index-Invalidate | I | **MUST flush L1i** | code coherence |
-| any I-side op | — | I | **drive L1i `flush_req`** | L1i is never dirty → a whole-L1i flush is a correct over-approximation of *every* I-cache op; simplest wiring is "any I-cache op → `flush_req`". The flush HW already exists in `l1i.sv` — this is a *wiring* task |
-| 0x11 | **D Hit-Invalidate (NO writeback)** | D | invalidate WITHOUT writeback (NOP-safe today) | DMA-in. **CRITICAL: do NOT promote to writeback** or you write a stale/dirty line back over freshly DMA'd data — reintroduces the corruption window |
-| 0x15 | D Hit-Writeback-Invalidate | D | writeback + invalidate (NOP-safe today) | DMA-out |
-| 0x01 | D Index-Writeback-Invalidate | D | writeback + invalidate (NOP-safe today) | D-side flush |
-| 0x19 | D Hit-Writeback | D | writeback (NOP-safe today) | D-side flush |
-| 0x08 / 0x09 | I/D Index-Store-Tag | I/D | **NOP** | r9999 caches reset clean — no power-on tag scrub needed (unlike real R4000 silicon); cache *size* comes from `Config`, not the tag probe |
-| 0x14 | I Fill | I | **NOP** | same — caches reset clean |
-| 0x0b | SI Index-Store-Tag | SI (L2) | **NOP** | no software-visible L2 |
-
-D-cache ops are **NOP-safe while I/O stays backdoored** (no snoop logic, no incoherent DMA behind L1d).
-If real incoherent DMA is ever added, honor the invalidate-vs-writeback distinction — especially `0x11`.
-
-> ⚠️ **This "NOP-safe" conclusion is now SUPERSEDED on silicon.** It held for the *real Indy* (which
-> has **no** L2 — `Config.SC=1` is truthful there) analyzed in MAME. **r9999 diverges: it has a real,
-> transparent 128 KB L2 that IRIX cannot see**, and with real SCSI DMA behind it (henry silicon), the
-> D-cache ops are **NOT** NOP-safe — the L2 silently serves stale DMA data. See the next section.
+> ⚠️ The MAME-era conclusion that the D-side ops were "NOP-safe while I/O stays backdoored" is
+> **obsolete**: it held only for the real Indy (no L2) with no DMA behind the caches. On henry the
+> L2 is real and the SCSI/ENET deposits land behind it, so every D op above is load-bearing.
 
 ## r9999's hidden L2 and the DMA-coherence gap (silicon, 2026-07)
 
-> **⚠️ UPDATE (2026-07): this gap is now CLOSED in RTL — no `SC=0` and no snoop needed.** `l1d.sv`
-> forwards a D-side `Hit-Invalidate` (`MEM_INVL`) to the **L2 unconditionally — even on an L1D miss**
-> ("scrub the L2 copy, DMA-in drop"; `l1d.sv` ~2138–2145), and pushes `Hit-Writeback-Invalidate`
-> through to DRAM via `MEM_WB`. So IRIX's primary-only `dma_cache_inv` (an L1 `Hit-Invalidate` under
-> `Config.SC=1`) **does** reach and invalidate the hidden L2 — the 128 KB L2 boots IRIX clean on
-> silicon. The `SC=0` / snoop / head-of-ROB-fence / NOCACHE forensics below are retained as history;
-> the shipped fix was this CACHE-op forwarding. (A DMA snoop and an `ENABLE_L2_NOCACHE` bypass exist
-> in RTL but are **OFF by default**.)
+> **⚠️ UPDATE (2026-10): two mechanisms close this gap today; neither is `SC=0` or a snoop.**
+>
+> 1. **CACHE-op forwarding (2026-07).** `l1d.sv` forwards a D-side Hit-Invalidate to the **L2 even on
+>    an L1D miss** (`MEM_INVL`, the "scrub the L2 copy" arm near `l1d.sv:2925`) and pushes a dirty
+>    line through to DRAM with `MEM_WB`. So the primary-only `dma_cache_inv` that IRIX issues under
+>    `Config.SC=1` *does* reach the hidden L2.
+> 2. **ARM-requested page flushes (XPG), required for IRIX on silicon.** Forwarding only helps for
+>    buffers IRIX issues a CACHE op for. The code's own conclusion (`henry_soc.sv:292-297`,
+>    `l2.sv` snoop comment) is that the kernel cannot drop a stale L2 line for an address it never
+>    touched, so the ARM, which performs the deposits, flushes those pages itself — see
+>    [DMA coherence on silicon](#dma-coherence-on-silicon-arm-requested-flushes-xpg).
+>
+> The `SC=0` / snoop / head-of-ROB-fence / NOCACHE forensics below are kept as history. The DMA→L2
+> snoop is **dead logic** on main: `ENABLE_DMA_SNOOP` is opt-in and the core ties
+> `snoop_req_valid` to 0 anyway (`core_l1d_l1i.sv:864`). The NOCACHE bypass is now a run-time bit
+> (`l2_nocache`, AXI control bit 20), not a `define`.
 
 > **The single most important divergence from the real IP22.** r9999 has a **transparent write-back
 > L2** (128 KB, **16-byte lines**, `LG_L2_NUM_SETS=13`) between L1 and DRAM. The real Indy has **no L2**
-> and says so (`Config.SC=1`). r9999 **also** reports `Config.SC=1` (`exec.sv` sets `Config=0x0002e4b3`),
+> and says so (`Config.SC=1`). r9999 **also** reports `Config.SC=1` (`exec.sv` returns `Config=0x0002e4a3`),
 > so IRIX believes there is no secondary cache — but the L2 is physically there, caching lines the
 > kernel doesn't know it must invalidate. On silicon with the real SCSI DMA path, this is a genuine
 > **non-coherent-DMA bug** the MAME/real-Indy analysis above could never see (real Indy: no L2 → nothing
@@ -220,26 +256,30 @@ strides) — **not** detected, so it can't be reconfigured to r9999's 16 B; the 
 
 ### ⚠️ PRId mismatch (RTL vs ISS)
 
-- **RTL / silicon: `PRID_R4400` = 0x00000440** (`machine.vh:216`).
-- **`interp_mips` golden ISS: `PRID_R4600` = 0x2020** (`interpret.hh:389`).
+- **RTL / silicon: `PRID_R4400` = 0x00000440** (`machine.vh:302`, selected by `PRID_VALUE` at `:312`).
+- **Standalone `interp_mips`: now also R4400** by default (`interp_mips/interpret.hh:411`), with a
+  `PRID=<val>` env override (`interpret.cc:216`) and `--cpu r5000`.
+- **The ISS embedded in the r9999 submodule** (the one `henry_tb --checker` and `ooo_core -c` co-sim
+  against) **still says `PRID_R4600` = 0x2020** (`r9999/interpret.hh:389`).
 
 **Silicon presents R4400**, so it takes the **simpler `Config`-based** secondary-detect path (not the
-R4600 `0xbfa00034`/aliasing probe). This mismatch also means the co-sim checker has been comparing an
-R4600 ISS to an R4400 core — worth fixing regardless.
+R4600 `0xbfa00034`/aliasing probe). The embedded co-sim ISS is still an R4600 compared against an
+R4400 core; that is worth fixing.
 
-### Fix options + silicon results (all attempted this session)
+### Fix options + silicon results (2026-07 session; status updated 2026-10)
 
-| approach | idea | silicon result |
+| approach | idea | silicon result / status today |
 |---|---|---|
-| **`SC=0` (principled)** | Advertise the L2 as an R4x00 secondary cache (flip `Config.SC=0`, satisfy the R4400 probe) + an **8-beat SD-op handler** (128 B / 16 B → drop/WB 8 lines, inclusive of L1D). Enables IRIX's *own* correct+speculation-safe invalidates to reach the L2. | **Not yet built** (~days). The right fix. |
-| DMA→L2 snoop | Arbiter emits a snoop on each DMA store → L2 invalidates the line. | **Corrupted** silicon (over-invalidated live/dirty lines; new `xfs_da_do_buf` alerts). Reverted. Its `snoop_addr`/RAM-latency were racy; discard-even-dirty threw away live data. |
-| Head-of-ROB fence | Serialize every cached load/store to ROB head (no speculative fill). `l1d.sv ENABLE_MEM_HEAD_SERIALIZE`. | **Partial**: reconfigure-death → ran *all* of rc2 (S30→S99), but residual `xfs`/loader-not-found remained. A fill path still speculates (port-2/replay/L1I?). |
-| Tiny L2 (`LG_L2_NUM_SETS=2`) | 4-line L2, ~no retention. | `cc` **bus-error** at reconfigure — **confounded**: a 4-line L2 inclusive of a bigger L1D is itself broken. Not it. |
-| NOCACHE bypass | `l1d.sv/machine.vh ENABLE_L2_NOCACHE`: route data ops (opcode <24) straight to DRAM so the L2 holds **nothing** (no inclusivity confound); keep `MEM_WB`/`MEM_INVL` (≥24) on real handlers. | under test. Definitive: boots clean → L2 was the reservoir; still crashes → stale data is in the L1D. |
+| **`SC=0`** | Advertise the L2 as an R4x00 secondary cache (flip `Config.SC=0`, satisfy the R4400 probe) + an **8-beat SD-op handler** (128 B / 16 B → drop/WB 8 lines). Lets IRIX's *own* invalidates reach the L2. | **Never built.** Config still reports SC=1. |
+| DMA→L2 snoop | Arbiter emits a snoop on each DMA store → L2 invalidates the line. | **Corrupted** silicon in 2026-07 (over-invalidated live/dirty lines). Today the FIFO is opt-in (`ENABLE_DMA_SNOOP`) and the core ties the L2 snoop request to 0, so it does nothing. |
+| Head-of-ROB fence | Serialize every cached load/store to ROB head (no speculative fill). `l1d.sv ENABLE_MEM_HEAD_SERIALIZE`. | **Partial** at the time; the `define` still exists, off. |
+| Tiny L2 (`LG_L2_NUM_SETS=2`) | 4-line L2, ~no retention. | `cc` bus-error at reconfigure — confounded; not it. (`ENABLE_L2_TINY` still exists, off.) |
+| NOCACHE bypass | Route data ops (opcode < 24) straight to DRAM so the L2 holds **nothing**; CACHE-management ops (≥ 24) keep their handlers. | Now the run-time `l2_nocache` input (AXI control bit 20, `l2.sv:66-73`), off by default. |
+| **ARM-requested flush (XPG)** | The ARM host, which performs every disk/network deposit, asks the core to write back + invalidate (before) or drop (after) the buffer pages. | **What ships.** Required for IRIX on silicon. See the next section. |
 
-**Key insight across all four:** they *substitute* for a coherence mechanism IRIX **already has and
-wants to use**. `SC=0` is the only one that lets IRIX invalidate the L2 with its own already-correct
-(and inclusive-of-L1D, so it covers whichever cache holds the stale line) secondary ops.
+The 2026-07 conclusion was that the first five *substitute* for a coherence mechanism IRIX already
+has (its SD ops). XPG takes a different route: it puts the obligation on the agent that knows exactly
+which pages a device wrote.
 
 ### Artifacts
 
@@ -247,6 +287,63 @@ wants to use**. `SC=0` is the only one that lets IRIX invalidate the L2 with its
   `~/code/iris/{kernel,dksc,wd93,scsi,scsiha,hpc3plp}_decomp.c`.
 - IRIX kernel objects: `~/code/iris/IP22boot/*.o` (unstripped, DWARF). Disassemble with
   `mips-linux-gnu-objdump -d -EB`.
+
+## DMA coherence on silicon: ARM-requested flushes (XPG)
+
+On the FPGA, the Zynq ARM serves the SCSI disk and the Ethernet tap. It writes guest DRAM behind the
+caches, so it is the agent that knows exactly which pages a transfer touched. It asks the core to
+clean those pages around each transfer. **IRIX boots on silicon must run the board driver in this
+mode** (the `axilite-mips-xpg` driver with `EXTFLUSH=1 XFPAGES=1`; that driver lives on the board,
+not in this repo).
+
+**SoC/AXI interface** (`rtl/henry_soc.sv:218-231, 300-330`, `ip_hdl/axi_is_the_worst_v1_0_S00_AXI.v`):
+
+| what | AXI | henry_soc port |
+|---|---|---|
+| whole-cache flush (a 0→1 edge starts one) | control reg (`slv_reg4`) bit 2 | `ext_flush_ctl` |
+| append a physical page number to the list | write reg `0x3C` | `ext_pg_push` / `ext_pg_ppn` |
+| walk the list; bit 0 of reg `0x3D` = drop | write reg `0x3D` | `ext_pg_go` / `ext_pg_drop` |
+| status: flushes completed, page-drop dirty lines, busy | read `0x25` | `ext_flush_stat` |
+| cycles the last flush / list took | read `0x24` | `ext_flush_cycles` |
+
+The list holds 16 pages (`N_XF_PAGES`). A longer list sets overflow, and `go` then does the whole
+flush instead, which is always correct. `go` issues one `ext_flush_req` per page and reports a single
+completion at the end.
+
+**How the core runs it** (`core.sv` `ext_flush_*` / `r_xflush_*`, `uop.vh` `XFLUSH`/`XPG_*`):
+
+1. `ext_flush_req` latches the page, the whole-cache flag and the drop flag (`r_xflush_ppn/_whole/_drop`).
+2. Like an IRQ, decode replaces the next **non-delay-slot** instruction with a serializing injected
+   uop: `XFLUSH` (whole), `XPG_WBINV` (page, before a transfer) or `XPG_INV` (page, after a deposit).
+   These are not architectural instructions and never count as retired.
+3. At the ROB head (`WAIT_FOR_SERIALIZE_AND_RESTART`, core drained):
+   - `XFLUSH`: whole-L1D flush; the sequencer then chains the L2 flush.
+   - `XPG_*`: `flush_pg_req` makes the L1D walk the page's 256 lines (`FLUSH_PG` / `FLUSH_PG_WAIT`):
+     - **WBINV:** a dirty L1D hit → `MEM_WB` (to DRAM, L2 copy dropped); otherwise invalidate any
+       L1D hit and send `MEM_INVL` (the L2 writes back if dirty, then drops).
+     - **INV:** invalidate any L1D hit and send `MEM_PGDROP` (the L2 drops the line *without*
+       writeback). A dirty line found here is counted in `pg_drop_dirty_cnt` (AXI `0x25`); a correctly
+       pre-cleaned page has none, so a nonzero count means a coherence bug.
+4. The flush completes, the core restarts at the injected uop's own PC, and `ext_flush_done` pulses.
+
+!!! warning "Every L1D flush starts only from a fully drained L1D (r9999 `5c89b70`, 2026-10-04)"
+
+    `l1d.sv` defines `w_l1d_drained` = memory queue empty, nothing owed (`r_n_inflight == 0`),
+    both pipe stages empty, and **no retired store still waiting to be written**. All four flush
+    arms (CACHE flush, CACHE line op, XPG page op, DMA invalidate) wait for it (`l1d.sv:2331-2339,
+    3203-3245`). Before this fix, an XPG page flush that armed in the same cycle as a port-1 miss or a
+    port-2 direct fill overwrote `n_state`. The fill's response was consumed as a flush beat, so the
+    load was never answered and its `{color,rob}` inflight bit leaked. The next `(EXCEPTION_)DRAIN`
+    then waited on that color forever: this was the IRIX `EXCEPTION_DRAIN` hang on silicon. The XPG
+    and DMA-invalidate arms also skipped the retired-store drain, so a retired store to the page could
+    land after the page flush.
+
+**In simulation**, `sim/henry_tb.cpp` injects the same traffic: `--extflush N` raises the whole-cache
+flush every N cycles, and `--xfpages base,n,drop` turns each period into an `n`-page list walk with
+`go` (drop=1 → `XPG_INV`, 0 → `XPG_WBINV`).
+
+(`l1d.sv` also has a separate per-line `dma_inval_req` port into the same invalidate machinery.
+`henry_soc.sv` does not connect it on main, so the XPG path is the only DMA-coherence mechanism.)
 
 ## TLB
 
@@ -264,17 +361,20 @@ wants to use**. `SC=0` is the only one that lets IRIX invalidate the L2 with its
     entry, so the retry re-refilled instead of taking TLB-Invalid → `do_page_fault`).
 
 - **Size:** 48 dual-entry JTLB — identical on R4000/R4400/R4600/R4700/R5000/RM (only R10000/R12000 go
-  to 64). r9999's 48-entry CAM matches. `start` sets **`Wired=8`** (slots 0–7 reserved).
-- **Boot is 4 KB-only.** 3000 explicit TLB writes during boot → **100% `PageMask=0` (4 KB), zero large
-  pages.** Large-page machinery (`large_pages_enable`, `lpage_*`) exists but is on-demand/under-load,
-  never triggered by a vanilla boot ⇒ Henry can **boot with a 4 KB-only TLB**; variable-page-size CAM
-  matching (16 KB…16 MB) is deferrable past boot. **But `PageMask` is NOT RAZ/WI** — the kernel writes
+  to 64). r9999's 48-entry CAM matches (`N_TLB_ENTRIES=48`; IRIX accepts no other value). `start` sets
+  **`Wired=8`** (slots 0–7 reserved). The CAM is duplicated (D-side `dtlb` in `l1d.sv`, I-side copy
+  inside `itlb.sv`), and a 2-entry **micro-ITLB** sits in front of the I-side copy to close timing.
+- **Boot is 4 KB-only** (MAME): 3000 explicit TLB writes during boot → **100% `PageMask=0` (4 KB), zero
+  large pages.** Large-page machinery (`large_pages_enable`, `lpage_*`) is on-demand/under-load, never
+  triggered by a vanilla boot. r9999 now implements **variable-page-size matching anyway**: the JTLB
+  masks VPN2 bits by `PageMask` (`tlb.sv:174`), and the micro-ITLB honors PageMask too (r9999
+  `3b4a50e`; it was hardwired to 4 KB pages). **`PageMask` is NOT RAZ/WI** — the kernel writes
   `PageMask=0` before each `tlbw` and reads it back; it must hold its value.
 - **R4000 vs R5000 refill (Henry = R4000 path):** R4000/R4600 fast refill is a **blind `tlbwr`** (load
   2 PTEs → `mtc0 entrylo0/1` → `tlbwr` → `eret`). R5000 does **`tlbp` first, `tlbwr` only if absent** (a
-  guard against a duplicate TLB entry the R5000 mishandles). Henry presents **PRId imp `0x04` = R4000**,
-  so it gets the blind-`tlbwr` refill. Just ensure the CAM **tolerates a duplicate write** (last-wins /
-  overwrite) rather than asserting a machine-check.
+  guard against a duplicate TLB entry the R5000 mishandles). Henry presents **PRId imp `0x04`
+  (R4400, `0x440`)**, so it gets the blind-`tlbwr` refill. The CAM must **tolerate a duplicate write**
+  rather than raise a machine check; r9999 models no TLB-shutdown machine check.
 
 ## The wirepda / wired-entry finding
 
@@ -284,8 +384,8 @@ spuriously.** This was the VM-init bug that stranded r9999 ~805K cycles into boo
 !!! success "Resolved in RTL (r9999 `tlb.sv`, commit `e451d50`)"
 
     The root cause was **suspect #2** (high-VA match), now fixed; **suspect #1** (Random clamp) was
-    refuted by RTL inspection. End-to-end confirmation ("IRIX boots past the 805K-cycle wall") is the
-    remaining check; unit coverage exists (`tests/cheri/tlb/test_tlb_xkseg.s`, `test_tlb_wired.s`).
+    refuted by RTL inspection. IRIX has since booted well past this point on henry silicon. Unit
+    coverage exists (`tests/cheri/tlb/test_tlb_xkseg.s`, `test_tlb_wired.s`).
 
 `wirepda` (@`0x881689b0`) `jal`s `tlbwired` (@`0x88004ba0`) to wire the per-CPU PDA. The golden wired
 entry captured at the `tlbwi` inside `tlbwired` (0x88004c28):
@@ -315,24 +415,23 @@ churn* — is still worth adding, since the imported CHERI tests don't combine a
 
 **Root cause & fix (the two original suspects, resolved):**
 
-1. **Suspect #1 — `tlbwr` not clamping Random to `[Wired..47]`: REFUTED.** exec.sv resets `Random→47` on
-   a `Wired` write (`n_random='d47`), decrements with wrap at `Wired` (`r_random==r_wired ? 47 :
-   r_random-1`), and `TLBWR` writes index `r_random` (exec.sv:1965). So `Random ∈ [Wired..47]` always and
-   `tlbwr` can never overwrite the wired slots 0–7. *(CYAN's independent haterMIPS implements the same
-   clamp — confirming it's the correct behavior, which r9999 already has.)*
-2. **Suspect #2 — high kseg3 VA `0xFFFFFFFF_FFFFA000` never matched: ROOT CAUSE, FIXED (`e451d50`).** The
+1. **Suspect #1 — `tlbwr` not clamping Random to `[Wired..47]`: REFUTED.** exec.sv resets
+   `Random → N_TLB_ENTRIES-1` (47) on a `Wired` write, decrements it per retirement with wrap at `Wired`
+   (`r_random==r_wired ? N_TLB_ENTRIES-1 : r_random-1`, exec.sv:4725-4739), and `TLBWR` writes index
+   `r_random`. So `Random ∈ [Wired..47]` always and `tlbwr` can never overwrite the wired slots 0–7.
+   *(CYAN's independent haterMIPS implements the same clamp.)*
+2. **Suspect #2 — high kseg3 VA `0xFFFFFFFF_FFFFA000` never matched: ROOT CAUSE, FIXED.** The
    real asymmetry: `mtc0 EntryHi` stored `VPN2` **zero-extended**, while kseg VAs **sign-extend**
-   (`va[63:62]=11`, `va[39:32]=ff`). Comparing the full `va[39:13]`+region against the zero-extended stored
-   VPN2 → the wired high-VA entry never hit → spurious refill, EXL=1 spin. **Fix:** match only the low
-   19-bit VPN2 (`r_tlb[i].vpn[18:0] == va[31:13]`), ignoring region `R` and `va[39:32]` (tlb.sv:81–88).
-   ⚠️ This is a compare-side workaround valid under 32-bit addressing; the cleaner fix is sign-extending
-   `VPN2` at the `mtc0 EntryHi` source. Could alias only if true 64-bit/region-distinguished VAs are used —
-   not the case on the IRIX boot path.
+   (`va[63:62]=11`, `va[39:32]=ff`), so the wired high-VA entry never hit → spurious refill, EXL=1 spin.
+   The first fix (`e451d50`) was a compare-side workaround that matched only the low 19-bit VPN2. It was
+   **later replaced**: exec.sv now writes `EntryHi.R`/`VPN2` from the full GPR (per Sail MTC0), and
+   `tlb.sv` does the full Sail `R` + `va[39:13]` match (`tlb.sv:158-181`). The low-19 arm had aliased
+   the kptbl walk (which runs at KX=0) and caused an intermittent tlbmiss panic.
 
 **Suggested directed test (golden values above):** set `Wired=8`; write the PDA entry
 (EntryHi=0xFFFFA000, EntryLo0=0x20E39F, EntryLo1=0x00000001, PageMask=0) at Index 0; churn the TLB with
 many `tlbwr` and change ASID; then **store to `0xFFFFFFFF_FFFFA240` and load it back** — must hit
-PA `0x0838E240` with no miss. With `e451d50` in place this should now **pass**; it guards against a
+PA `0x0838E240` with no miss. With the full Sail match in place this should **pass**; it guards against a
 regression in the high-VA match (and would catch a re-introduction of the zero-extend asymmetry).
 
 ## CP0 timekeeping & misc
@@ -342,11 +441,12 @@ regression in the high-VA match (and would catch a re-introduction of the zero-e
 - **Status.FR (bit 26) IS used.** FR=0 for kernel/idle, **FR=1 once N32/N64 userland runs** (first seen
   mid-boot, ~19% of samples by multiuser). r9999's FP regfile must implement FR=1 (32 independent 64-bit
   registers), not just FR=0 even/odd 32-bit pairs; the FR bit must switch regfile aliasing. (Still no FP
-  *arithmetic* in the kernel — this is the regfile mode for context save/restore + userland.)
-- **Watch registers (WatchLo/WatchHi, r18/r19): unused → RAZ/WI** (already done in `exec.sv`, 272360d).
-  The only references are two `mtc0 zero` clears in `start`; nothing ever programs a watch address, so
-  ExcCode 23 never fires. IRIX's watchpoint facility is pure software. Henry needs only a functional
-  register (accept `mtc0`/`mfc0` r18/r19 without faulting); no Watch-match HW required.
+  *arithmetic* in the kernel — this is the regfile mode for context save/restore + userland.) r9999
+  implements `Status.FR` (`exec.sv` `r_sr_fr`, **reset value 1**); see [FPU (COP1)](fpu-cop1.md).
+- **Watch registers (WatchLo/WatchHi, r18/r19): unused.** The only references are two `mtc0 zero` clears
+  in `start`; nothing ever programs a watch address, so ExcCode 23 never fires. IRIX's watchpoint facility
+  is pure software. r9999 keeps them as plain storage registers (`exec.sv` CP0 r18/r19, "functional
+  register only; no watch hardware"); no Watch-match HW.
 
 ## Physical address width
 
@@ -356,9 +456,12 @@ regression in the high-VA match (and would catch a re-introduction of the zero-e
 - Low RAM window `0x08000000–0x17ffffff` (256 MB max); kernel/device region up to `0x1fffffff`.
   TLB-mapped PFNs observed only `0x0800_0000`–~`0x0900_0000` (max `0x0881a000`); EntryLo PFN is
   arch-24-bit but only ~17 significant bits are ever used on this platform.
-- **The bottom 512 KB `0x0–0x7ffff` ALIASES RAM** (for exception vectors at `0x0`/`0x80`) — Henry must
-  alias `0x0`/`0x80` to `0x08000000`/`0x08000080`.
-- ⇒ cache/TLB **physical tags need 30 bits** to be safe (29 observed; bits above 30 always 0).
+- **The bottom 512 KB `0x0–0x7ffff` ALIASES RAM** (for exception vectors at `0x0`/`0x80`). Henry
+  implements it in `henry_soc.sv:544-597` (`w_sysmem_alias` sets PA bit 27 on the CPU's external memory
+  request). The remap applies to **CPU accesses only** (DMA masters are not remapped), and it happens
+**below the caches**, on the DRAM-bound request.
+- ⇒ cache/TLB **physical tags need 30 bits** to be safe (29 observed). r9999 carries **36-bit** physical
+  addresses (`PA_WIDTH=36`, the R4000 width, `machine.vh`), so this is covered.
 
 ## Detailed working notes
 

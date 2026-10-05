@@ -6,8 +6,9 @@ source: SGI Newport RB2 + RO1 specs (rb2.pdf, ro1.pdf)
 
 # RB2 (frame buffer) & RO1 (raster output) — Henry/Newport block spec
 
-> Intro: the back-end of the Newport pixel pipeline — RB2 holds the framebuffer pixels (written by REX3,
-> read for scanout), RO1 handles raster output toward the DAC/video. NOT needed for headless Henry.
+> Intro: the back-end of the Newport pixel pipeline — RB2 is the formatter/LogicOp glue between REX3 and the
+> VRAM framebuffer (random port), RO1 reads the VRAM serial port for scanout toward XMAP9. **Not implemented in
+> Henry** (no Newport logic in the RTL).
 
 Two small gate arrays sit at the tail of the Newport graphics board. **RB2** ("RAM Buffer 2") is the
 read/write formatter + LogicOp engine that fronts the VRAM frame buffer; **RO1** ("ReOrganizer 1")
@@ -33,7 +34,8 @@ The plane set is the classic Newport layout — **RGB/CI color planes plus overl
 and CID (window/context ID)** auxiliary planes — selected by the draw-register `planes[2:0]` field
 (000 none, 001 RGB/CI, 010 RGBA, 100 OLAY, 101 PUP, 110 CID) (rb2.pdf p.9). Drawn depth is
 `drawdepth[1:0]` = 4 / 8 / 12 / 24 bits (rb2.pdf p.9). Double-buffering is supported (`dblsrc` picks
-source buffer0/buffer1; `dblbuf`/`rgbmode`/`fastclear` are draw-register bits) (rb2.pdf p.8).
+source buffer0/buffer1). The 12-bit draw register is `{fastclear, rgbmode, dblsrc, planes[2:0],
+drawdepth[1:0], logicop[3:0]}` (bits 11..0) (rb2.pdf p.8).
 The supported frame-buffer pixel formats (RGB-SB/DB 24-bit, CI-SB/DB 12-bit, 8-bit 3:3:2, RGBα 3324,
 CID/AUX 2-bit-CID + 2-bit-PUP + 8-bit-AUX, etc.) are enumerated in rb2.pdf Table 4.4 (p.12).
 
@@ -84,14 +86,14 @@ internally as 1/5 dot clock = 28 MHz** (`Serial_clk0/1`, each to 4 VRAM banks); 
 the 1/5-dot serial rate and drained at the 1/8-dot rate (ro1.pdf p.2, p.5). The serial clock is gated
 by **`Serial_enable` from VC2** and readout by **`Display_enable` from VC2**; VC2 must raise
 `Display_enable` 60–65 dot clocks after `Serial_enable` so the FIFOs pre-fill (overlay ≥4 entries,
-pixel ≥6) before active video (ro1.pdf p.2, p.5). Dot-clock range supported is 6 MHz (NTSC) to 140 MHz
-(76 Hz refresh) (ro1.pdf p.3).
+pixel ≥6) before active video (ro1.pdf p.2, p.5). The dot clock ranges from ~12 MHz (NTSC) to 140 MHz
+(76 Hz refresh), i.e. RO1's ½-dot clock spans 6–70 MHz (ro1.pdf p.3).
 
 ## The pixel pipeline end-to-end
 
 ```mermaid
 flowchart TD
-    REX3["<b>REX3</b><br/><small>scan-convert · LogicOp front end</small>"]
+    REX3["<b>REX3</b><br/><small>scan-convert · pixel-pipe front end</small>"]
     REX3 -->|"RB2_DATA[7:0]×banks · RB2SEL[2:0] · masks"| RB2["<b>RB2 ×4</b><br/><small>LogicOp + write/read format · random port</small>"]
     RB2 <-->|"VRAM_DATA[23:0]/bank"| VRAM[("<b>VRAM</b> frame buffer<br/><small>RGB/CI + OLAY/PUP/CID · double-buffered</small>")]
     VRAM -->|"serial port · 8 B/serial-clk (1/5 dot)"| RO1["<b>RO1 ×3</b><br/><small>overlay+color merge → 12b · de-stagger</small>"]
@@ -106,8 +108,11 @@ mode backend" diagram p.9 for VRAM→RO1→XMAP9→CMAP1, with VC2 supplying `se
 
 ## Henry relevance
 
-- **Headless (current):** n/a. Henry has no Newport board; graphics-space accesses bus-error by
-  design. Nothing here is on the boot path — RB2/RO1 are pure display back-end.
+- **Status (current): not implemented.** Henry models no Newport chip. Accesses to the Newport aperture
+  are not decoded as a device and fall through to plain DRAM — they do not bus-error (see
+  [the overview](index.md#henry-relevance)). Nothing here is on the boot path — RB2/RO1 are pure display
+  back-end and have no host-visible registers of their own (RB2's write-mask/draw registers are loaded by
+  REX3 over `RB2SEL`, not by the host).
 - **Future (graphics console):** this pair defines the back half of any "wannabe Indy" display.
   RB2 is the **framebuffer-storage + LogicOp/format** model (4-bank × 2-pixel VRAM, RGB/CI + overlay
   planes, the 16 raster ops, double-buffer/write-mask semantics REX3 expects). RO1 is the **scanout**
@@ -115,7 +120,10 @@ mode backend" diagram p.9 for VRAM→RO1→XMAP9→CMAP1, with VC2 supplying `se
   `serial_enable`/`display_enable` handshake) that produces XMAP9-ready pixels. A Henry display path
   would re-implement RB2's formatter/LogicOp over its own framebuffer RAM and RO1's merge+scanout over
   a scanout FIFO — most of the staggering/serial-VRAM complexity is an artifact of 1990s VRAM and can
-  collapse into a simpler linear-framebuffer + scanout-DMA on modern memory.
+  collapse into a simpler linear-framebuffer + scanout-DMA on modern memory. The 2026-10-02 feasibility
+  study (`NEWPORT_FEASIBILITY.md`, study only) takes that route in software: the RB2 LogicOp/write-mask
+  semantics live inside an ARM-side software REX3 drawing into a 1344×1024 CI8 framebuffer in DRAM, and
+  RO1's role is replaced by software scanout to VNC or DisplayPort.
 
 ## Sources
 

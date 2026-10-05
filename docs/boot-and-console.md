@@ -1,6 +1,6 @@
 ---
 title: Boot sequence & console
-status: draft (MAME-validated)
+status: draft (MAME-validated; Henry FSBL/console re-checked 2026-10-04 against henry 209e6f6 / r9999 5c89b70)
 ---
 # Boot sequence & console
 
@@ -21,8 +21,11 @@ Cross-refs: `r9999/IRIX_KERNEL_GAPS.md` (console + entry sections), `r9999/IRIX_
 `GetMemoryDescriptor` ×14, builds the component/config tree, seeds the wall clock, loads the `/unix`
 ELF) → jumps into `/unix` `start`.
 
-**Henry (sash-less / PROM-less):** a shim loads the `/unix` ELF directly and jumps to `start`,
-synthesizing the small amount of state sash normally leaves behind. The running kernel barely touches
+**Henry (sash-less, with a tiny PROM):** the host loads the `/unix` ELF into DRAM (the ARM driver on the
+FPGA; `sim/henry_tb --kernel` in simulation) and the **`henry_arcs` FSBL** at the reset vector
+`0xBFC00000` synthesizes the small amount of state sash normally leaves behind, then jumps to `start`.
+The same FSBL boots IP22 Linux and IRIX; the host patches the kernel entry into the word at
+`0xBFC00008` (see [Firmware](firmware-arcs.md#henrys-fsbl-henry_arcs)). The running kernel barely touches
 firmware — over a 100 s emulated boot to multiuser the kernel calls the ARCS romvec **exactly once**
 (`GetEnvironmentVariable`). So the shim's job is to leave correct *in-memory* state, not to implement
 a live firmware. The collapsed handoff is: **shim → /unix `start` with `a0=argc, a1=argv, a2=envp`**
@@ -47,7 +50,10 @@ a live firmware. The collapsed handoff is: **shim → /unix `start` with `a0=arg
     - Arrays + strings live just under the top of RAM (kseg0 pointers). The shim plants them; the full
       string list is in `r9999/MAME_QUESTIONS.md` (Q5 follow-up) / interp_mips `pseudo_bios.cc`.
   - Registers also carry sash leftovers (`t0=0x11 t1=7 …`) but the shim can enter with a clean GPR
-    file. **`SR = 0x30004801`** (reset Status `0x70400004`: KX=0, ERL=1, 32-bit kernel).
+    file. MAME's entry Status is **`SR = 0x30004801`** (reset Status `0x70400004`: KX=0, ERL=1, 32-bit
+    kernel). **Henry's FSBL does not write Status**: the kernel starts with r9999's reset values
+    (`ERL=1`, `BEV=1`, `CU0=1`, `FR=1`, KX=0; `exec.sv` reset block) and sets its own. The FSBL zeroes
+    `a3`, `v0`/`v1` and `t0`–`t9`; the other GPRs keep their reset state.
 - **`start` prologue (verified disassembly):** sets `gp = 0x88332bf0`, loads `sp = *(0x8832bfa0)`,
   immediately `sw`s the three boot args to gp-relative globals — `a0→_argc`, `a1→_argv`,
   **`a2→_envirn`** (`0x8832d7c0`) — then `jal`s its first C routine
@@ -67,6 +73,11 @@ died before reaching multiuser. **Henry's shim / NVRAM must supply an `eaddr`** 
 MAC) or the kernel dies in early init. With a placeholder MAC the kernel boots but later complains
 `ec0: machine has bad ethernet address: 08:01:02:03:04:05` and falls back to standalone networking —
 harmless for bring-up. Set this first; it is the single most common reason a fresh boot wedges.
+
+**Henry today:** the FSBL plants `eaddr=08:01:02:03:04:05` in `envp`, but its `GetEnvironmentVariable`
+stub returns **`08:00:69:12:34:56`** (a real SGI OUI) for every name, and the FSBL also writes that MAC
+into the ds1386 bbRAM (`0xbfbe04e8…`). The HPC3 NMC93CS56 EEPROM model returns it from words 125–127
+(`hpc3.sv`), so the kernel's Ethernet driver sees a valid station address and networking can come up.
 
 ## Console — NOT via ARCS
 
@@ -90,18 +101,26 @@ in MAME `src/mame/sgi/ioc2.cpp`) is ground truth — it caught 972 console bytes
 
 ### For a HEADLESS Henry: set `console=d` and emulate the minimal SCC
 
-Indy console = Port 1, channel A, at IOC2 base `0x1FBD9800`. The whole console is two registers
-(cross-ref `docs/peripherals/ioc2.md`):
+The Indy console is the **first Z85230 channel** at `0x1FBD9830` (Zilog **channel B**; an earlier
+version of this page said "channel A", which was wrong; see [IOC2](peripherals/ioc2.md) and
+[SCC](peripherals/scc.md)). For polled output the whole console is two registers:
 
 - **Write `0x1FBD9834`** (Port1 chan A data) → take `data[7:0]`, append to the console sink (stdout).
   That byte is the printed character — this is `du_putchar`'s store.
 - **Read `0x1FBD9830`** (Port1 chan A command / RR0) → always return **`0x04`** (RR0 bit2 = Tx Buffer
   Empty), so the driver's "wait for Tx empty" poll (`while(!(RR0 & 4));`) never stalls.
-- **Write `0x1FBD9830`** → swallow (WR-pointer selects / WR-register loads: baud, mode, IE). Henry
-  models no SCC register file; a stateless drain ignores them.
+- **Write `0x1FBD9830`** → swallow (WR-pointer selects / WR-register loads: baud, mode, IE).
 
-That stateless polled-TX drain is enough to print. The SCC interrupt path (mappable int, Map Status
-`0x9890` bit5) is **not** needed — IRIX's `du` driver polls RR0.
+That stateless polled-TX drain is enough to print the banner — IRIX's `du` driver polls RR0.
+
+**What Henry's `ioc.sv` actually implements (more than the minimum):** RR0 = `0x44` (Tx-empty | all-sent)
+with **Tx-empty cleared while the SoC console FIFO is full** (backpressure, so bytes aren't dropped) and
+bit 0 = Rx char available; an 8-deep **Rx FIFO** fed by the host (`scc_rx_push`); the WR0/WR1 register
+pointer machine, Tx/Rx interrupt-pending bits and **RR3**; and the Tx/Rx interrupt on INT3 mappable
+source bit 5 (`henry_soc.sv` `map_src`). Interactive use (getty, Linux `ip22zilog`) needs those. The SCC
+TX stream and the core's CP0 reg-7 putchar stream are merged into one 8-deep SoC console FIFO
+(`henry_soc.sv` `putchar_fifo_*`), which the AXI wrapper / `henry_tb` drain. Details:
+[SCC implementation](peripherals/scc.md).
 
 ## What "booted" looks like (serial transcript, `console=d`)
 
@@ -119,8 +138,10 @@ The system is coming up.
 
 The PROM-phase lines ("Running power-on diagnostics…", "press &lt;Esc&gt;") are **PROM** code writing
 the Z8530; the "IRIX Release 6.5 IP22…" banner onward is the **kernel's** serial driver writing the
-Z8530. (Henry is PROM-less, so the PROM-phase lines won't appear; the kernel banner is the first
-output.) Full capture: `~/code/mame/irix_serial_console.txt`.
+Z8530. (Henry has no SGI PROM, so the PROM-phase lines won't appear. Its FSBL prints one heartbeat
+line, `r9999 PROM: CPU alive, handing off to the kernel`, plus some MAC/EEPROM readback hex left in as
+TEMP DEBUG in `henry_arcs.S`; the kernel banner follows.) Full MAME capture:
+`~/code/mame/irix_serial_console.txt`.
 
 ## Minimum for Henry to print "IRIX is alive"
 
@@ -137,7 +158,8 @@ output.) Full capture: `~/code/mame/irix_serial_console.txt`.
    `0x1FBD9830` → `0x04`; swallow writes to `0x1FBD9830`).
 
 With those six, the kernel runs through early init and its `du` driver prints the IRIX banner to
-Henry's serial sink.
+Henry's serial sink. On Henry, steps 2–5 are done by the `henry_arcs` FSBL (it also programs
+`MEMCFG0=0x3f203f40`, 2 × 128 MB), and step 6 is `ioc.sv`.
 
 ## Detailed working notes
 

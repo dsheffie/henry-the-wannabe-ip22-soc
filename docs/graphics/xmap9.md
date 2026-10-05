@@ -6,10 +6,11 @@ source: SGI Newport XMAP9 spec (xmap9.pdf, Rev 2.1, 1993-10-29)
 
 # XMAP9 — Colormap / Pixel Mapping (Henry/Newport block spec)
 
-> Intro: XMAP9 takes framebuffer (RB2) pixel values and maps them through color-map / pixel-mode logic toward
-> the RO1 DAC. Programmed via REX3's DCB. NOT needed for headless Henry. This is the backend of the Newport
-> graphics subsystem: it picks which "plane" (pixel / overlay / underlay / cursor / pop-up / video) is visible at
-> each pixel, formats it into a CMAP address or 24-bit RGB, and steers the result to the CMAP and the RO1 DAC.
+> Intro: XMAP9 takes framebuffer pixel values (read out of VRAM by the RO1 reorganizers) and maps them through
+> pixel-mode logic toward the CMAP and RAMDAC. Programmed via REX3's DCB. **Not implemented in Henry** (no
+> Newport logic in the RTL). This is the backend of the Newport graphics subsystem: it picks which "plane"
+> (pixel / overlay / underlay / cursor / pop-up / video) is visible at each pixel, formats it into a CMAP address
+> or 24-bit RGB, and sends the result to the CMAP, whose output drives the RAMDAC.
 
 XMAP9 is an LSI Logic 1.0 µm CMOS gate array (part 099-8913-001, L1A7726, 208 PQFP, ~19K gates), running at
 half the pixel clock (70 MHz for a 1280×1024 @ 76 Hz screen). Newport uses **two** XMAP9s — one on the even
@@ -29,7 +30,7 @@ flowchart LR
     VC2["VC2"] -.->|"DID / cursor / blank"| XMAP9
     XMAP9 -->|"Pix_Out (24b) + Pix_Tag"| CMAP["CMAP"]
     CMAP -->|"CMAP_RGB (24b)"| XMAP9
-    CMAP --> OUT["RO1 / RAMDAC"] --> RGB([R/G/B])
+    CMAP --> OUT["RAMDAC"] --> RGB([R/G/B])
     XMAP9 <-->|bidir| VEB["Video Expansion Board"]
 ```
 
@@ -44,7 +45,7 @@ flowchart LR
   optional Express Video board (`Vid0_*`, `Vid1_*`, two channels at pixel-clock/4, bidirectional in Express mode).
 
 Internally (Fig 2 / §5) the chip is a pipeline: **Mode Register Table** (32 entries × 24-bit control words,
-indexed by `VC_DID`+`VC_Cur`) → **Zero Detect** → **Pixel Format** (reformats each plane into a CI address or
+indexed by the 5-bit `VC_DID`) → **Zero Detect** → **Pixel Format** (reformats each plane into a CI address or
 duplicates bits up to 24-bit RGB) → **Pixel Select1** (the plane-priority decision tree, §3.3) → **Pixel
 Select2** (the actual mux, drives `Pix_Tag`). A parallel **Video Select** block handles the graphics→video path.
 Per-window behaviour lives entirely in the mode word selected by that window's DID; global state lives in the
@@ -78,8 +79,10 @@ constant 33 MHz. Both XMAP9s share one `DCB_CS_Both_N` strobe. All registers are
 - bit 0 — Pop-Up enable (0 = off → the 2 pup bits become aux bits; 1 = on)
 
 **The CMAP** is an external 8K-entry (13-bit address) color map (separate Vitelic part, see CMAP spec). XMAP9
-does not contain colormap RAM — it only *forms the address*. In CI mode the upper 11 bits come from the mode
-register's `MSB_CMAP[4:0]` (and per-plane MSB registers), the lower bits from pixel data. In RGB mode `Pix_Tag`
+does not contain colormap RAM — it only *forms the address*. In CI mode only the low 13 bits of `Pix_Out` are
+used (the CMAP ignores `Pix_Out[23:13]`); the top bits of that 13-bit address come from the mode word's
+`MSB_CMAP[4:0]` (e.g. 5 bits for 8-bit CI, 1 bit for 12-bit CI) — or from the Cursor / Pop-Up MSB registers for
+those planes — and the rest from pixel data. In RGB mode `Pix_Tag`
 selects one of three hardcoded 256×24 RGB maps inside the CMAP, addressed as `{11101|11110|11111, 8-bit color}`,
 applied per color channel.
 
@@ -89,7 +92,7 @@ Two things get programmed: the **mode register table** (per-window pixel format)
 registers above.
 
 - **Mode words (the colormap/pixel-mode "program").** 32 entries, one 24-bit control word each, indexed by a
-  window's `{VC_DID, VC_Cur}`. A write delivers 4 bytes over the DCB in one atomic op — `{5-bit entry addr,
+  window's 5-bit display ID (`VC_DID`). A write delivers 4 bytes over the DCB in one atomic op — `{5-bit entry addr,
   byte0, byte1, byte2}` (byte0 = bits 23:16, big-endian) — and lands in a FIFO that is **only drained into the
   mode RAM during blanking** (`VC_C_Blank_N` low), so the visible screen never tears. The host must not overrun
   the FIFO: poll the grey-coded *FIFO Entries Available* register (CRS 2), or pace writes to the
@@ -127,15 +130,19 @@ registers above.
 
 ## Henry relevance
 
-- **Headless Henry: n/a.** Henry has no framebuffer and bus-errors all GIO64 graphics-slot accesses (see
-  `peripherals/gio64.md`), so REX3/XMAP9/CMAP/RO1 never exist on the bus and IRIX skips the graphics console.
-  None of this block is needed to boot.
+- **Status: not implemented.** Henry has no framebuffer and models none of REX3/XMAP9/CMAP/RO1. Accesses to
+  the Newport aperture are not decoded as a device and fall through to plain DRAM (they do not bus-error; see
+  [the overview](index.md#henry-relevance)). Henry boots headless on the serial console; none of this block is
+  needed to boot.
 - **Future graphics console.** A real display would require the whole Newport backend, not just XMAP9: REX3 (the
   rendering engine + DCB master), the RB2/VRAM framebuffer, RO1 (VRAM reorg → pixel stream), VC2 (timing, DID,
   cursor), the external CMAP, and the RAMDAC. XMAP9's job in that chain is purely the colormap-address / plane-mux
-  formatting described here. For a minimal headless-with-text-console intermediate, none of the per-window mode
-  machinery is required — but there is no partial XMAP9: it sits inline on every displayed pixel. Treat this doc
-  as a reference for *when* a framebuffer is added, not a near-term implementation target.
+  formatting described here. There is no partial XMAP9 in hardware — it sits inline on every displayed pixel —
+  but the 2026-10-02 feasibility study (`NEWPORT_FEASIBILITY.md`, study only) proposes no XMAP9 hardware at all:
+  the driver's DCB writes to XMAP9 (mode table, MSB registers) would be replayed into an ARM-side software model,
+  and software scanout would apply the per-DID mode words and CMAP lookup. The PL would only answer the reads the
+  driver polls (e.g. a constant "FIFO entries available"). Treat this doc as a reference for *when* a display
+  path is added, not a near-term implementation target.
 
 ## Sources
 

@@ -1,7 +1,7 @@
 ---
 title: IOC2 — I/O Controller (serial console)
-status: draft (MAME-validated)
-source: SGI IP22 IOC spec (ioc.pdf); MAME golden reference
+status: draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)
+source: SGI IP22 IOC spec (ioc.pdf); MAME golden reference; henry rtl/ioc.sv, rtl/int3.sv, rtl/henry_soc.sv
 ---
 
 # IOC2 — I/O Controller (Henry block spec)
@@ -13,6 +13,17 @@ source: SGI IP22 IOC spec (ioc.pdf); MAME golden reference
 > SGI PI1 parallel, Intel 8042 kbd/mouse, Intel 8254 timer, SGI INT3 interrupt mux, and miscellaneous glue
 > (power/ID/reset). It hangs off the HPC3 P-bus (PBUS_CS_N<6>); registers are 64 word-spaced (×4) slots at base
 > 0x1FBD9800. All addresses below are absolute physical (k1seg uncached: OR 0xA0000000).
+>
+> **henry status:** `henry_soc.sv` carves the 256-byte window `0x1FBD9800–0x1FBD98FF` out of HPC3
+> (`henry_soc.sv:256`). It serves the window with two modules whose read data is ORed together:
+>
+> - **`ioc.sv`**: the SCC, the 8254 counters 0 and 2, and SYSID.
+> - **`int3.sv`**: the INT3 registers.
+>
+> Everything else in the window reads 0 and swallows writes. That includes the front panel, the read/write
+> registers, GC select, DMA select, reset, kbd/mouse and parallel. Much of the "Henry must return…" text
+> below is the MAME/PROM view; henry boots through its own ARCS firmware, not the SGI PROM. The
+> [henry implementation summary](#henry-implementation-summary) at the end says exactly what is built.
 
 ## Role in Henry  (and why it's the first peripheral to implement)
 Henry is a headless, PROM-less r9999 SoC whose entire observable output during IRIX bring-up is the **serial
@@ -26,34 +37,55 @@ which every other bring-up step is observable. Ground truth for the stream was c
 SCC TX register (`scc_dc_w` in MAME `src/mame/sgi/ioc2.cpp`).
 
 ## Serial console (Z8530 SCC) — THE priority
-The 85CX30 is a Zilog Z85230-class **dual-channel** ESCC. **Indy console = Port 1, channel A.** The macrocell
-uses Zilog **indirect addressing**: the IOC2 decodes two address lines into 4 byte addresses, where
-**addr bit1 = channel** (0 = Port1/chan A, 1 = Port2/chan B) and **addr bit0 = data/command** (0 = command/
-register, 1 = data). ✅ Confirmed against MAME `map(0x0c,0x0f) -> z80scc ab_dc_r/w`.
+The 85CX30 is a Zilog Z85230-class **dual-channel** ESCC. **The console is the first port, at `0x1FBD9830`.**
+The macrocell uses Zilog **indirect addressing**: the IOC2 decodes two address lines into 4 byte addresses,
+where **addr bit1 = channel** and **addr bit0 = data/command** (0 = command/register, 1 = data). ✅ Confirmed
+against MAME `map(0x0c,0x0f) -> z80scc ab_dc_r/w`.
 
-| Addr (phys) | IOC word | Z8530 access | r9999 behavior |
-|-------------|----------|--------------|----------------|
-| `0x1FBD9830` | 0x0c | Port1 (chan A) **command/RR0** | **read → return `0x04`** (RR0 bit2 Tx Buffer Empty). write → swallow (WR pointer/select). ✅ |
-| `0x1FBD9834` | 0x0d | Port1 (chan A) **data** | **write[7:0] → emit byte to console sink (stdout).** read → 0 (no Rx). ✅ THIS is `du_putchar`'s store. |
-| `0x1FBD9838` | 0x0e | Port2 (chan B) command/RR0 | return `0x04`, swallow writes (2nd serial port — not console). ⚠️ |
-| `0x1FBD983C` | 0x0f | Port2 (chan B) data | swallow / 0. ⚠️ |
+⚠️ **Channel naming (corrected).** In MAME's `z80scc_device::ab_dc_r/w`, `ab = BIT(offset,1)` and
+`channel = ab ? chanA : chanB`. The **first** port (`0x…30/0x…34`) is therefore Zilog **channel B**, and the
+second (`0x…38/0x…3C`) is channel A. `ioc.sv` agrees: it indexes the console as ch0 and labels it chanB (RR3
+`CHBRxIP`). Linux enumerates the console as ttyS0. An earlier version of this page called the console
+"channel A"; that was wrong. [SCC implementation](scc.md) uses the same naming.
+
+| Addr (phys) | IOC word | Z8530 access | henry `ioc.sv` behavior |
+|-------------|----------|--------------|-------------------------|
+| `0x1FBD9830` | 0x0c | console (chan B) **command/RR** | read → RR[ptr] (RR0 = `0x44`, see below; RR1; RR3). write → WR0 pointer/command or WR[ptr]. ✅ |
+| `0x1FBD9834` | 0x0d | console (chan B) **data** | **write[7:0] → SoC console FIFO** (→ host). read → pops the SCC Rx FIFO. ✅ THIS is `du_putchar`'s store. |
+| `0x1FBD9838` | 0x0e | 2nd port (chan A) command/RR | same pointer machine, own WR1/Tx state. |
+| `0x1FBD983C` | 0x0f | 2nd port (chan A) data | a write is *also* sent to the console FIFO; a read returns 0. ⚠️ |
+
+The kernel's byte accesses land on byte lane +3 of each word (`0x…33/0x…37/0x…3B/0x…3F`). `ioc.sv` classifies
+any masked byte in the 16-byte line: the channel is byte index bit 3, and data vs control is bit 2.
 
 > **Beyond polled output:** this table is the *minimum to print*. For the register pointer machine,
 > the TX datapath (shared console FIFO + the 512-cycle shift timer), and the **Tx-buffer-empty
 > interrupt** path through INT3 → IP2 that an interrupt-driven driver (Linux `ip22zilog`) needs, see
 > [SCC implementation & Tx interrupt](scc.md).
 
-Minimal TX recipe (the whole console for Henry):
+Minimal TX recipe (what the first bring-up shipped; henry has since grown past it):
 1. **Write `0x1FBD9834`** → take `data[7:0]`, append to the console output sink. That's the printed character.
-2. **Read `0x1FBD9830`** → always return **`0x04`** so the driver's "wait for Tx empty" poll (`while(!(RR0&4));`)
-   never stalls. (Real RR0: bit2 = Tx Buffer Empty, bit0 = Rx Char Available, bit3 = DCD, …; Henry only needs
-   bit2 = 1, rest 0.)
-3. **Write `0x1FBD9830`** → **swallow.** These are WR-pointer selects and WR-register loads (baud, mode, IE).
-   Henry models no internal SCC register file; a stateless drain ignores them. Baud (DMA_SEL `0x9868[5:4]`,
-   default 00 = 10 MHz internal) is irrelevant to a stdout drain.
+2. **Read `0x1FBD9830`** → return RR0 with **bit2 (Tx Buffer Empty) = 1**, so the driver's "wait for Tx empty"
+   poll (`while(!(RR0&4));`) never stalls.
+3. **Write `0x1FBD9830`** → may be swallowed for polled output. The WR loads (baud, mode, IE) only matter for
+   interrupt-driven drivers.
 
-Note: IRIX talks to this register **directly**, not through ARCS — so emulating these 4 addresses is mandatory,
-not optional. ~10 lines of logic (decode 2 addrs, mux a constant, forward a byte) buys the entire boot log.
+**What henry's `ioc.sv` returns today:**
+
+- **RR0.** Returns `0x44` (Tx-Buffer-Empty | All-Sent, `ioc.sv:31`) with two live bits:
+  - **bit2 clears** while that channel is "shifting" (512 cycles after a data write) or while the SoC console
+    FIFO is full. That FIFO is 8 deep (`henry_soc.sv`), and this is how backpressure rate-limits a polling
+    driver.
+  - **bit0 (Rx Char Available)** is set while the Rx FIFO is non-empty.
+- **RR1.** Returns `0x01` (All Sent) when idle, with no parity, overrun or framing errors.
+- **RR3.** Returns the gated Tx/Rx interrupt-pending bits.
+- **WR0/WR1.** The pointer machine and WR1 (Tx and Rx interrupt enables) are modelled.
+- **Not modelled.** Baud and mode registers are swallowed.
+
+Full detail, including the Tx interrupt: [scc.md](scc.md).
+
+Note: IRIX talks to this register **directly**, not through ARCS — so emulating these addresses is mandatory,
+not optional.
 
 ## INT3 interrupt controller
 Base `0x1FBD9880` (registers `0x1FBD9880`–`0x1FBD98AC`, ioc.pdf §2.5 + §4.5). INT3 multiplexes system interrupts
@@ -67,8 +99,9 @@ the byte at **slot+3** (the struct is `u8 _pad[3]; volatile u8 reg;` per registe
 
 ### Interrupt funnel (signal flow)
 The whole block is a funnel: device/source lines → (optional mappable cascade) → per-level AND-mask + OR-reduce →
-one of five CPU IP pins → CP0. **Green** = the SCC-RX → IP2 path we're wiring next; **blue** = implemented + tested
-(Timer0 → IP4); **grey** = tied 0 / not modeled in Henry.
+one of five CPU IP pins → CP0. **Green** = live in henry today: the SCC Rx|Tx → MAP_INT0 → IP2 path, plus the
+Local0 SCSI0/ENET lines. **Blue** = implemented + tested (Timer0 → IP4), though dormant in a real boot.
+**Grey** = tied 0 / not modelled in henry.
 
 Structured like the RISC-V PLIC spec's Figure 3 (sources → gateways → core → target):
 
@@ -76,9 +109,9 @@ Structured like the RISC-V PLIC spec's Figure 3 (sources → gateways → core �
 flowchart LR
     %% ---------- sources ----------
     subgraph SRC["sources"]
-      SER["b5 Serial DUART<br/>(SCC RX, internal)"]
+      SER["b5 Serial DUART<br/>(SCC Rx-avail OR Tx-int)"]
       OMAP["b7:6, b4, b3:0<br/>other mappables"]
-      DV0["Local0 device lines<br/>SCSI/ENET/PP/GFX/FIFO"]
+      DV0["Local0 device lines<br/>SCSI0 b1 + ENET b3 live<br/>(PP/GFX/FIFO/SCSI1/MCDMA = 0)"]
       DV1["Local1 device lines<br/>video/panel/AC-fail"]
       T0["8254 counter0"]
       T1["8254 counter1"]
@@ -130,7 +163,7 @@ flowchart LR
     OMAP -.-> ANDM0
     OMAP -.-> ANDM1
     MI0 -->|"istat0 b7"| AND0
-    DV0 -.-> AND0
+    DV0 --> AND0
     MI1 -->|"istat1 b3"| AND1
     DV1 -.-> AND1
     T0 --> LAT0
@@ -145,9 +178,9 @@ flowchart LR
     classDef live fill:#d4f4d4,stroke:#28a428,stroke-width:2px;
     classDef impl fill:#d4e4ff,stroke:#3060c0;
     classDef stub fill:#f2f2f2,stroke:#bbb,color:#888;
-    class SER,ANDM0,ORM0,MI0,AND0,ORL0,IP2 live
+    class SER,ANDM0,ORM0,MI0,DV0,AND0,ORL0,IP2 live
     class T0,LAT0,IP4 impl
-    class OMAP,DV0,DV1,ANDM1,ORM1,MI1,AND1,ORL1,IP3,T1,LAT1,IP5,BER,IP6 stub
+    class OMAP,DV1,ANDM1,ORM1,MI1,AND1,ORL1,IP3,T1,LAT1,IP5,BER,IP6 stub
 ```
 
 The PLIC analogy is exact: the **mappable cascade = the PLIC gateways** (a source passes through a routing mask),
@@ -156,8 +189,8 @@ PLIC priority threshold** (the final gate before the target sees it).
 
 Reading the green path: SCC RX asserts `map_src[5]` → (`AND cmeimask0`, OR) → **MAP_INT0** → lands in `istat0[7]` →
 (`AND imask0`, OR) → **IP2** → `Cause.IP[2]` → taken once `Status.IM[2]` is set. Note the **two** INT3 masks in
-series (`cmeimask0` then `imask0`) plus the CPU's `Status.IM[2]`. To wire it: drive `map_src[5]` from an `rx_avail`
-output added to `ioc.sv` — `int3.sv` itself is unchanged.
+series (`cmeimask0` then `imask0`) plus the CPU's `Status.IM[2]`. In henry, `map_src[5]` =
+`scc_rx_avail | scc_tx_int`, both from `ioc.sv` (`henry_soc.sv:1021`).
 
 ✅ **Mappable cascade (map_src[5] = SCC serial) → IP2 validated against live IRIX (2026-06-20, interp_mips ISS).**
 The first confirmed user of this path is the **SCC *Tx*-buffer-empty interrupt** (not RX): interrupt-driven
@@ -210,6 +243,7 @@ in its idle loop after issuing the probe command) takes IP2, services the SCSI c
 INTRQ is **level-sensitive** and clears when the kernel reads the WD33C93 SCSI Status (reg 0x17) — so `istat0[1]`
 must track the live INTRQ line, not latch. (Same byte at `0x9883`; mask `imask0[1]` at `0x9887`, which the
 kernel writes during SCSI init.) This is the **second confirmed IP2 source** after the SCC-RX mappable path.
+In henry the line is `scsi_shim.sv`'s `r_intrq`. It is a level signal, and reading reg 0x17 clears it.
 
 ### Where the mappable inputs come from (and what is NOT in the IOC2 spec)
 This is the part that confuses people: **which physical signal drives each mappable input is fixed wiring, and for
@@ -233,8 +267,8 @@ a GIO-slot interrupt, an expansion device — is a **board/system-level decision
 e.g. "GIO slot X → MAP_INT_N<0>"; the chip only promises "here are 6 general interrupt input pins."
 
 **Consequences for Henry** (the `int3.sv` `map_src[7:0]` port):
-- `map_src[5]` (serial) — *internal* on real silicon ⇒ in Henry it is driven **inside `ioc.sv`** (the SCC RX),
-  which faithfully mirrors the chip. This is the one live source to wire.
+- `map_src[5]` (serial) — *internal* on real silicon ⇒ in Henry it is driven **from `ioc.sv`** (SCC Rx-avail OR
+  the gated Tx interrupt), which faithfully mirrors the chip. Live.
 - `map_src[4]` (kbd/mouse) — internal 8042 ⇒ not modeled, tied 0.
 - `map_src[7:6, 3:0]` — external GIO/expansion pins ⇒ Henry has **no GIO**, and the spec assigns them no source,
   so they are correctly tied 0. There is nothing to "look up" for these — they are unassigned by design.
@@ -243,40 +277,53 @@ In short: `int3.sv` only ever *consumes* `map_src`; the source wiring lives in `
 mappables there is no canonical source to wire because the IOC2 spec leaves them to the system designer.
 
 ### Henry relevance — what actually fires
-Of the 27 sources, only a handful have a real device model or plausible assertion in Henry:
-- **Serial DUART** (Map Status b5) → MAP_INT0 → **IP2** — console/keyboard RX. **The one live source to wire next**
-  (we have the SCC in `ioc.sv`).
-- **Timer0** (IP4) — **implemented + tested**: `ioc.sv` 8254 counter0 is a periodic down-counter whose terminal
-  count drives `timer0_irq` → INT3 latch → IP4 (see below). Note IP22 Linux/IRIX don't actually use it (they drive
-  the system tick from CP0 Count/Compare on **IP7**, the 8254 IRQ being buggy on IP22), but it's the cleanest
-  testable real INT3 source. **Timer1** (IP5) is a trivial mirror, not yet wired (counter1).
-- **SCSI0/1** (IP2) — relevant only once there's a root disk; no SCSI model yet.
-- **Bus errors** (IP6) — could be asserted from a bad-address fault if ever desired; not modeled.
-- Everything else (graphics, parallel, ENET, panel, vsync/retrace, AC-fail, GP, ISDN) — no device, stays 0.
+Of the 27 sources, these are driven in henry (`henry_soc.sv:1020-1023`):
+- **Serial DUART** (Map Status b5) → MAP_INT0 → **IP2**. **Live.** It is driven by the SCC Rx-FIFO non-empty
+  OR the gated SCC Tx interrupt. This is the interactive console on IRIX and Linux.
+- **SCSI0** (`istat0[1]`) → **IP2**. **Live.** It is driven by the WD33C93 INTRQ from `scsi_shim.sv`, ORed
+  with `hpc3.sv`'s HPC3 XIE latch.
+- **ENET** (`istat0[3]`) → **IP2**. **Live.** It is driven by the ENET RX/TX channel IRQ from `enet_shim.sv`.
+- **Timer0** (IP4). **Implemented + tested.** `ioc.sv` 8254 counter0 is a periodic down-counter whose terminal
+  count drives `timer0_irq` → INT3 latch → IP4 (see below). Note IP22 Linux/IRIX don't actually use it (they
+  drive the system tick from CP0 Count/Compare on **IP7**, the 8254 IRQ being buggy on IP22), but it's the
+  cleanest testable real INT3 source. **Timer1** (IP5) is tied 0 (counter1 not modelled).
+- **Tied 0:** everything else. That is the bus errors (IP6), all of Local1 (so IP3 never fires), SCSI1,
+  graphics, parallel, MC-DMA, FIFO-full, kbd/mouse, and the general mappables.
 
-### Implementation — `rtl/int3.sv` (skeleton, 2026-06-18)
+### Implementation — `rtl/int3.sv`
 INT3 is a standalone module **`rtl/int3.sv`**, instantiated in `henry_soc.sv` sharing the IOC2 access window (its
 registers sit at lines `0x80`/`0x90`/`0xa0`; `ioc.sv` reads 0 there, so `w_rd_ioc = w_rd_iocdev | w_rd_int3`).
 Its 5 outputs drive `core_l1d_l1i`'s `ip2..ip6` pins (this replaced the old 1-bit `extern_irq`). Aggregation:
 `ip2 = |(istat0 & imask0)`, `ip3 = |(istat1 & imask1)`, `ip6 = |buserr` (unmaskable), `ip4/ip5` = the two latched
 timer IRQs; `map_int0 = |(vmeistat & cmeimask0)` feeds `istat0[7]`. The §4.5 RW registers (`imask0`, `imask1`,
-`cmeimask0`, `cmeimask1`, `cmepol`) and the timer latches (tclear-cleared) are modeled. **`timer0_irq` is now driven
-by the `ioc.sv` 8254 counter0** (the first real source); the remaining device **sources are input ports tied to 0**
-for now → only IP4 can fire.
+`cmeimask0`, `cmeimask1`, `cmepol`) and the timer latches (tclear-cleared) are modeled.
+
+- **Polarity.** `cmepol` is stored but **not applied**: the map status is the raw active-high source.
+- **Byte lanes.** Each register is decoded on its byte lane: line `0x80` bytes 3/7/11/15 =
+  istat0/imask0/istat1/imask1; line `0x90` = vmeistat/cmeimask0/cmeimask1/cmepol; line `0xa0` byte 3 = tclear
+  (write) and byte 7 = errstat.
+- **Live sources.** See the list above: IP2 (SCC, SCSI0, ENET) and IP4 (Timer0) can fire.
 
 Source-port mapping:
 - `local0_src[6:0]` = istat0 b6..b0 (Graphics/Parallel/MC-DMA/ENET/SCSI1/SCSI0/FIFO); b7 (MAP_INT0) computed.
 - `local1_src[7:0]` = istat1 (b3 = MAP_INT1 computed, that input bit ignored).
-- `map_src[7:0]` = the 8 mappable inputs (**`[5]` = serial RX** is the one to wire next).
-- `buserr[2:0]` = {HPC, MC, EISA}; `timer0_irq` ← `ioc.sv` counter0 (live); `timer1_irq` tied 0 (counter1 TODO).
+- `map_src[7:0]` = the 8 mappable inputs (**`[5]` = SCC Rx-avail | Tx-int, live**; the rest tied 0).
+- `local0_src` as wired: `{3'd0, enet, 1'b0, scsi0, 1'b0}` (ENET b3, SCSI0 b1).
+- `buserr[2:0]` = {HPC, MC, EISA}, tied 0. `timer0_irq` ← `ioc.sv` counter0 (live). `timer1_irq` tied 0.
 
 **Test:** `tests/pit/` (a bare-metal MIPS program run on `henry_tb`) programs counter0 periodic, enables `IM[4]`,
-takes 5 IP4 interrupts ~2000 core cycles apart (= 20 PIT ticks × PIT_DIV 100, the programmed 20 µs @ 1 MHz),
-acking each via `tclear` → checksum `0x10` (IP4). Validates the full 8254 → INT3 latch/clear → IP4 → CPU path.
+takes 5 IP4 interrupts 20 PIT ticks apart, acking each via `tclear` → checksum `0x10` (IP4). With synthesis
+`PIT_DIV`=100, 20 ticks is ~2000 core cycles (the programmed 20 µs at 1 MHz). The `henry_tb` Verilator build
+uses `PIT_DIV`=2 (since 12bf79a), so the same 20 ticks is ~40 cycles there. Validates the full 8254 → INT3 latch/clear → IP4 → CPU path.
 
-**Next:** wire the SCC serial RX — host stdin → SCC Rx FIFO in `ioc.sv` (RR0 bit0 Rx-Char-Available) → drive
-`map_src[5]` → MAP_INT0 → IP2, enabling interrupt-driven console input at the IRIX/Linux prompt. (Not needed for
-the polled-TX boot console; IRIX's du driver polls RR0 for TX.)
+**SCC Rx (done).** Host bytes reach the 8-deep SCC Rx FIFO in `ioc.sv`:
+
+- **On the FPGA** the ARM writes AXI register `0x3B`, with bit8 = push and the byte in [7:0]. It checks
+  `scc_rx_full` at read `0x3A` bit8 before pushing.
+- **In simulation** `henry_tb` pushes the bytes.
+
+The FIFO drives RR0 bit0 and `map_src[5]` → MAP_INT0 → IP2. A read of the console DATA byte pops it. The
+FIFO is shared by both channels' Rx-available status.
 
 ## 8254 timer (Intel 82C54 PIT)
 Standard Intel **82C54** CHMOS Programmable Interval Timer — three independent 16-bit down-counters. On IP22 it's
@@ -328,6 +375,12 @@ LSB-then-MSB without disturbing counting (this is what `dosample` does on Counte
   count (→1) it emits a 1-cycle `timer0_irq` pulse and reloads — i.e. **Mode 2 / Mode 3 edge behavior** (we model
   the interrupt edge, not the OUT duty cycle). Drives INT3 Timer0 → IP4. **Tested**: `tests/pit`.
 - **Counter2** as the calibration down-counter (Counter-Latch + LSB/MSB read) for `dosample`.
+- **PIT rate.** The PIT rate is the core clock ÷ `PIT_DIV`: **100** in synthesis (1 MHz at 100 MHz), but
+  **2** under Verilator (`ioc.sv:55-63`). The small sim divider shrinks IRIX's `us_delay` busy-waits, so
+  simulated time-of-day/calibration is deliberately not 1 MHz.
+- ⚠️ **Control-word quirk.** The control-word decode is simplified. Any control word whose RW≠00 arms the
+  2-byte *counter2* load sequence, whatever its SC field says. Any RW=00 word latches counter2. A
+  counter0-select (SC=00) word also stops counter0 and arms its 2-byte reload.
 
 Not modeled (not needed): Modes 0/1/4/5, BCD counting, the GATE inputs, the Read-Back **status** command, the OUT
 duty cycle, Counter1 (a trivial mirror of Counter0), and "count of 1 is illegal in Mode 2." The kernel programs
@@ -340,7 +393,11 @@ is chip-faithful but dormant during a real boot (see the INT3 section).
 PROM/IRIX probe these during early init; Henry must return plausible values or init stalls/branches wrong. Most
 are simple constant-return or accept-and-store.
 
-| Reg | Addr | r9999 must return / accept | Notes |
+In henry only **System ID** is modelled. It reads `0x26` (stored `0x26000000`, the BE load sees `0x26`; this
+needs a full-word read; `ioc.sv:30`). Every other register in this table **reads 0 and swallows writes**. IRIX and
+Linux boot with that, because henry's ARCS firmware replaces the PROM that would otherwise care.
+
+| Reg | Addr | MAME/PROM value | Notes |
 |-----|------|---------------------------|-------|
 | System ID | `0x9858` | **`0x26`** (Guinness) | b<7:5>=001 chip rev (≠0 = real IOC, not discrete), b<4:1>=board rev (0x3), **b0=0 = Sapphire/Guinness** (1 would = Full House). ✅ MAME `get_system_id()=0x26`. |
 | Read Reg | `0x9860` | power/PTC-good bits high, e.g. **`0xF0`** | b7 ENET-link, b6 ENET-pwr, b5 SCSI1-pwr (FH only), b4 SCSI0-pwr. High = power good; return upper bits set so PROM sees healthy rails. |
@@ -355,22 +412,21 @@ Henry rule of thumb: every "Not Used" slot and every unmodeled control reg → *
 on read** (except the four constants above). That keeps PROM/IRIX init walking forward.
 
 ## Minimum for a Henry IRIX boot
-Implement, in order:
-1. **Polled serial TX (~10 lines, do this first):** decode `0x1FBD9830`/`0x34`; read 0x30 → `0x04`; write 0x34 →
-   emit byte; swallow 0x30 writes. This alone produces the entire boot console.
-2. **Boot-ID constants:** System ID `0x9858`→`0x26`; Read `0x9860`→`0xF0`; Front Panel `0x9850`→`0xE1` (W1C on
-   b1/b4/b6).
-3. **Accept-and-ignore the rest:** GC/General/DMA-Sel/Reset/Write regs and all INT3 regs as plain R/W storage;
-   reads of unmodeled/Not-Used → 0.
-4. (Later, post-first-output) 8254 Timer0 → IP4 tick; INT3 serial mappable int (b5) for interrupt-driven console.
-
-Everything past step 1 is "don't stall init"; step 1 is the actual deliverable.
+Original bring-up order (all done; henry now boots IRIX and Linux to an interactive console):
+1. **Polled serial TX:** decode `0x1FBD9830`/`0x34`; RR0 bit2 = 1; write 0x34 → emit byte. This alone produces
+   the boot console.
+2. **Boot-ID constants:** only System ID `0x9858`→`0x26` turned out to be needed. Read Reg, Front Panel etc.
+   read 0 in henry.
+3. **Accept-and-ignore the rest:** unmodelled IOC2 registers read 0. INT3 is fully modelled (`int3.sv`), not
+   plain storage.
+4. **Interrupts:** INT3 serial mappable (b5, Rx + Tx) → IP2, SCSI0/ENET → IP2, and Timer0 → IP4.
 
 ## Golden vectors (from MAME)
 - **SCC TX stream** captured via `scc_dc_w` hook (`SCCW off=1 data=XX c`): `off=1` (= addr 0x34, Port1 data) bytes
   are the console chars. Full IRIX serial boot reconstructed at `~/code/mame/irix_serial_console.txt` (~972 bytes
   through the SCC-write hook; the `du_putchar` entry-breakpoint undercounts because TX is buffered).
 - **RR0 read** (addr 0x30) golden value = `0x04` (Tx Buffer Empty) — the value that keeps the poll loop moving.
+  henry returns `0x44` (Tx-Buffer-Empty | All-Sent) with live bit2/bit0. Only bit2 matters to the poll.
 - **System ID** (0x9858) golden for Guinness/Indy = **`0x26`** (`ioc2_guinness_device::get_system_id()`).
 - **Front Panel** (0x9850) power-on reset golden = **`0xE1`**; "power on" written value the PROM accepts = `0x03`.
 - **Address decode** golden: MAME `map(0x0c,0x0f)` = SCC (word 0x0c–0x0f = byte 0x30–0x3C); `map(0x14)` Front
@@ -379,10 +435,10 @@ Everything past step 1 is "don't stall init"; step 1 is the actual deliverable.
 ## Open / not-yet-needed
 - ⚠️ **Kbd/mouse (8042)** `0x9840/0x9844` — headless Henry has no console keyboard; stub (return 0).
 - ⚠️ **Parallel port (PI1)** `0x9800–0x982C` — no printer; stub.
-- ⚠️ **Port2 serial (chan B)** `0x9838/0x983C` — second UART, not the console; stub `0x04`/0.
-- ⚠️ **Interrupt-driven serial / Rx** — IRIX boot console is polled-TX; Rx and the INT3 serial mappable int
-  (Map Status b5) only needed for an interactive console (input echo, getty).
-- ⚠️ **8254 real timing** — needed for scheduler tick eventually, not for first boot output.
+- ⚠️ **Second serial port (chan A)** `0x9838/0x983C`. It has its own pointer machine, WR1 and Tx-shift state,
+  but no separate Rx or TX sink: its data writes also go to the console FIFO, and its data reads return 0.
+- **Interrupt-driven serial / Rx**: done (see above).
+- **8254 counter1**: not modelled. The system tick is CP0 Count/Compare (IP7).
 - ⚠️ **Power/volume state machine, ISDN glue, EISA** — pure storage stubs; never exercised headless.
 
 ## Sources
@@ -395,3 +451,17 @@ Everything past step 1 is "don't stall init"; step 1 is the actual deliverable.
 - `~/code/mame/src/mame/sgi/ioc2.cpp` / `ioc2.h` — golden reference (`scc_dc_w` TX hook, `get_system_id()=0x26`,
   Front Panel reset = 0xE1, `map(0x0c,0x0f)` SCC decode).
 - `~/code/mame/irix_serial_console.txt` — captured golden console stream.
+
+## henry implementation summary
+
+| Block | henry RTL | Status |
+|-------|-----------|--------|
+| SCC console port (`0x30/0x34`) | `ioc.sv` | pointer machine, RR0/RR1/RR3, WR1 Tx/Rx int enables, TX → SoC console FIFO, 8-deep Rx FIFO |
+| SCC second port (`0x38/0x3C`) | `ioc.sv` | control/Tx-int state only; data writes also go to the console FIFO |
+| INT3 (`0x80–0xa7`) | `int3.sv` | all §4.5 registers; `cmepol` stored but ignored |
+| 8254 counter0 → IP4 | `ioc.sv` | periodic; tested by `tests/pit` |
+| 8254 counter2 | `ioc.sv` | calibration latch/read |
+| 8254 counter1 | — | not modelled |
+| SYSID (`0x58`) | `ioc.sv` | `0x26` |
+| Front panel, Read/Write, GC, DMA-sel, Reset, kbd/mouse, parallel | — | read 0, writes ignored |
+

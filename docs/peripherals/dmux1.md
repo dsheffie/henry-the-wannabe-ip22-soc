@@ -1,6 +1,6 @@
 ---
 title: DMUX — data mux
-status: draft
+status: draft (henry status audited 2026-10-04 against main @209e6f6)
 source: SGI IP22 DMUX spec (dmux1.pdf)
 ---
 
@@ -24,9 +24,10 @@ r9999 already provides intrinsically:
   on different clocks (CPU 50–65 MHz, GIO 33–40 MHz). DMUX is the gate array that physically routes 36-bit slices
   (32 data + 4 parity) between them, crosses the clock domains with FIFOs, and does the interleave/word-swap
   muxing. Two DMUX parts are used per machine, each handling 36 bits (dmux1.pdf p.1).
-- In Henry, r9999's load/store path, the MC's memory interface, and the GIO64 bridge are all internal to the SoC
-  and already move data between CPU, memory, and peripherals. There is no asynchronous 36-bit gate-array boundary
-  to bridge, so the function DMUX performs has no separate existence.
+- In Henry, data moves through r9999's L1/L2 → the 16-byte-line memory bus → `henry_soc.sv`'s device decode and
+  `mem_arbiter`. There are three device slaves (MC, HPC3, IOC2 register shims), the DMA masters, and one external
+  AXI memory port. There is **no GIO64 bus or bridge at all** (see [GIO64](gio64.md)), and no asynchronous
+  36-bit gate-array boundary to bridge. The function DMUX performs has no separate existence.
 - DMUX exposes **zero memory-mapped registers**. IRIX never addresses it. Nothing in the boot/PROM/kernel path
   reads or writes a "DMUX register," so there is no register model to implement (the *MC* registers that *control*
   DMUX — e.g. the FIFO high-water mark — live in the MC, and are documented in `mc.md`).
@@ -105,7 +106,8 @@ how full the CPU write FIFO is, and drives every DMUX control pin (including `cp
 the `giostb`/command stream for GIO packing). DMUX just routes bytes when told.
 
 The **"MUX HWM" / CPU-write-FIFO high-water mark** referenced from the MC spec lives in MC's CPUCTRL1 (see
-`mc.md`, where `MC fifo HWM[3:0]` defaults to `0xC`). That is the MC telling itself how full to let *DMUX's*
+`mc.md`, where `MC fifo HWM[3:0]` defaults to `0xC` on real silicon; henry's `mc.sv` resets CPUCTRL1 to 0 and
+treats it as plain storage). That is the MC telling itself how full to let *DMUX's*
 32-entry CPU write FIFO get before it deasserts `cpu_wrrdy_n` to throttle the processor (dmux1.pdf p.4: "When the
 fifo is full the MC chip will deassert the processor cpu_wrrdy_n signal"). So the HWM is an MC register about a
 DMUX resource — and in Henry it's purely an MC-side concern. From the GIO64 side, MC throttles GIO bus masters
@@ -117,7 +119,7 @@ with `slvdly` when DMUX's GIO write/read FIFOs back up.
 
 - **No register model** — DMUX has no software-visible registers, so there is nothing for the PROM/ARCS/kernel to
   probe. (The HWM and friends are already covered by the MC model.)
-- **No separate block** — Henry's r9999↔memory and r9999↔GIO64 datapaths are the SoC-internal equivalent of what
+- **No separate block** — Henry's r9999↔memory datapath (and the absence of any GIO64 datapath) replaces what
   DMUX does on a physical IP22 board; integrating the core subsumes the gate array. The clock-domain FIFOs, the
   interleave mux, and the GIO packers are artifacts of three physical chips on different clocks — Henry doesn't
   have that boundary.
@@ -126,7 +128,8 @@ with `slvdly` when DMUX's GIO write/read FIFOs back up.
      produce. Henry's load/store and GIO paths must return the correct bytes. (Compare with the MC big-endian
      alias note in `mc.md` — same theme: get the lanes right.)
   2. **Parity** can be ignored. DMUX parity exists to *detect DRAM faults*; on simulated/SoC memory there are no
-     bit flips, and the parity-error interrupt path is maskable. Henry need not model parity gen/check to boot.
+     bit flips, and the parity-error interrupt path is maskable. henry models no parity: the MC error registers
+     read 0, and the INT3 bus-error inputs are tied 0.
 - The known DMUX silicon bug (bad-parity-on-`par_flush` corrupting the GIO FIFO, IDE-then-SCSI failure, p.37) is
   a hardware erratum with no bearing on a clean Henry datapath — do not replicate it.
 

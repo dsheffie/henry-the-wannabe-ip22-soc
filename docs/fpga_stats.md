@@ -8,10 +8,60 @@ a synth (`rebuild_henry.tcl` writes `~/timing_after.rpt` + `~/util_after.rpt`):
 ```
 
 **Target:** Ultra96-v2 (Zynq UltraScale+ ZU3EG), `clk_pl_0` @ **100 MHz** (10 ns).
-The WNS path has long been the **icache -> ITLB -> `pa_reg`** chain (the 48-entry
-fully-associative TLB CAM), and it is **route-dominated** (~63% route) -- so area
-reductions that shrink the TLB array tend to help WNS more than logic-level
-counting suggests. Newest block first.
+In most of the June–July 2026 builds logged below the WNS path was the **icache -> ITLB -> `pa_reg`** chain (the
+48-entry fully-associative TLB CAM), **route-dominated** (~63% route). The 2-entry **micro-ITLB** took
+the CAM off the fetch path; since the memory-system rework (non-blocking L1D + LSU) the worst path
+sits in the **L1D port-2 pipeline**. Newest block first. Reports for each deployed bitstream are
+snapshotted next to it in `~/fpga/ultra96v2-henry/bit_<r9999 sha>/`.
+
+## 2026-10-04 -- r9999 5c89b70 (L1D flushes start only from a drained L1D) -- CURRENT deployed bit
+
+Henry `main` @ `209e6f6`; bitstream md5 `f66c6d49dfb1…`; `impl_11`; built with
+`ENABLE_DEBUG_WATCHPOINT` on (the `gen_mipscore.sh` default). Core config: 16 KB L1I + 16 KB L1D,
+128 KB L2, ROB 16, micro-ITLB 2, L1D skid buffer **off**, RDCHK checker removed, unified int/FP divider
+in. Parsed with `./fpga_stats.sh` from `bit_5c89b70/*.rpt`.
+
+| metric | value |
+|--------|-------|
+| WNS @ 100 MHz | **+0.120 ns** (all user specified timing constraints met; 0 failing endpoints) |
+| Worst path | `cpu/dcache/r_req2_reg[204]` -> `cpu/dcache/r_hit_busy_addr_reg` |
+| Data path delay | 9.758 ns  (logic 3.256 ns / **33.4%**, route 6.502 ns / **66.6%**) |
+| Logic levels | 35  (LUT2=2 LUT3=1 LUT4=4 LUT5=6 LUT6=21 MUXF7=1) |
+| CLB LUTs | 56222 (79.68%) |
+| LUT as Logic | 54039 (76.59%) |
+| LUT as Memory (LUTRAM) | 2183 (7.58%) |
+| CLB Registers (FF) | 36397 (25.79%) |
+| Register as Latch | 0 |
+| Block RAM | 63 (29.17%) |
+| DSP | 43 (11.94%) |
+
+> **Path shape:** the L1D port-2 request register `r_req2` -> data-array / store-buffer byte select
+> (`dc_data`, `r_sb_mask`) -> D-TLB-dependent response / block decision (`dtlb/r_core_mem_rsp`,
+> `r_core_mem_blk_valid`) -> MQ push / next state -> tag-RAM address (`dc_tag`) -> `r_hit_busy_addr`.
+> Still route-dominated (67%). vs. `94e5e97` below: +716 CLB LUTs and -0.057 ns WNS for the
+> drained-L1D gating on all four flush arms.
+
+## 2026-10-03 -- r9999 94e5e97 (CP0 writes commit at retire; CP0 ops totally ordered)
+
+`impl_11`, bitstream md5 `f29a0d083fae…` (reports in `bit_94e5e97/`). First bits on the reworked
+memory system (r9999 `3b78e9b`: non-blocking L1D, unified LSU with store buffer + forwarding).
+
+| metric | value |
+|--------|-------|
+| WNS @ 100 MHz | **+0.177 ns** (all user specified timing constraints met) |
+| Worst path | `cpu/icache/insn_array/r_ram_reg_bram_3` -> `cpu/icache/r_ufast_pa_reg[33]` |
+| Data path delay | 9.471 ns  (logic 4.250 ns / **44.9%**, route 5.221 ns / **55.1%**) |
+| Logic levels | 31  (LUT2=6 LUT3=3 LUT4=6 LUT5=5 LUT6=11) |
+| CLB LUTs | 55506 (78.66%) |
+| LUT as Logic | 53323 (75.57%) |
+| LUT as Memory (LUTRAM) | 2183 (7.58%) |
+| CLB Registers (FF) | 36408 (25.80%) |
+| Register as Latch | 0 |
+| Block RAM | 63 (29.17%) |
+| DSP | 43 (11.94%) |
+
+> Worst path here is the **micro-ITLB fast path** (I-cache data array -> next fetch PC -> uITLB
+> compare -> `r_ufast_pa`), no longer the 48-way CAM.
 
 ## 2026-07-19 -- r9999 2edef07 (submodule-on-main: 16 KB L1I+L1D, 128 KB L2, find_lowest_set_bit, programmable debug watchpoint)
 

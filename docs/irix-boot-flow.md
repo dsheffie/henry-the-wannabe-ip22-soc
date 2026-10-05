@@ -107,8 +107,8 @@ The R4600 primary caches are **virtually indexed**, so IRIX must avoid color ali
 
 IRIX measures the CPU clock rather than trusting a constant. **`findcpufreq_raw`** times a fixed loop, and **`_cpuclkper100ticks`** calibrates CPU cycles against the IOC **8254 PIT** (counter 2 @ `0x1fbd98b0`), busy-polling the timer down to zero while sampling CP0 `Count`. **`is_ioc1`** / **`is_fullhouse`** here read the MC/IOC registers to confirm the board class.
 
-!!! note "Headless-platform note"
-    Neither the r9999 RTL sim nor `interp_mips` model the PIT, so this loop runs once and yields a garbage clock — *harmless*; the boot proceeds. MAME (which has a PIT) loops it 641×.
+!!! note "Henry note (updated 2026-10)"
+    When this trace was taken, neither the r9999 RTL sim nor `interp_mips` modeled the PIT, so this loop ran once and produced a garbage clock (harmless; MAME, which has a PIT, loops it 641×). Both now model **i8254 counter 2** at the real **1 MHz** rate: `rtl/ioc.sv` (`PIT_DIV=100` at the 100 MHz core clock; `PIT_DIV=2` under Verilator to shorten the calibration) and `interp_mips/sgi_hpc.cc`. Counter 2 raises no interrupt, and the IRIX/Linux tick comes from CP0 Count/Compare. `ioc.sv` also models counter 0 as a periodic INT3 Timer0 source, which neither kernel uses for its tick.
 
 ## Phase 6 — PDAs, locks & exception vectors
 
@@ -141,7 +141,7 @@ The slab/zone allocator (**`kmem_zone_init`**, `kmem_zone_alloc`, `kmem_zalloc`)
 Cache maintenance (`cache_operation`, `clean_dcache`/`clean_icache` and their refill helpers) and the kernel **timer** subsystem (`ktimer_init`) initialize. Then the **console** is chosen: **`cn_init` → `gfx_earlyinit` → `tp_dogui`** decides graphical vs serial, and the framebuffer family is probed — `gr2_earlyinit` (absent), then **`ng1_earlyinit` → `newportProbe`**. `badaddr` is the safe "does hardware respond?" probe (read with the bus-error handler armed). On success **`newportInit` → `newportInitInfo` → `initNg1Cursor`** bring the Newport up ([`graphics/index.md`](graphics/index.md)).
 
 !!! warning "Henry/RTL gotcha"
-    Henry's **`newportProbe` returns 0** (no board) where MAME's returns nonzero — IRIX doesn't detect the Newport. First *permanent* RTL-vs-MAME divergence; real but separate from the Phase-9 blocker (MAME_QUESTIONS Q6 round-2).
+    Henry's **`newportProbe` returns 0** (no board) where MAME's returns nonzero — IRIX doesn't detect the Newport. First *permanent* RTL-vs-MAME divergence; real but separate from the Phase-9 blocker (MAME_QUESTIONS Q6 round-2). Note that Henry has no graphics model and **raises no bus errors** here. `henry_soc.sv` decodes only MC, HPC3 and IOC2; the graphics/GIO windows (`0x1f000000–0x1f9fffff`) go to the AXI memory port, which maps them onto a 16 MB DRAM window. So `badaddr` probes there succeed and read DRAM contents rather than faulting.
 
 ## Phase 12 — Hardware-settle delay
 
@@ -193,7 +193,7 @@ flowchart LR
 - **Symbol attribution.** PCs are mapped to the nearest preceding `nm` text symbol, so a few instructions attributed to a function are really unnamed static helpers placed after it in the binary. The clearest example: a printf/`cmn_err`-family helper sits just after `panic()` and gets counted as **`panic`** (9,380 instrs) — but the literal `panic` entry (`0x8815bf2c`) executes **0 times**. No panic occurs in this boot.
 - **Trace extent.** 14M instructions reaches the Newport probe, then a 10.9M-instruction `us_delay`/`delayloop` runs out the capture. The scheduler, `init`, and rootfs mount are past the window.
 - **It's an oracle, not a model.** This is MAME's R4600 path. Where Henry or the r9999 RTL diverge from it, that divergence *is* the bug — the warnings above flag the ones we've already chased through [MAME_QUESTIONS.md](https://github.com/dsheffie/r9999).
-- **Delay loops & timers.** MAME models the IOC 8254 PIT; the headless r9999 sim does not, so timing-calibration loops (`_cpuclkper100ticks`, `findcpufreq_raw`, `delayloop` counts) differ harmlessly between them.
+- **Delay loops & timers.** MAME models the IOC 8254 PIT. Henry's RTL now models PIT counter 2 too (see Phase 5), but the Verilator build runs it fast (`PIT_DIV=2`). So timing-calibration loops (`_cpuclkper100ticks`, `findcpufreq_raw`, `delayloop` counts) still differ harmlessly between MAME, RTL sim and silicon.
 
 ---
 

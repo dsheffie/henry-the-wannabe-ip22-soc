@@ -1,6 +1,6 @@
 ---
 title: SCC (Z8530) — serial console implementation & Tx interrupt
-status: draft (silicon-validated)
+status: draft (silicon-validated; audited 2026-10-04 against henry main @209e6f6)
 source: rtl/ioc.sv, rtl/int3.sv, rtl/henry_soc.sv; interp_mips sgi_scc.cc; MAME ioc2.cpp
 ---
 
@@ -30,10 +30,13 @@ write regs (WR0..WR15) and 16 read regs (RR0..RR15) through a **pointer** set by
   CONTROL  (0x..30)                       DATA  (0x..34)
   ─────────────────                       ──────────────
   write, ptr==0 → WR0: cmd[5:3]           write → push a TX byte
-        (e.g. RES_TXP=0x28)               read  → pop  an RX byte
+        (e.g. RES_TXP=0x28)               read  → pop  an RX byte (console port only)
         + new ptr = byte[2:0]
+        (+8 if cmd = Point-High 0x08)
   write, ptr!=0 → WR[ptr], ptr→0          RR0 = status (Tx-empty bit2, Rx-avail bit0)
-  read          → RR[ptr], ptr→0          RR3 = chip-wide interrupt-pending (gated by TxIE)
+  read          → RR[ptr], ptr→0          RR1 = 0x01 idle / 0x00 shifting (no Rx errors)
+                                          RR3 = chip-wide int-pending (Tx gated by WR1.TxIE,
+                                                Rx gated by WR1[4:3])
 
   Enable the Tx-buffer-empty interrupt (WR1.TxIE, bit1):
      CONTROL <= 0x01   ; WR0 "point to register 1"   ptr 0 → 1
@@ -75,6 +78,10 @@ flowchart LR
 ```
 
 - `SCC_RR0 = 0x44` (Tx-Buffer-Empty | All-Sent); **bit2** is what software polls.
+- A DATA write on **either** channel goes to the same console FIFO. henry has no separate sink for the second
+  port.
+- A DATA write is only accepted (it re-arms `tx_ip` and starts the shift timer) while the console FIFO is not
+  full.
 - `TX_DRAIN = 512` gates `tx_ip` only, **not** output.
 - Polled TX (`while(!(RR0 & 0x04)); DATA = c;`) never touches `tx_ip` — so polling works even
   when the interrupt path is broken (this is exactly how the §5 bug stayed hidden).
@@ -99,7 +106,22 @@ flowchart LR
 ```
 
 RR3 (read at ptr==3) exposes the **gated** per-channel int-pending bits: `CHATxIP=0x10`,
-`CHBTxIP=0x02` (gated by `WR1.TxIE`).
+`CHBTxIP=0x02` (gated by `WR1.TxIE`), and `CHARxIP=0x20`, `CHBRxIP=0x04` (gated by WR1 Rx-int mode
+`[4:3] != 0`). IRIX's console getty reads RR3 to find the pending source, and it will not read the
+character unless the Rx-IP bit is set.
+
+Note that `map_src[5]` uses the **raw** Rx-FIFO-non-empty level, not the WR1-gated Rx-IP. The INT3 masks
+(`cmeimask0`/`imask0`) are what gate it.
+
+## 4a. Rx path ✅
+
+- **Input.** Host bytes enter an **8-deep** Rx FIFO in `ioc.sv`.
+  - On the FPGA the ARM writes AXI register `0x3B`: bit8 = push, [7:0] = byte. It first polls
+    `scc_rx_full` at read `0x3A` bit8.
+  - In simulation `henry_tb` drives `scc_rx_valid`/`scc_rx_byte`.
+- **Status.** RR0 bit0 is set on both ports while the FIFO is non-empty.
+- **Read.** A DATA read of the console port (`0x…37`, byte 7) returns the front byte and pops it.
+- **Interrupt.** It is level-triggered: `rx_avail` stays high until the ISR has drained the FIFO.
 
 ## 5. ⚠️ Fixed bug: control-write data byte dropped → Tx interrupt dead
 

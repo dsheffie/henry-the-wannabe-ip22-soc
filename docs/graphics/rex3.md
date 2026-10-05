@@ -7,13 +7,14 @@ source: SGI Newport REX3 spec (rex3.pdf)
 # REX3 — Raster Engine (Henry/Newport block spec)
 
 > REX3 = the host-programmable rendering engine of the Indy Newport board, a GIO64
-> slave at `0x1f000000`. The host writes its registers to issue draw primitives;
+> slave in the slot at `0x1f000000` with its registers at `0x1f0f0000`. The host writes its registers to issue draw primitives;
 > REX3 rasterizes them and writes pixels into the VRAM framebuffer through the RB2s.
 > It is also the master of the Display Control Bus (DCB) that programs the rest of
 > the Newport display chain (VC2, XMAP9, CMAP, RAMDAC).
 >
-> **NOT needed for headless Henry** — a headless Henry bus-errors any access to this
-> address window. This document is future-work for a Henry graphics console: it
+> **Not implemented in Henry.** There is no REX3 logic in `rtl/` or `ip_hdl/`; accesses to
+> this window fall through to plain DRAM (see [Henry relevance](#henry-relevance-implementation-scope)).
+> This document is reference + future-work for a Henry graphics console: it
 > captures the architecture, programming model, and register-group map well enough
 > to (a) understand the part and (b) scope what a Henry REX3 would entail, without
 > exhaustively transcribing all 149 spec pages.
@@ -73,23 +74,26 @@ flowchart LR
    Runs at **66 MHz**, page-mode cycle = 4 clocks (~60 ns). Each bank has its own
    4-bank-FIFO (one write + two read FIFOs). (p.6)
 
-Two shaded pixels/clock are produced (two RGBA iterators); flat spans do 4 px/clock;
-fast-clear does 32 px/clock. See Performance, p.7.
+Two shaded pixels/clock are produced (two RGBA iterators); flat spans do 4 px/clock
+(p.5). Table 1 (p.7): shaded spans 50M px/s, flat spans 100M, fastclear 400M, DMA 50M,
+screen-to-screen 40M, lines 20M px/s.
 
 ---
 
 ## Host interface
 
-**Address window.** REX3 is a pipelined **GIO64 slave**. Base address is
+**Address window.** REX3 is a pipelined **GIO64 slave**. The *board* base is
 `0x1F_n0_0000` where the nibble `n ∈ {0,4,8,C}` is set by the `SLOT_NUMBER[1:0]`
-strap pins — i.e. `0x1F000000 / 0x1F400000 / 0x1F800000 / 0x1FC00000`. The two
-high SLOT_NUMBER bits are assumed `0001_1111`, so the subsystem only lives in GIO64
-slots C/D/E/F; up to four heads by populating all four. (p.12, p.20, p.84)
+strap pins (= address bits [23:22]) — i.e. `0x1F000000 / 0x1F400000 / 0x1F800000 /
+0x1FC00000`. Address bits [31:24] are fixed at `0001_1111` and the two high
+SLOT_NUMBER pins are assumed `11`, so the spec says the subsystem only lives in
+GIO64 slots C/D/E/F; up to four heads by populating all four. On the Indy the board
+is at `0x1F000000`. (p.12, p.84)
 
-**Register window.** All host-visible registers are offsets from that base. Two
-shadow windows exist: offsets beginning `0x1nnn` map the same registers into a
-separate "protected" page (intended for kernel-only access). Unused bits read 0.
-(p.20)
+**Register window.** The registers are offsets from **`0x1FnF0000`** (board base +
+`0xF0000`; p.20) — `0x1F0F0000` on the Indy, matching MAME's `0xf0000–0xf1fff` map.
+Offsets beginning `0x1nnn` (`0x1300`–`0x1340`: screen masks 1–4, window/config,
+status) are placed in a separate "protected" page. Unused bits read 0. (p.20)
 
 **The GO / non-GO write model.** This is REX3's primitive-launch mechanism:
 
@@ -105,8 +109,8 @@ separate "protected" page (intended for kernel-only access). Unused bits read 0.
   - all others are graphics-context registers and flow through the **GFIFO**.
   - `•` registers stall at the GFIFO output until the graphics pipe is idle.
 
-**FIFOs.** Host writes queue in the **GFIFO** (graphics, 64×32, enlarged to 32-deep/
-doubled at timeout); DCB traffic queues in the **BFIFO**. The CONFIG register sets
+**FIFOs.** Host writes queue in the **GFIFO** (graphics, 64 bits wide × 32 deep,
+programmable high-water mark); DCB traffic queues in the **BFIFO**. The CONFIG register sets
 high-water depths (`GFIFODEPTH`, `BFIFODEPTH`) and interrupt polarity
 (`GFIFOABOVEINT`, `BFIFOABOVEINT`); crossing a level asserts `FIFO_INT_N` and/or
 stalls the GIO bus via `GRXDLY`. A `TIMEOUT` counter (0.96–4.32 µs) raises
@@ -115,12 +119,12 @@ interrupt bits. (p.27–28, p.80–81, p.84)
 
 **Pixel / command path.** There is no separate command FIFO — primitive commands
 *are* register writes through the GFIFO. Host pixel data (PIO and DMA) moves through
-the **HOSTRW1/HOSTRW0** register pair (`0x0230/0x0234`); see Drawing model below.
+the **HOSTRW0/HOSTRW1** register pair (`0x0230`/`0x0234`); see Drawing model below.
 
 **Reset / init.** After GIORESET, REX3 assumes a physically-32-bit GIO64 bus with
-external registered transceivers present. The host must program CONFIG
-(`EXTREGXCVR`, `BUSWIDTH`, `GIO32MODE`) before any register reads to match the actual
-board. (p.83) Bi-endian (little/big) addressing is supported in GIO64 mode. (p.84)
+external registered transceivers present. If the transceivers are absent the host must
+clear `CONFIG.EXTREGXCVR` before any register read; it sets `BUSWIDTH` on a 64-bit bus
+and `GIO32MODE` behind a GIO32 master. (p.83) Bi-endian (little/big) addressing is supported in GIO64 mode. (p.84)
 
 **Interrupts.** `VV_INT_N` = VC2 vertical-retrace (`VERT_INT_N`) OR'd with the
 Express-Video option (`VIDEO_INT_N`); `FIFO_INT_N` = GFIFO/BFIFO level/timeout.
@@ -139,14 +143,14 @@ rather than transcribed.
 
 | Group | Offset range | What it does | Pages |
 |---|---|---|---|
-| **Drawing-mode / state** | `0x0000`–`0x0024` | `DRAWMODE0` (opcode + addressing mode + iterator-setup enables), `DRAWMODE1` (planes, depth, RGB/CI, dither/blend/logicop, compare), `LSMODE`, `LSPATTERN`/`LSPATSAVE`, `ZPATTERN` (stipple/soft-Z masks), `COLORBACK`, `COLORVRAM` (fastclear color), `ALPHAREF`, `STALL0` | 21,23–27 |
+| **Drawing-mode / state** | `0x0000`–`0x0024` | `DRAWMODE1` @`0x0000` (planes, depth, RGB/CI, dither/blend/logicop, compare), `DRAWMODE0` @`0x0004` (opcode + addressing mode + iterator-setup enables), `LSMODE`, `LSPATTERN`/`LSPATSAVE`, `ZPATTERN` (stipple/soft-Z masks), `COLORBACK`, `COLORVRAM` (fastclear color), `ALPHAREF`, `STALL0` | 21,23–27 |
 | **Screen masks 0** | `0x0028`–`0x002C` | `SMASK0X/Y` — window-relative GL scissor (min/max) | 21,30 |
 | **Setup / command** | `0x0030`–`0x003C` | `SETUP` (octant/Bresenham term calc, no iterate), `STEPZ`, `LSRESTORE`, `LSSAVE` — write-only `#` command addresses | 21 |
 | **Vertex / coordinate iterators** | `0x0100`–`0x0158` | `XSTART/YSTART`, `XEND/YEND` (16.4 subpixel), `XSAVE`, `XYMOVE`, plus the GL-format (`XSTARTF…`) and packed-integer (`XYSTARTI`, `XYENDI`, `XSTARTENDI`) aliases | 21 |
 | **Bresenham state** | `0x0118`–`0x0134` | `BRESD`, `BRESS1/S2`, `BRESOCTINC1`, `BRESRNDINC2`, `BRESE1`, `AWEIGHT0/1` (anti-alias line weight table). Full state for context switch | 21 |
 | **Color / shader (DDA)** | `0x0200`–`0x022C` | `COLORRED/GRN/BLUE/ALPHA` (full shade state), `SLOPERED/GRN/BLUE/ALPHA` (DDA slopes), `WRMASK` (24-bit write mask / double-buffer select), `COLORI` (packed CI/BGR), `COLORX`, `SLOPERED1` | 22 |
-| **Host pixel pipe (PIO/DMA)** | `0x0230`–`0x0234` | `HOSTRW1` (MS word), `HOSTRW0` (LS word) — framebuffer PIO/DMA data port | 22,78 |
-| **DCB (device control bus)** | `0x0238`–`0x0244` | `DCBMODE` (slave addr, register-select, protocol, timing), `DCBDATA0/1` — host's window onto VC2/XMAP9/CMAP/RAMDAC | 22,29,82 |
+| **Host pixel pipe (PIO/DMA)** | `0x0230`–`0x0234` | `HOSTRW0` @`0x0230` (MS word), `HOSTRW1` @`0x0234` (LS word) — framebuffer PIO/DMA data port; 32-bit access uses `HOSTRW0` only | 22,78 |
+| **DCB (device control bus)** | `0x0238`–`0x0244` | `DCBMODE` @`0x0238` (slave addr, register-select, protocol, timing), `DCBDATA0/1` @`0x0240`/`0x0244` — host's window onto VC2/XMAP9/CMAP/RAMDAC | 22,29,82 |
 | **Screen masks 1–4** | `0x1300`–`0x131C` | `SMASK1X/Y…SMASK4X/Y` — X11 absolute scissor rectangles | 22,30 |
 | **Window / config** | `0x1320`–`0x1330` | `TOPSCAN`, `XYWIN` (window X/Y bias), `CLIPMODE` (mask enables + CID-match), `STALL1`, `CONFIG` (bus width/mode, FIFO depths, refresh) | 22,28 |
 | **Status / reset** | `0x1338`–`0x1340` | `STATUS` (clears ints), `USER_STATUS` (non-destructive), `DCBRESET` (resets DCB FSM, flushes BFIFO) | 22 |
@@ -163,7 +167,7 @@ Notes on the key mode registers (full bit tables p.23–29):
   pixel packing), `RGBMODE`, `DITHER`, `FASTCLEAR`, `BLEND` + `SFACTOR`/`DFACTOR`,
   `LOGICOP`. Sets the *pixel format and pixel-pipe behavior*.
 - **CONFIG** (p.28): bus width/mode, FIFO trigger depths + interrupt sense, GIO
-  timeout, VRAM refresh count, fastclear column-mask mode.
+  timeout (0.96–4.32 µs), VRAM refresh cycles per transfer, fastclear column-mask mode.
 - **STATUS** (p.27): `GFXBUSY`/`BACKBUSY` (pipe-idle for context switch), FIFO
   levels, retrace/video interrupt status, sticky FIFO-int flags.
 - **DCBMODE** (p.29): `DCBADDR` slave select, `DCBCRS` register select within slave,
@@ -184,7 +188,7 @@ block**, plus **fastclear** and **screen-to-screen move**. Addressing mode is se
   32-pixel segments (`LENGTH32`, for use with the 32-bit stipple/Z pattern masks); or
   a full line in one command. `SKIPFIRST`/`SKIPLAST` suppress shared endpoints of
   connected vectors. Anti-aliased lines use the `AWEIGHT` coverage table.
-- **Points** (p.33): an (X,Y) pair, drawn in BLOCK addressing. A DMA of many X,Y
+- **Points** (p.33): an (X,Y) pair, drawn with `ADRMODE=BLOCK`, `DOSETUP=0`. A DMA of many X,Y
   pairs builds an arbitrary monochrome shape (e.g. a circle).
 - **Spans** (p.33–34): horizontal run with an X endpoint; X always steps
   left-to-right. Three sub-modes: host-pixel segments (Segments I), 32-pixel DDA
@@ -221,10 +225,10 @@ write under the 24-bit `WRMASK`. Clipping = sector clip (auto, from coordinate s
 
 **Host pixel transfer — PIO & DMA** (p.78–80). To REX3, PIO and DMA are
 indistinguishable (both are GIO activity); "word" = 4 or 8 bytes per bus cycle.
-Pixel data moves through `HOSTRW1/0`; packing is set by `HOSTDEPTH`, `RWPACKED`,
-`RWDOUBLE` (4/8/16/32-bit fields, 1..16 px per 64-bit word). For reads,
-`DRAWMODE1.PREFETCH=1` and `OPCODE=READ`; pre-fetch via a `|0x800` write, then read
-`HOSTRW`. DMA supports **linear** and **stride** block modes (stride = "virtual
+Pixel data moves through `HOSTRW0/1` (32-bit access uses `HOSTRW0` only); packing is set
+by `HOSTDEPTH`, `RWPACKED`, `RWDOUBLE` (1..16 px per 64-bit word). For PIO
+reads, `DRAWMODE1.PREFETCH=1` and `OPCODE=READ`; pre-fetch via a `|0x800` write, then read
+`HOSTRW` (also with GO). DMA reads instead require `PREFETCH=0` and `GFXBUSY=0`. DMA supports **linear** and **stride** block modes (stride = "virtual
 framebuffer" in main memory with a constant address gap per row); span DMA only.
 All PIO is context-switchable; reads/writes done for *context save/restore* must NOT
 use the `|0x800` GO bit. (p.78–80)
@@ -256,20 +260,22 @@ the GO bit during save/restore.
 
 ## Henry relevance / implementation scope
 
-**Headless Henry (today):** REX3's window (`0x1f000000`, slots C–F) is unimplemented;
-any access bus-errors. Nothing here is boot-critical — IP22/Indy boots a serial
-console without touching Newport. No action required for the current SoC.
+**Henry today: not implemented.** No REX3 logic exists in `rtl/` or `ip_hdl/`. Henry's
+device decode (`henry_soc.sv`) claims only MC/HPC3/IOC2, so accesses to `0x1f0f0000`
+fall through to the external memory port, which in SGI mode remaps `0x1f000000–0x1fffffff`
+onto a DRAM window — they read/write ordinary DRAM and do **not** bus-error. Nothing here is
+boot-critical: Henry boots IRIX/Linux on the serial console.
 
 **Future Henry graphics console:** implementing REX3 is essentially the *whole*
 graphics-console effort, in three layers of decreasing tractability:
 
-1. **GIO64 register face (most tractable).** A GIO64 slave decoding the
-   `0x1F_n0_0000` window, the full register file (Table 7), the GFIFO/BFIFO with the
+1. **GIO64 register face (most tractable).** A slave decoding the `0x1F0F0000`
+   register window, the full register file (Table 7), the GFIFO/BFIFO with the
    CONFIG-programmed depths and `FIFO_INT_N`/`GRXDLY` flow control, the STATUS/
    USER_STATUS interrupt model, and the `|0x0800` GO write-trigger. This is bounded,
    well-specified register/FIFO logic — the natural first milestone (even a stub that
-   accepts writes, drains the FIFO, and toggles `GFXBUSY` would stop the bus-error and
-   let a driver probe).
+   accepts writes and answers STATUS/USER_STATUS with an idle `GFXBUSY` would let a
+   driver probe — Linux detects Newport by a readable `USER_STATUS` at `0x1f0f133c`).
 2. **Draw pipeline (the bulk of the work).** The iterator block: Bresenham line/
    anti-alias steppers, the X/Y and R/G/B/A/CI DDAs, span/block/point/fastclear/
    scr2scr address generation, screen-mask + CID + color-compare clipping, and the
@@ -286,18 +292,34 @@ graphics-console effort, in three layers of decreasing tractability:
    VC2/XMAP9/CMAP/RAMDAC. The DCB programming model still has to *exist* because the
    driver pokes it during init.
 
-Recommended scoping order: (1) register/FIFO face to clear the bus-error and satisfy a
-probing driver → (2) SPAN/BLOCK flat-fill + fastclear + screen-to-screen (enough for a
+Recommended scoping order: (1) register/FIFO face to satisfy a probing driver → (2) SPAN/BLOCK flat-fill + fastclear + screen-to-screen (enough for a
 console: clear, scroll, blit glyphs) → (3) lines/shading/blend only if a real GL/X
 stack is targeted. Subpixel anti-aliased lines and the full DDA shader are the
 least-essential, highest-effort parts.
+
+**Where the drawing could run (feasibility study, 2026-10-02, `NEWPORT_FEASIBILITY.md`
+at the repo root — study only, nothing built).** A REX3 rasterizer in PL (layer 2
+above) was judged **not to fit** Henry's current LUT budget (rough CI8 subset estimate
+10–20K LUT). The study's recommended design keeps only layer 1 in PL — a DDR **write
+ring** for every REX3 store (IRIX's measured stream is ~99.9% posted writes), shadow
+STATUS/USER_STATUS/CONFIG/DCBMODE registers, stall-on-ring-full in place of
+`GRXDLY`/`FIFO_INT_N` — and runs layers 2–3 as a **software REX3 on a Zynq A53** (a C++
+port of MAME's model). Synchronous reads (`HOSTRW` readback, context-switch readback of
+iterator/colour registers) go to the ARM. It also found two hard requirements outside
+REX3: **MC graphics DMA** (Xsgi/GL use it for large Get/PutImage, programming
+`DMA_GIO_ADRS = 0x1f0f0a30`, i.e. `HOSTRW0`+GO) and the **VC2 vertical-retrace
+interrupt**. Servicing every access on the ARM was judged infeasible (3–10× short on
+throughput).
 
 ---
 
 ## Sources
 
-All citations are to `/home/dsheffie/code/sgi/docs/indy_docs/newport/rex3.pdf`
-(SGI Newport REX3 Specification, Rev 1.0, Aug 1993):
+All page citations are to `/home/dsheffie/code/sgi/docs/indy_docs/newport/rex3.pdf`
+(SGI Newport REX3 Specification, Rev 1.0, Aug 1993). Also used: MAME
+`src/devices/bus/gio64/newport.cpp` (REX3 window at slot + `0xf0000`), Linux
+`arch/mips/sgi-ip22/ip22-gio.c` (Newport probe), Henry `rtl/henry_soc.sv` +
+`ip_hdl/axi_is_the_worst_v1_0_M00_AXI.v` (status), `NEWPORT_FEASIBILITY.md` (plan).
 
 - **p.5** — part number, general description, features.
 - **p.6** — Newport architecture (Fig 1 components), REX3 architecture (3 logical
@@ -306,7 +328,7 @@ All citations are to `/home/dsheffie/code/sgi/docs/indy_docs/newport/rex3.pdf`
 - **p.8–10** — Fig 1 (subsystem), Fig 2 (top-level block), Fig 3 (internal data path).
 - **p.11–13** — pin diagram and pin descriptions (GIO64, VRAM/RB2, DCB).
 - **p.20** — register addressing model: base `0x1FnF0000`, `+0x0800` = GO, register
-  type flags (`⊗`/`◊`/`•`).
+  type flags (`⊗`/`◊`/`•`), `0x1nnn` protected page.
 - **p.21–22** — Table 7, full host-visible register map.
 - **p.23–29** — §3.1.1 control-register bit definitions (DRAWMODE0/1, LSMODE,
   CLIPMODE, STATUS, CONFIG, DCBMODE).

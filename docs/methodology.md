@@ -79,7 +79,13 @@ ambiguity), so the C++ SCC hook is the reliable headless serial sink. Getting se
 4. **Cache ops honored** (not NOP'd) → code coherence + DMA correctness. See
    [Cache, coherence & TLB](coherence-cache-tlb.md).
 5. **HPC3 SCSI + WD33C93** → read the root disk. See [HPC3](peripherals/hpc3.md).
-6. GIO64 bus-errors empty slots → IRIX skips graphics cleanly. See [GIO64](peripherals/gio64.md).
+6. Empty GIO64 slots / no graphics → IRIX skips graphics cleanly. On a real Indy an empty slot
+   bus-errors. **Henry raises no bus errors here:** `henry_soc.sv:250-257` decodes only MC, HPC3 and
+   IOC2. Every other address, including the graphics (`0x1f000000–0x1f3fffff`) and GIO slot windows,
+   goes to the AXI memory port. The M00 master maps all of `0x1f000000–0x1fffffff` onto a 16 MB DRAM
+   window (the same one that holds the PROM at `0x1fc00000`), so those probes read DRAM (zero unless
+   something wrote there). The core ignores `mem_rsp_bad`, and INT3's `buserr` input is tied to 0
+   (`henry_soc.sv:1022`). See [GIO64](peripherals/gio64.md).
 
 ## Chasing a bug on silicon — HW watchpoint + the ISS diff
 
@@ -89,20 +95,28 @@ sim/synth timing hazard, or (as here) IRIX wedging somewhere MAME never reaches 
 
 **1. Freeze the pipeline at the offending instruction (core.sv).** Reuse the single-step gate: a
 **driver-programmable** breakpoint + store watchpoint (`bp_pc`/`bp_wp_addr`/`bp_wp_val` from AXI
-`slv_reg9-11`, guarded by `` `ifdef ENABLE_DEBUG_WATCHPOINT ``) that latches a "hit" flop and folds it into
-`w_step_ok`, so the core **stops retiring without a reset** — the register file and DRAM stay coherent at the
-moment of interest. Because the trap PC/addr/value are ports, moving the breakpoint no longer needs a re-synth.
+`slv_reg9-11`, compiled in by `` `ENABLE_DEBUG_WATCHPOINT ``, which henry's `gen_mipscore.sh` passes by
+default) that latches a "hit" flop and folds it into `w_step_ok`, so the core **stops retiring without a
+reset** — the register file and DRAM stay coherent at the moment of interest. Because the trap
+PC/addr/value are ports, moving the breakpoint does not need a re-synth. Arm with control-register bit 17
+(`bp_enable`); bit 19 (`bp_fault_only`) switches to fault-only mode; `fault_clear` (bit 18) re-arms.
+
+The trap has been reworked since the `bad istack` hunt below (`core.sv:940-1008`, current form):
 
 ```verilog
-// bp_pc / bp_wp_addr / bp_wp_val are DRIVER-PROGRAMMABLE input ports (slv_reg9-11) --
-// no re-synth to move the trap.  PC breakpoint: freeze after retiring bp_pc.  STORE
-// watchpoint: freeze after a retiring store of bp_wp_val to bp_wp_addr
-// (bp_wp_val==0xffffffff = wildcard: any store to that address).
+// PC breakpoint: freeze after retiring bp_pc, or (bp_fault_only) on a FAULT at bp_pc.
 wire w_bp_match = bp_enable &
-  ((t_retire     & (t_rob_head.pc[31:0]      == bp_pc)) |
-   (t_retire_two & (t_rob_next_head.pc[31:0] == bp_pc)));
-wire w_wp_match = w_wp_data_here & ((bp_wp_val==32'hffffffff) | (core_store_data.data[31:0]==bp_wp_val));
-wire w_step_ok  = (r_single_step | r_bp_hit | r_wp_hit | r_fault_hit) ? t_step_edge : 1'b1;  // no step edge -> frozen
+  (bp_fault_only
+   ? (t_arch_fault & (t_rob_head.pc[31:0] == bp_pc))
+   : ((t_retire     & (t_rob_head.pc[31:0]      == bp_pc)) |
+      (t_retire_two & (t_rob_next_head.pc[31:0] == bp_pc))));
+// Store watchpoint, now keyed on the STORE'S PC (bp_wp_addr holds a producer PC) and a
+// threshold: freeze when that store's data is SMALLER than bp_wp_val (a small int
+// written where a heap pointer belongs).  The data comes from the LSU store buffer.
+wire w_wp_match = w_wp_data_here & (lsu_sb.data[31:0] < bp_wp_val);
+// Fault trap: while armed (and not fault-only), the first fatal USERSPACE AdEL/AdES/IBE/DBE
+// latches {epc,cause,badvaddr} and sets r_fault_hit.
+wire w_step_ok  = (r_single_step | r_bp_hit | r_wp_hit | r_fault_hit) ? t_step_edge : 1'b1;
 ```
 
 - **Timing trap:** compare the *flopped* retire outputs (`retire_reg_data/ptr/valid`), **not** the
@@ -114,12 +128,16 @@ wire w_step_ok  = (r_single_step | r_bp_hit | r_wp_hit | r_fault_hit) ? t_step_e
 **2. Read the state out (driver, over AXI-Lite).** With the core frozen (not reset) the debug reads are
 coherent: `read32(7)`=last PC, `read32(0xb)`=CP0 EPC, `read32(0x26)&31`=Cause, and the GPRs via
 `write32(14,i); read32(0xe)` (a shadow register file rebuilt from the retire stream).
-- **Gotcha that cost a synth:** the henry AXI wrapper dropped `retire_reg_valid` end-to-end (henry_soc
-  connected it empty; the wrapper tied `w_reg_val*=1'b0` and never fed the S00_AXI `r_arch_regs` shadow), so
-  every GPR read returned 0. Wire `retire_reg_valid`/`_two_valid` out of henry_soc → into the shadow.
+- **Gotcha that cost a synth (fixed):** the henry AXI wrapper once dropped `retire_reg_valid` end-to-end,
+  so every GPR read returned 0. It is wired now: `henry_soc.sv` exports `retire_reg_valid`, and the wrapper
+  feeds `w_reg_val0/1` into the S00_AXI shadow (`ip_hdl/axi_is_the_worst_v1_0.v:446-449, 704`).
 
-**3. Read guest DRAM (`devmem`).** The driver mmaps guest RAM at host phys `0x5ff00000`, so
-`host = 0x5ff00000 + guest_pa` (the PROM at guest `0x1fc00000` is specially relocated to `+0x10C00000`).
+**3. Read guest DRAM (`devmem`).** The driver mmaps guest RAM at host phys `0x5ff00000`. The M00 AXI
+master folds guest physical addresses (`ip_hdl/axi_is_the_worst_v1_0_M00_AXI.v:366-383`, mirrored by
+`fpga_map` in `sim/henry_tb.cpp`): guest `0x08000000–0x17ffffff` → offset `pa[27:0]` (so `host = 0x5ff00000
++ guest_pa` for `0x08000000–0x0fffffff`, and the upper 128 MB folds down to offset 0), and the device/PROM
+window `0x1f000000–0x1fffffff` → offset `0x10000000 + pa[23:0]` (the PROM at guest `0x1fc00000` lands at
+`+0x10C00000`).
 The guest is **big-endian**, so byte-swap `devmem`'s output. **Caveat:** only *flushed* memory is DRAM-visible
 — a freshly written-back-cached word (e.g. a just-updated scheduler global) reads stale `0`. An old global
 (the wired int-stack ptr at `0xFFFFA020`) reads correctly; a hot one (the idle-sp global `0xFFFFA164`) doesn't.
@@ -152,7 +170,26 @@ margin for the probe on a 94%-LUT-full die: shrinking the **ALU matrix scheduler
 (`LG_INT_SCHED_ENTRIES 3→2`) — the O(N²) wakeup/select is *on the critical path*, so it's a real WNS lever
 (not an area win; the FPU dominates the LUTs) — **but that downsize proved buggy (mis-issue → replay) and was
 reverted, so the live config stays 8 entries (`LG_INT_SCHED_ENTRIES=3`)**; and **L2 1024→8 lines** (a BRAM
-knob, no LUT/correctness impact — caches are non-inclusive so shrinking is safe).
+knob, no LUT/correctness impact; the L2 is not inclusive of the L1D, so shrinking is safe). Today the L2
+default is 128 KB (`LG_L2_NUM_SETS=13`), and any cache size can be overridden from the build line
+(`SV2V_DEFINES="LG_L2_NUM_SETS=8" ./gen_mipscore.sh`; see `machine.vh`).
+
+## Verification tooling today (2026-10)
+
+MAME remains the oracle for *what IRIX requires*. The core and SoC are now checked mostly against
+`interp_mips` and with directed/random/formal tests. Everything below exists in code: in this repo or
+the `r9999` submodule unless noted.
+
+| Tool | What it does | Where |
+|---|---|---|
+| **Lockstep co-sim checker** | The ISS embedded in r9999 steps on every RTL retire and compares the written register, PC, and committed stores. | `sim/henry_tb.cpp --checker` (seed with `--iss-seed`); r9999 `ooo_core -c 1` (`top.cc`) |
+| **Random-instruction co-sim** | Generates random MIPS3 programs and runs each under `ooo_core -c 1`, in parallel across seeds. | `r9999/tests/randgen/` (`gen_mips_test.py`, `run_parallel.sh`) |
+| **Directed suites** | Per-feature assembly tests (TLB/XTLB, D-side TLB, cache ops, exceptions, IRQs, FPU, SCC, device regs, …) and the `exchammer` exception hammers used to chase the 2026-10 `EXCEPTION_DRAIN` hang. | `r9999/tests/*`, `r9999/tests/exchammer/` |
+| **Checkpoints** | Resume from an `interp_mips` checkpoint (`--checkpoint`, `--cimg` preamble image), snapshot/restore the real Verilator state (`--save-at`/`--save-file`/`--restore`), and diff committed memory against an independent ISS checkpoint (`--verify-ckpt`). | `sim/henry_tb.cpp`; checkpoint→ELF loader shim in `~/code/mips-ckpt-shim` |
+| **XPG flush injection** | Fires ARM-style whole-cache (`--extflush N`) or page-list (`--xfpages base,n,drop`) flushes into a running boot, to race the [XPG path](coherence-cache-tlb.md#dma-coherence-on-silicon-arm-requested-flushes-xpg) against live traffic. | `sim/henry_tb.cpp` |
+| **HW retirement trace ring** | 2048-entry, two-bank (one bank per retire slot) record of retired instructions, frozen on a retired indirect jump to 0 / poison PC, read back over AXI. Opt-in with `ENABLE_PC_TRACE`; a sim-only per-retire trace buffer is `ENABLE_TRACE_BUFFER`. | `r9999/core.sv`, `LG_RTRACE_ENTRIES` in `machine.vh` |
+| **Formal (yosys SAT/BMC)** | Decode, register-file write-bank, L1D forwarding/response, and retire properties. | `r9999/formal/run_*_formal.sh` |
+| **Murphi models** | Protocol models for the cache/DMA paths, incl. the XPG page walk (`r9999_pagewalk.m`, cited by `l1d.sv`). | `~/code/murphi` (outside these repos) |
 
 ## Related work
 

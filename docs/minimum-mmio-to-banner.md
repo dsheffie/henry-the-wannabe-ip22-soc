@@ -1,6 +1,6 @@
 ---
 title: Minimum MMIO to the IRIX boot banner
-status: draft (functional-sim validated, MAME-corroborated)
+status: draft (functional-sim validated, MAME-corroborated; Henry-RTL notes added 2026-10-04 against henry 209e6f6)
 source: interp_mips functional ISS (first model to reach the banner); MAME golden reference; r9999/MAME_QUESTIONS.md Q1–Q7
 ---
 
@@ -15,6 +15,9 @@ source: interp_mips functional ISS (first model to reach the banner); MAME golde
 >
 > Legend: ✅ confirmed by a booting model · 🩹 must return a specific Indy constant the kernel branches on ·
 > 🗂 inert storage / write-absorb is enough.
+>
+> **Henry's RTL** (`rtl/mc.sv`, `rtl/ioc.sv`, `rtl/hpc3.sv`) now implements all of this and more; the
+> "Henry RTL" notes below flag where it differs from the minimal model.
 
 ## What "the banner" means
 
@@ -33,6 +36,13 @@ wall (root-device mount). See [Boot sequence & console](boot-and-console.md) for
 All device MMIO lives in **phys `0x1f000000`–`0x1fffffff`** (kseg1 `0xbf…`). Reads outside the blocks below
 return 0 (probed-empty); that is itself load-bearing (the kernel probes many empty GIO/PBUS slots and must
 read back 0).
+
+**Henry RTL:** `henry_soc.sv:250-257` decodes only MC (`0x1fa00000–0x1fafffff`), HPC3
+(`0x1fb80000–0x1fbfffff`) and IOC2 (`0x1fbd9800–0x1fbd98ff`, carved out of HPC3). Anything else in the
+device range, including the graphics and GIO slot windows, goes to the AXI memory port. The M00 master maps
+it onto a 16 MB DRAM window that also holds the PROM, so those reads return DRAM contents (zero unless
+written), writes stick, and **nothing bus-errors** (the core ignores `mem_rsp_bad`; INT3 `buserr` is tied
+to 0). Inside HPC3, unmodeled registers read 0.
 
 | Block | Phys base | Boot role | Minimum to banner |
 |---|---|---|---|
@@ -59,14 +69,16 @@ table offset and its `+4` alias.
 | **SYSID** `0x1fa0001c` | 🩹 `0x00000013` | MC revision, read by `mlreset` |
 | MC sysid `0x1fa00004` | `0x3c802472` | repeatedly read by `flushbus` to drain the write buffer (round-trips fine; value not branch-critical) |
 | **CPUCTRL0/1** `0x1fa00004/0xc` | 🗂 read/write storage | endian/cache/watchdog control word; round-trips |
-| **serial EEPROM** `0x1fa00034` | 🩹 **bit-banged** | the PROM/kernel clock CS/CLK/DATA through this to read NVRAM (incl. the `eaddr`); a model must shift data out, not return a constant |
+| **serial EEPROM** `0x1fa00034` | 🩹 **bit-banged** | the PROM/kernel clock CS/CLK/DATA through this to read NVRAM (incl. the `eaddr`); a model must shift data out, not return a constant. **Henry RTL:** `mc.sv` returns a constant `0x10` (SDATAI high) at `+0x30`; the bit-banged NMC93CS56 the kernel reads the MAC from is modeled in HPC3 at `0x1fbb0008` (below) |
 | **RPSS counter** `0x1fa01004` | 🩹 free-running, increments | drives `us_delay`/spin-calibration; a stuck value hangs delay loops |
 | GIOPAR / CMACC / GMACC / CSTAT / GSTAT | 🗂 storage / clear-on-write | GIO arbiter + DRAM timing + error capture; inert is fine for boot |
 
 !!! note "MEMCFG0 → memory size"
     `bank0 size = (MEMCFG0[28:24] + 1) × 4 MB`, `base = (MEMCFG0[23:16] & 0xff) << 22`. `0x23200000` →
     field `0x03` → **16 MB** @ `0x08000000`. The kernel reads this **directly from the MC**, not from ARCS
-    `GetMemoryDescriptor`. (MAME `MAME_QUESTIONS.md` Q3/Q4.)
+    `GetMemoryDescriptor`. (MAME `MAME_QUESTIONS.md` Q3/Q4.) **Henry:** the `henry_arcs` FSBL writes
+    `MEMCFG0 = 0x3f203f40` (two 128 MB banks) before entering the kernel, and IRIX runs with 256 MB. The
+    16 MB value is MAME's machine, not a requirement.
 
 ---
 
@@ -89,7 +101,8 @@ driver (it does *not* route console through ARCS — `arcs_write` = 0 over a who
 model is sufficient:
 
 - **Control/status read (RR0)** → always return `TX_EMPTY | ALL_SENT` (`0x04 | 0x40`) so the "ready to
-  transmit?" poll always succeeds.
+  transmit?" poll always succeeds. (Henry RTL clears TX_EMPTY while its console FIFO is full, for
+  backpressure; see [SCC](peripherals/scc.md).)
 - **Data write** → emit the byte to the host console (stdout).
 - **Data read** → 0 (no Rx char); **control writes** (WR pointer/config) → ignored.
 
@@ -108,11 +121,13 @@ writes and read back sanely**:
 |---|---|---|
 | `0x30000` | `0x1fbb0000` | `istat0` — interrupt status `[4:0]` |
 | `0x30004` | `0x1fbb0004` | `gio_misc` |
+| `0x30008` | `0x1fbb0008` | NMC93CS56 serial EEPROM (bit-banged; Henry returns MAC `08:00:69:12:34:56` from words 125–127) |
+| `0x60000`… | `0x1fbe0000`… | ds1386 RTC + bbRAM (Henry: fixed BCD time; station MAC in bbRAM at `0x604e8`) |
 | `0x00000`–`0x0ffff` | … | PBUS DMA channel registers (storage) |
 | `0x10000`–`0x1ffff` | … | HD0/HD1/ENET DMA registers (storage) |
 | `0x58000`–`0x5bfff` | … | PBUS PIO data ports (probe) |
 
-The **WD33C93 SCSI** engine lives at offset `0x40000` (phys `0x1fc0000`) — a write-absorbing stub gets you to
+The **WD33C93 SCSI** engine lives at offset `0x40000` (phys `0x1fbc0000`) — a write-absorbing stub gets you to
 the banner, but **real SCSI behavior is the next wall** ("pbus configuration failed" / "Root device … not
 available"), which is *past* the banner. See [hpc3.md](peripherals/hpc3.md).
 
@@ -129,9 +144,13 @@ misses these will still wall before the banner:
   page-table refill takes a **nested TLB miss inside the `0x80000000` refill handler**; the `eret` must
   return to the *original* faulting instruction. Updating EPC mid-handler → eret resumes with `k0` clobbered
   → recursion → KPTEBASE panic. **This was the last wall before the banner** (interp_mips
-  `MAME_QUESTIONS.md` Q5 round-7) — the r9999 RTL must implement the same freeze.
-- **PRId = `0x00002020` (R4600)** and **Config = `0x0002e4b3`** (16K I$/16K D$, 32-byte lines). `start`
-  branches on PRId's IMP field; Config drives `cachecolormask` (a wrong mask hangs `pagecoloralign`).
+  `MAME_QUESTIONS.md` Q5 round-7). The r9999 RTL implements the same freeze: hardware writes EPC only
+  when `Status.EXL==0` (`exec.sv` `n_epc` mux, `core_wr_epc & (r_sr_exl == 1'b0)`).
+- **PRId and Config.** The interp_mips run that first reached the banner used **PRId = `0x00002020`
+  (R4600)** and **Config = `0x0002e4b3`** (16K I$/16K D$, 32-byte lines). `start` branches on PRId's IMP
+  field; Config drives `cachecolormask` (a wrong mask hangs `pagecoloralign`). **Henry's RTL presents
+  PRId = `0x00000440` (R4400) and Config = `0x0002e4a3`**: the same cache sizes, but DB=0 advertises a
+  16-byte L1 line so IRIX's `dma_cache_inv` strides by r9999's real line size (`exec.sv` CP0 r16).
 - **CP0 Count/Compare timer interrupt** (IP[7]).
 - **The sash→/unix handoff in RAM**: ARCS SPB/romvec/env at phys `0x1000`, **plus the `argc/argv/envp`
   arrays** (`a0=argc, a1=argv, a2=envp` as kseg0 pointers). ⚠️ This **corrects** the older
@@ -144,7 +163,8 @@ misses these will still wall before the banner:
 
 - **Newport graphics** (REX3/VC2/XMAP9/RB2/RO1) — only for `console=g`; serial console skips it entirely.
 - **GIO64 cards / VDMA / DMUX** — probed-empty (read 0) is sufficient.
-- **RTC (ds1386)** — touched but not banner-critical.
+- **RTC (ds1386)** — touched but not banner-critical. (Henry models it anyway: `hpc3.sv` returns a fixed
+  BCD time so IRIX's `rtodc()` doesn't spin later.)
 - **Working SCSI/DMA** — first needed at root mount, after the banner.
 
 ## Sources & cross-refs

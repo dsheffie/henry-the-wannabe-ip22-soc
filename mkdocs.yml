@@ -57,7 +57,9 @@ nav:
   - Peripherals:
       - MC (memory controller): peripherals/mc.md
       - IOC2 (serial console): peripherals/ioc2.md
+      - SCC (Z85C30 console): peripherals/scc.md
       - HPC3 (SCSI/enet/DMA, RTC): peripherals/hpc3.md
+      - SCSI disk theory of operation: peripherals/scsi_disk_theory_of_operation.md
       - GIO64 (bus): peripherals/gio64.md
       - VDMA (virtual DMA): peripherals/vdma.md
       - DMUX (data mux): peripherals/dmux1.md
@@ -70,3 +72,4 @@ nav:
       - Express / XZ (hardware geometry): graphics/express-xz.md
   - IRIX boot flow (annotated): irix-boot-flow.md
   - Methodology (MAME oracle): methodology.md
+  - FPGA build stats: fpga_stats.md
