@@ -415,7 +415,7 @@
     
   
   
-    <span class="md-status md-status--draft (functional-sim validated, MAME-corroborated)"></span>
+    <span class="md-status md-status--draft (functional-sim validated, MAME-corroborated; Henry-RTL notes added 2026-10-04 against henry 209e6f6)"></span>
   
 
   
@@ -510,7 +510,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; Henry FSBL section checked 2026-10-04 against r9999/arcs/henry_arcs.S @ 5c89b70)"></span>
   
 
   
@@ -544,7 +544,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; Henry FSBL/console re-checked 2026-10-04 against henry 209e6f6 / r9999 5c89b70)"></span>
   
 
   
@@ -578,7 +578,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated; silicon-refined 2026-07 — see the hidden-L2 DMA section)"></span>
+    <span class="md-status md-status--draft (MAME-validated; silicon-refined 2026-07; RTL state re-checked 2026-10-04 against r9999 5c89b70)"></span>
   
 
   
@@ -630,6 +630,10 @@
   
     
     
+      
+        
+      
+        
       
         
       
@@ -712,7 +716,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -747,7 +751,42 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="peripherals/scc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SCC (Z85C30 console)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (silicon-validated; audited 2026-10-04 against henry main @209e6f6)"></span>
   
 
   
@@ -782,9 +821,37 @@
     
   
   
-    <span class="md-status md-status--draft (MAME + live-IRIX-trace validated)"></span>
+    <span class="md-status md-status--draft (MAME + live-IRIX-trace validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="peripherals/scsi_disk_theory_of_operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SCSI disk theory of operation
+  
+
+    
+  </span>
+  
   
 
       </a>
@@ -817,7 +884,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -887,7 +954,7 @@
     
   
   
-    <span class="md-status md-status--draft"></span>
+    <span class="md-status md-status--draft (henry status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -1232,6 +1299,33 @@
   
 
     
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="fpga_stats/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FPGA build stats
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
   </ul>
 </nav>
                   </div>
@@ -1322,7 +1416,8 @@
 <h1 id="henry-the-wannabe-ip22-soc">Henry — the wannabe IP22 SoC<a class="headerlink" href="#henry-the-wannabe-ip22-soc" title="Permanent link">&para;</a></h1>
 <p><strong>Henry</strong> is a from-scratch, FPGA/RTL <strong>System-on-Chip</strong> that impersonates the SGI <strong>Indy</strong> (board code
 <strong>IP22</strong>) closely enough to boot <strong>IRIX 6.5.22</strong>. It is built around the <strong><a href="https://github.com/dsheffie/r9999">r9999</a></strong>
-MIPS R4000-class core (included here as a git submodule) plus a set of re-implemented IP22 peripheral blocks.</p>
+out-of-order MIPS III core — it presents itself to software as an <strong>R4400</strong> (<code>PRId 0x0440</code>) — included here as a git
+submodule, plus a set of re-implemented IP22 peripheral blocks.</p>
 <blockquote>
 <p><strong>Why "Henry"?</strong> The SGI <strong>Indy</strong> is named for <strong>Indiana Jones</strong> — whose real name is <strong>Henry</strong> (Walton Jones Jr.;
 "Indiana" was the dog). Henry is a machine that answers to a name that isn't quite its own: a <em>wannabe</em> IP22.</p>
@@ -1334,12 +1429,12 @@ IRIX image — MAME is Henry's <strong>golden reference model</strong>, and the 
 vectors. Tags: ✅ = confirmed in MAME, ⚠️ = a correction to an earlier reverse-engineering finding.</p>
 <h2 id="the-system-at-a-glance">The system at a glance<a class="headerlink" href="#the-system-at-a-glance" title="Permanent link">&para;</a></h2>
 <pre class="mermaid"><code>flowchart TD
-    CPU["&lt;b&gt;r9999&lt;/b&gt; — MIPS R4000 core&lt;br/&gt;&lt;small&gt;L1i + L1d (incoherent) · L2 (coherent) · git submodule&lt;/small&gt;"]
+    CPU["&lt;b&gt;r9999&lt;/b&gt; — OoO MIPS III core (PRId = R4400)&lt;br/&gt;&lt;small&gt;16 KB L1i + 16 KB L1d (incoherent) · 128 KB L2 · git submodule&lt;/small&gt;"]
     CPU --&gt;|"sysad — 64-bit, big-endian"| MC["&lt;b&gt;MC&lt;/b&gt; — memory controller&lt;br/&gt;&lt;small&gt;RAM banks · GIO64 arbiter · (V)DMA&lt;/small&gt;"]
     MC --&gt; RAM[("Main RAM&lt;br/&gt;0x08000000+")]
     MC --&gt;|"GIO64 bus&lt;br/&gt;0x1f000000–0x1f9fffff"| GIO{{GIO64}}
-    GIO --&gt; GFX["graphics — slot 0"]
-    GIO --&gt; EXP["exp slot 0 / 1&lt;br/&gt;&lt;small&gt;bus-error when empty&lt;/small&gt;"]
+    GIO --&gt; GFX["graphics — slot 0&lt;br/&gt;&lt;small&gt;not implemented on Henry&lt;/small&gt;"]
+    GIO --&gt; EXP["exp slot 0 / 1&lt;br/&gt;&lt;small&gt;IP22: bus-error when empty · Henry: DRAM-backed&lt;/small&gt;"]
     MC --&gt;|local I/O bus| LIO{{local I/O}}
     LIO --&gt; HPC3["&lt;b&gt;HPC3&lt;/b&gt;&lt;br/&gt;&lt;small&gt;SCSI×2 · Ethernet · PBUS DMA&lt;br/&gt;ds1386 RTC/NVRAM · EEPROM&lt;/small&gt;"]
     LIO --&gt; IOC2["&lt;b&gt;IOC2&lt;/b&gt;&lt;br/&gt;&lt;small&gt;Z8530 serial console · INT3&lt;br/&gt;8254 timer · kbd · parallel&lt;/small&gt;"]
@@ -1359,25 +1454,25 @@ vectors. Tags: ✅ = confirmed in MAME, ⚠️ = a correction to an earlier reve
 <td><code>0x00000000–0x0007ffff</code></td>
 <td>512 KB</td>
 <td><strong>RAM alias</strong></td>
-<td>aliases <code>0x08000000</code>; holds the exception vectors (<code>0x0</code>, <code>0x80</code>)</td>
+<td>aliases <code>0x08000000</code>; holds the exception vectors (<code>0x0</code>, <code>0x80</code>) — remapped in <code>henry_soc.sv</code> before DRAM arbitration (CPU accesses only)</td>
 </tr>
 <tr>
 <td><code>0x08000000–0x17ffffff</code></td>
 <td>256 MB</td>
 <td><strong>Main RAM</strong> (MC banks)</td>
-<td>base of physical DRAM; sized via MC MEMCFG</td>
+<td>base of physical DRAM; sized via MC MEMCFG (Henry's <code>mc.sv</code> reset value describes <strong>128 MB</strong>; the <code>henry_arcs</code> FSBL reprograms MEMCFG0 to 256 MB, which is what IRIX sees)</td>
 </tr>
 <tr>
 <td><code>0x18000000–0x1effffff</code></td>
 <td>112 MB</td>
 <td>reserved</td>
-<td>bus-error</td>
+<td>IP22: bus-error. Henry: not decoded — passed to the AXI port; outside the DRAM window reads return a <code>0xA5A5…</code> poison pattern and writes are dropped, with <strong>no</strong> bus error</td>
 </tr>
 <tr>
 <td><code>0x1f000000–0x1f9fffff</code></td>
 <td>10 MB</td>
 <td><strong>GIO64 bus</strong></td>
-<td>graphics @<code>0x1f000000</code>; exp slots @<code>0x1f400000</code>/<code>0x1f600000</code>; bus-error empty slots</td>
+<td>graphics @<code>0x1f000000</code>; exp slots @<code>0x1f400000</code>/<code>0x1f600000</code>. IP22 bus-errors empty slots; <strong>Henry has no GIO64 decode and no graphics</strong> — the whole <code>0x1f000000–0x1fffffff</code> window that isn't MC/HPC3/IOC2 is remapped onto a 16 MB shared-DRAM window (<code>ip_hdl/axi_is_the_worst_v1_0_M00_AXI.v</code>)</td>
 </tr>
 <tr>
 <td><code>0x1fa00000–0x1faffff</code></td>
@@ -1395,17 +1490,19 @@ vectors. Tags: ✅ = confirmed in MAME, ⚠️ = a correction to an earlier reve
 <td><code>0x1fc00000–0x1fffffff</code></td>
 <td>4 MB</td>
 <td><strong>Boot PROM</strong></td>
-<td>Henry plants the ARCS shim</td>
+<td>DRAM-backed on Henry; the host loads the ARCS first-stage image (<code>henry_arcs.bin</code>) here and starts the core at <code>0xbfc00000</code></td>
 </tr>
 <tr>
 <td><code>0x20000000–0x2fffffff</code></td>
 <td>256 MB</td>
 <td><strong>High system memory</strong></td>
-<td>kseg-mapped only → physical address space is <strong>30-bit</strong></td>
+<td>kseg-mapped only → the IP22 platform's physical address space is <strong>30-bit</strong> (r9999 itself carries 36-bit PAs, <code>PA_WIDTH=36</code>)</td>
 </tr>
 </tbody>
 </table>
-<p>(See <a href="peripherals/mc/">Memory &amp; address map</a> for the MC/MEMCFG detail.)</p>
+<p>(See <a href="peripherals/mc/">Memory &amp; address map</a> for the MC/MEMCFG detail.) On Henry, nothing in this map raises a
+<strong>bus error</strong>: <code>henry_soc.sv</code> decodes only MC, HPC3 and IOC2, the IOC2/INT3 bus-error input is tied to 0, and the
+core ignores the AXI master's <code>mem_rsp_bad</code>. See <a href="architecture/#how-henry-realizes-it-rtl-fpga">Architecture</a>.</p>
 <h2 id="where-to-start">Where to start<a class="headerlink" href="#where-to-start" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -1454,13 +1551,23 @@ vectors. Tags: ✅ = confirmed in MAME, ⚠️ = a correction to an earlier reve
 </tbody>
 </table>
 <h2 id="status">Status<a class="headerlink" href="#status" title="Permanent link">&para;</a></h2>
-<p>Henry <strong>boots IRIX 6.5.22 on real FPGA silicon</strong> (Ultra96-v2, Zynq UltraScale+): PROM/ARCS → IRIX kernel
-banners → SCSI DMA → miniroot → IRIX userspace (INIT / syslogd). The RTL (<code>rtl/</code>) and the Verilator
-co-simulation harness (<code>sim/</code>, <code>henry_tb</code>) are implemented and working. Peripheral RTL implemented: MC, HPC3,
-IOC2/SCC (Z8530 console), the ds1386 RTC, plus an ARM/PS-serviced SCSI disk bridge (the driver polls the <code>scsi_shim</code> doorbell and walks the HPC3 <code>{BP,BC,DP}</code> descriptor chain in shared DRAM, depositing disk data into guest buffers). The peripheral specs (MC, IOC2,
-HPC3, GIO64, VDMA) and the cross-cutting docs are drafted from the SGI IP22 chip documents + MAME validation.
-Newport graphics and audio (HAL2) are documented but <strong>not</strong> in the boot path — Henry runs headless on the serial
-console. The detailed working notes live in the <a href="https://github.com/dsheffie/r9999"><code>r9999/</code></a> submodule
+<p><em>As of 2026-10-04 (henry <code>main</code> @ <code>209e6f6</code>, r9999 submodule @ <code>5c89b70</code>; deployed bitstream md5 <code>f66c6d49dfb1</code>).</em></p>
+<p>Henry <strong>boots IRIX 6.5.22 on real FPGA silicon</strong> (Ultra96-v2, Zynq UltraScale+ ZU3EG, 100 MHz): PROM/ARCS →
+IRIX kernel → SCSI disk → multi-user IRIX userspace. On silicon IRIX runs SPEC CINT95 (<code>-Ofast</code> builds), talks to
+the network (<code>telnet</code> into the guest), and runs X11 clients (4Dwm) against an X/VNC server on the Zynq ARM side;
+IP22 Linux boots as well. Henry has no Newport graphics hardware — X11 goes over the
+network, and the system console is the Z8530 serial port.</p>
+<p>Implemented SoC RTL (<code>rtl/</code>): <strong>MC</strong>, <strong>HPC3</strong>, <strong>IOC2</strong> with the <strong>Z8530 SCC</strong> console (Tx and Rx) and the
+i8254, the <strong>INT3</strong> interrupt mux (<code>int3.sv</code>), the <strong>ds1386 RTC/NVRAM</strong> (in <code>hpc3.sv</code>), an <strong>ARM/PS-serviced SCSI disk</strong>
+(<code>scsi_shim.sv</code>: the driver polls the doorbell and walks the HPC3 <code>{BP,BC,DP}</code> descriptor chain in shared DRAM,
+depositing disk data straight into guest buffers), and <strong>Seeq 8003 + HPC3 ENET</strong> (<code>enet_shim.sv</code>, likewise
+serviced by the ARM through a host tap). Because the ARM does the DMA, cache coherence for DMA is maintained by
+ARM-requested whole-cache and per-page flushes injected into the core (see <a href="architecture/">Architecture</a>).
+The Verilator co-simulation harness (<code>sim/</code>, <code>henry_tb</code>, with an ISS lock-step checker) is the pre-silicon
+vehicle. FPGA resource/timing history is on the <a href="fpga_stats/">FPGA stats</a> page.</p>
+<p>The peripheral specs (MC, IOC2, HPC3, GIO64, VDMA) and the cross-cutting docs are drafted from the SGI IP22
+chip documents + MAME validation. Newport graphics and audio (HAL2) are documented but <strong>not</strong> implemented.
+The detailed working notes live in the <a href="https://github.com/dsheffie/r9999"><code>r9999/</code></a> submodule
 (<code>IRIX_CPU_REQUIREMENTS.md</code>, <code>IRIX_KERNEL_GAPS.md</code>, <code>IP22_CHIP_REGISTERS.md</code>, <code>MAME_QUESTIONS.md</code>).</p>
 
 

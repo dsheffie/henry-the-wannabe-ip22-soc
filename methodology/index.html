@@ -14,6 +14,8 @@
         <link rel="prev" href="../irix-boot-flow/">
       
       
+        <link rel="next" href="../fpga_stats/">
+      
       
         
       
@@ -317,7 +319,7 @@
     
   
   
-    <span class="md-status md-status--draft (functional-sim validated, MAME-corroborated)"></span>
+    <span class="md-status md-status--draft (functional-sim validated, MAME-corroborated; Henry-RTL notes added 2026-10-04 against henry 209e6f6)"></span>
   
 
   
@@ -412,7 +414,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; Henry FSBL section checked 2026-10-04 against r9999/arcs/henry_arcs.S @ 5c89b70)"></span>
   
 
   
@@ -446,7 +448,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; Henry FSBL/console re-checked 2026-10-04 against henry 209e6f6 / r9999 5c89b70)"></span>
   
 
   
@@ -480,7 +482,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated; silicon-refined 2026-07 — see the hidden-L2 DMA section)"></span>
+    <span class="md-status md-status--draft (MAME-validated; silicon-refined 2026-07; RTL state re-checked 2026-10-04 against r9999 5c89b70)"></span>
   
 
   
@@ -532,6 +534,10 @@
   
     
     
+      
+        
+      
+        
       
         
       
@@ -614,7 +620,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -649,7 +655,42 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../peripherals/scc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SCC (Z85C30 console)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (silicon-validated; audited 2026-10-04 against henry main @209e6f6)"></span>
   
 
   
@@ -684,9 +725,37 @@
     
   
   
-    <span class="md-status md-status--draft (MAME + live-IRIX-trace validated)"></span>
+    <span class="md-status md-status--draft (MAME + live-IRIX-trace validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../peripherals/scsi_disk_theory_of_operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SCSI disk theory of operation
+  
+
+    
+  </span>
+  
   
 
       </a>
@@ -719,7 +788,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -789,7 +858,7 @@
     
   
   
-    <span class="md-status md-status--draft"></span>
+    <span class="md-status md-status--draft (henry status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -1247,6 +1316,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#verification-tooling-today-2026-10" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verification tooling today (2026-10)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#related-work" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1272,6 +1352,33 @@
   
 </nav>
       
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../fpga_stats/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FPGA build stats
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -1362,6 +1469,17 @@
     <span class="md-ellipsis">
       
         Chasing a bug on silicon — HW watchpoint + the ISS diff
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#verification-tooling-today-2026-10" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verification tooling today (2026-10)
       
     </span>
   </a>
@@ -1488,7 +1606,13 @@ ambiguity), so the C++ SCC hook is the reliable headless serial sink. Getting se
 <li><strong>Cache ops honored</strong> (not NOP'd) → code coherence + DMA correctness. See
    <a href="../coherence-cache-tlb/">Cache, coherence &amp; TLB</a>.</li>
 <li><strong>HPC3 SCSI + WD33C93</strong> → read the root disk. See <a href="../peripherals/hpc3/">HPC3</a>.</li>
-<li>GIO64 bus-errors empty slots → IRIX skips graphics cleanly. See <a href="../peripherals/gio64/">GIO64</a>.</li>
+<li>Empty GIO64 slots / no graphics → IRIX skips graphics cleanly. On a real Indy an empty slot
+   bus-errors. <strong>Henry raises no bus errors here:</strong> <code>henry_soc.sv:250-257</code> decodes only MC, HPC3 and
+   IOC2. Every other address, including the graphics (<code>0x1f000000–0x1f3fffff</code>) and GIO slot windows,
+   goes to the AXI memory port. The M00 master maps all of <code>0x1f000000–0x1fffffff</code> onto a 16 MB DRAM
+   window (the same one that holds the PROM at <code>0x1fc00000</code>), so those probes read DRAM (zero unless
+   something wrote there). The core ignores <code>mem_rsp_bad</code>, and INT3's <code>buserr</code> input is tied to 0
+   (<code>henry_soc.sv:1022</code>). See <a href="../peripherals/gio64/">GIO64</a>.</li>
 </ol>
 <h2 id="chasing-a-bug-on-silicon-hw-watchpoint-the-iss-diff">Chasing a bug on silicon — HW watchpoint + the ISS diff<a class="headerlink" href="#chasing-a-bug-on-silicon-hw-watchpoint-the-iss-diff" title="Permanent link">&para;</a></h2>
 <p>MAME-as-oracle only helps when the bug reproduces in MAME. When it only shows up <strong>on the FPGA</strong> — a
@@ -1496,18 +1620,25 @@ sim/synth timing hazard, or (as here) IRIX wedging somewhere MAME never reaches 
 <em>on the running part</em>. The workflow that cracked the IRIX <code>bad istack</code> panic:</p>
 <p><strong>1. Freeze the pipeline at the offending instruction (core.sv).</strong> Reuse the single-step gate: a
 <strong>driver-programmable</strong> breakpoint + store watchpoint (<code>bp_pc</code>/<code>bp_wp_addr</code>/<code>bp_wp_val</code> from AXI
-<code>slv_reg9-11</code>, guarded by <code>`ifdef ENABLE_DEBUG_WATCHPOINT</code>) that latches a "hit" flop and folds it into
-<code>w_step_ok</code>, so the core <strong>stops retiring without a reset</strong> — the register file and DRAM stay coherent at the
-moment of interest. Because the trap PC/addr/value are ports, moving the breakpoint no longer needs a re-synth.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1">// bp_pc / bp_wp_addr / bp_wp_val are DRIVER-PROGRAMMABLE input ports (slv_reg9-11) --</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="c1">// no re-synth to move the trap.  PC breakpoint: freeze after retiring bp_pc.  STORE</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="c1">// watchpoint: freeze after a retiring store of bp_wp_val to bp_wp_addr</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1">// (bp_wp_val==0xffffffff = wildcard: any store to that address).</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="kt">wire</span><span class="w"> </span><span class="n">w_bp_match</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">bp_enable</span><span class="w"> </span><span class="o">&amp;</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">  </span><span class="p">((</span><span class="n">t_retire</span><span class="w">     </span><span class="o">&amp;</span><span class="w"> </span><span class="p">(</span><span class="n">t_rob_head</span><span class="p">.</span><span class="n">pc</span><span class="p">[</span><span class="mh">31</span><span class="o">:</span><span class="mh">0</span><span class="p">]</span><span class="w">      </span><span class="o">==</span><span class="w"> </span><span class="n">bp_pc</span><span class="p">))</span><span class="w"> </span><span class="o">|</span>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">   </span><span class="p">(</span><span class="n">t_retire_two</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="p">(</span><span class="n">t_rob_next_head</span><span class="p">.</span><span class="n">pc</span><span class="p">[</span><span class="mh">31</span><span class="o">:</span><span class="mh">0</span><span class="p">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">bp_pc</span><span class="p">)));</span>
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="kt">wire</span><span class="w"> </span><span class="n">w_wp_match</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">w_wp_data_here</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="p">((</span><span class="n">bp_wp_val</span><span class="o">==</span><span class="mh">32'hffffffff</span><span class="p">)</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="p">(</span><span class="n">core_store_data</span><span class="p">.</span><span class="n">data</span><span class="p">[</span><span class="mh">31</span><span class="o">:</span><span class="mh">0</span><span class="p">]</span><span class="o">==</span><span class="n">bp_wp_val</span><span class="p">));</span>
-<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="kt">wire</span><span class="w"> </span><span class="n">w_step_ok</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">r_single_step</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">r_bp_hit</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">r_wp_hit</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">r_fault_hit</span><span class="p">)</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="n">t_step_edge</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="mh">1</span><span class="mb">'b1</span><span class="p">;</span><span class="w">  </span><span class="c1">// no step edge -&gt; frozen</span>
+<code>slv_reg9-11</code>, compiled in by <code>`ENABLE_DEBUG_WATCHPOINT</code>, which henry's <code>gen_mipscore.sh</code> passes by
+default) that latches a "hit" flop and folds it into <code>w_step_ok</code>, so the core <strong>stops retiring without a
+reset</strong> — the register file and DRAM stay coherent at the moment of interest. Because the trap
+PC/addr/value are ports, moving the breakpoint does not need a re-synth. Arm with control-register bit 17
+(<code>bp_enable</code>); bit 19 (<code>bp_fault_only</code>) switches to fault-only mode; <code>fault_clear</code> (bit 18) re-arms.</p>
+<p>The trap has been reworked since the <code>bad istack</code> hunt below (<code>core.sv:940-1008</code>, current form):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1">// PC breakpoint: freeze after retiring bp_pc, or (bp_fault_only) on a FAULT at bp_pc.</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="kt">wire</span><span class="w"> </span><span class="n">w_bp_match</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">bp_enable</span><span class="w"> </span><span class="o">&amp;</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="p">(</span><span class="n">bp_fault_only</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">   </span><span class="o">?</span><span class="w"> </span><span class="p">(</span><span class="n">t_arch_fault</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="p">(</span><span class="n">t_rob_head</span><span class="p">.</span><span class="n">pc</span><span class="p">[</span><span class="mh">31</span><span class="o">:</span><span class="mh">0</span><span class="p">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">bp_pc</span><span class="p">))</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">   </span><span class="o">:</span><span class="w"> </span><span class="p">((</span><span class="n">t_retire</span><span class="w">     </span><span class="o">&amp;</span><span class="w"> </span><span class="p">(</span><span class="n">t_rob_head</span><span class="p">.</span><span class="n">pc</span><span class="p">[</span><span class="mh">31</span><span class="o">:</span><span class="mh">0</span><span class="p">]</span><span class="w">      </span><span class="o">==</span><span class="w"> </span><span class="n">bp_pc</span><span class="p">))</span><span class="w"> </span><span class="o">|</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">      </span><span class="p">(</span><span class="n">t_retire_two</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="p">(</span><span class="n">t_rob_next_head</span><span class="p">.</span><span class="n">pc</span><span class="p">[</span><span class="mh">31</span><span class="o">:</span><span class="mh">0</span><span class="p">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">bp_pc</span><span class="p">))));</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="c1">// Store watchpoint, now keyed on the STORE'S PC (bp_wp_addr holds a producer PC) and a</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="c1">// threshold: freeze when that store's data is SMALLER than bp_wp_val (a small int</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="c1">// written where a heap pointer belongs).  The data comes from the LSU store buffer.</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="kt">wire</span><span class="w"> </span><span class="n">w_wp_match</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">w_wp_data_here</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="p">(</span><span class="n">lsu_sb</span><span class="p">.</span><span class="n">data</span><span class="p">[</span><span class="mh">31</span><span class="o">:</span><span class="mh">0</span><span class="p">]</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">bp_wp_val</span><span class="p">);</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="c1">// Fault trap: while armed (and not fault-only), the first fatal USERSPACE AdEL/AdES/IBE/DBE</span>
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="c1">// latches {epc,cause,badvaddr} and sets r_fault_hit.</span>
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="kt">wire</span><span class="w"> </span><span class="n">w_step_ok</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">r_single_step</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">r_bp_hit</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">r_wp_hit</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">r_fault_hit</span><span class="p">)</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="n">t_step_edge</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="mh">1</span><span class="mb">'b1</span><span class="p">;</span>
 </code></pre></div>
 <ul>
 <li><strong>Timing trap:</strong> compare the <em>flopped</em> retire outputs (<code>retire_reg_data/ptr/valid</code>), <strong>not</strong> the
@@ -1519,11 +1650,15 @@ moment of interest. Because the trap PC/addr/value are ports, moving the breakpo
 <p><strong>2. Read the state out (driver, over AXI-Lite).</strong> With the core frozen (not reset) the debug reads are
 coherent: <code>read32(7)</code>=last PC, <code>read32(0xb)</code>=CP0 EPC, <code>read32(0x26)&amp;31</code>=Cause, and the GPRs via
 <code>write32(14,i); read32(0xe)</code> (a shadow register file rebuilt from the retire stream).
-- <strong>Gotcha that cost a synth:</strong> the henry AXI wrapper dropped <code>retire_reg_valid</code> end-to-end (henry_soc
-  connected it empty; the wrapper tied <code>w_reg_val*=1'b0</code> and never fed the S00_AXI <code>r_arch_regs</code> shadow), so
-  every GPR read returned 0. Wire <code>retire_reg_valid</code>/<code>_two_valid</code> out of henry_soc → into the shadow.</p>
-<p><strong>3. Read guest DRAM (<code>devmem</code>).</strong> The driver mmaps guest RAM at host phys <code>0x5ff00000</code>, so
-<code>host = 0x5ff00000 + guest_pa</code> (the PROM at guest <code>0x1fc00000</code> is specially relocated to <code>+0x10C00000</code>).
+- <strong>Gotcha that cost a synth (fixed):</strong> the henry AXI wrapper once dropped <code>retire_reg_valid</code> end-to-end,
+  so every GPR read returned 0. It is wired now: <code>henry_soc.sv</code> exports <code>retire_reg_valid</code>, and the wrapper
+  feeds <code>w_reg_val0/1</code> into the S00_AXI shadow (<code>ip_hdl/axi_is_the_worst_v1_0.v:446-449, 704</code>).</p>
+<p><strong>3. Read guest DRAM (<code>devmem</code>).</strong> The driver mmaps guest RAM at host phys <code>0x5ff00000</code>. The M00 AXI
+master folds guest physical addresses (<code>ip_hdl/axi_is_the_worst_v1_0_M00_AXI.v:366-383</code>, mirrored by
+<code>fpga_map</code> in <code>sim/henry_tb.cpp</code>): guest <code>0x08000000–0x17ffffff</code> → offset <code>pa[27:0]</code> (so <code>host = 0x5ff00000
++ guest_pa</code> for <code>0x08000000–0x0fffffff</code>, and the upper 128 MB folds down to offset 0), and the device/PROM
+window <code>0x1f000000–0x1fffffff</code> → offset <code>0x10000000 + pa[23:0]</code> (the PROM at guest <code>0x1fc00000</code> lands at
+<code>+0x10C00000</code>).
 The guest is <strong>big-endian</strong>, so byte-swap <code>devmem</code>'s output. <strong>Caveat:</strong> only <em>flushed</em> memory is DRAM-visible
 — a freshly written-back-cached word (e.g. a just-updated scheduler global) reads stale <code>0</code>. An old global
 (the wired int-stack ptr at <code>0xFFFFA020</code>) reads correctly; a hot one (the idle-sp global <code>0xFFFFA164</code>) doesn't.</p>
@@ -1553,7 +1688,64 @@ margin for the probe on a 94%-LUT-full die: shrinking the <strong>ALU matrix sch
 (<code>LG_INT_SCHED_ENTRIES 3→2</code>) — the O(N²) wakeup/select is <em>on the critical path</em>, so it's a real WNS lever
 (not an area win; the FPU dominates the LUTs) — <strong>but that downsize proved buggy (mis-issue → replay) and was
 reverted, so the live config stays 8 entries (<code>LG_INT_SCHED_ENTRIES=3</code>)</strong>; and <strong>L2 1024→8 lines</strong> (a BRAM
-knob, no LUT/correctness impact — caches are non-inclusive so shrinking is safe).</p>
+knob, no LUT/correctness impact; the L2 is not inclusive of the L1D, so shrinking is safe). Today the L2
+default is 128 KB (<code>LG_L2_NUM_SETS=13</code>), and any cache size can be overridden from the build line
+(<code>SV2V_DEFINES="LG_L2_NUM_SETS=8" ./gen_mipscore.sh</code>; see <code>machine.vh</code>).</p>
+<h2 id="verification-tooling-today-2026-10">Verification tooling today (2026-10)<a class="headerlink" href="#verification-tooling-today-2026-10" title="Permanent link">&para;</a></h2>
+<p>MAME remains the oracle for <em>what IRIX requires</em>. The core and SoC are now checked mostly against
+<code>interp_mips</code> and with directed/random/formal tests. Everything below exists in code: in this repo or
+the <code>r9999</code> submodule unless noted.</p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>What it does</th>
+<th>Where</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Lockstep co-sim checker</strong></td>
+<td>The ISS embedded in r9999 steps on every RTL retire and compares the written register, PC, and committed stores.</td>
+<td><code>sim/henry_tb.cpp --checker</code> (seed with <code>--iss-seed</code>); r9999 <code>ooo_core -c 1</code> (<code>top.cc</code>)</td>
+</tr>
+<tr>
+<td><strong>Random-instruction co-sim</strong></td>
+<td>Generates random MIPS3 programs and runs each under <code>ooo_core -c 1</code>, in parallel across seeds.</td>
+<td><code>r9999/tests/randgen/</code> (<code>gen_mips_test.py</code>, <code>run_parallel.sh</code>)</td>
+</tr>
+<tr>
+<td><strong>Directed suites</strong></td>
+<td>Per-feature assembly tests (TLB/XTLB, D-side TLB, cache ops, exceptions, IRQs, FPU, SCC, device regs, …) and the <code>exchammer</code> exception hammers used to chase the 2026-10 <code>EXCEPTION_DRAIN</code> hang.</td>
+<td><code>r9999/tests/*</code>, <code>r9999/tests/exchammer/</code></td>
+</tr>
+<tr>
+<td><strong>Checkpoints</strong></td>
+<td>Resume from an <code>interp_mips</code> checkpoint (<code>--checkpoint</code>, <code>--cimg</code> preamble image), snapshot/restore the real Verilator state (<code>--save-at</code>/<code>--save-file</code>/<code>--restore</code>), and diff committed memory against an independent ISS checkpoint (<code>--verify-ckpt</code>).</td>
+<td><code>sim/henry_tb.cpp</code>; checkpoint→ELF loader shim in <code>~/code/mips-ckpt-shim</code></td>
+</tr>
+<tr>
+<td><strong>XPG flush injection</strong></td>
+<td>Fires ARM-style whole-cache (<code>--extflush N</code>) or page-list (<code>--xfpages base,n,drop</code>) flushes into a running boot, to race the <a href="../coherence-cache-tlb/#dma-coherence-on-silicon-arm-requested-flushes-xpg">XPG path</a> against live traffic.</td>
+<td><code>sim/henry_tb.cpp</code></td>
+</tr>
+<tr>
+<td><strong>HW retirement trace ring</strong></td>
+<td>2048-entry, two-bank (one bank per retire slot) record of retired instructions, frozen on a retired indirect jump to 0 / poison PC, read back over AXI. Opt-in with <code>ENABLE_PC_TRACE</code>; a sim-only per-retire trace buffer is <code>ENABLE_TRACE_BUFFER</code>.</td>
+<td><code>r9999/core.sv</code>, <code>LG_RTRACE_ENTRIES</code> in <code>machine.vh</code></td>
+</tr>
+<tr>
+<td><strong>Formal (yosys SAT/BMC)</strong></td>
+<td>Decode, register-file write-bank, L1D forwarding/response, and retire properties.</td>
+<td><code>r9999/formal/run_*_formal.sh</code></td>
+</tr>
+<tr>
+<td><strong>Murphi models</strong></td>
+<td>Protocol models for the cache/DMA paths, incl. the XPG page walk (<code>r9999_pagewalk.m</code>, cited by <code>l1d.sv</code>).</td>
+<td><code>~/code/murphi</code> (outside these repos)</td>
+</tr>
+</tbody>
+</table>
 <h2 id="related-work">Related work<a class="headerlink" href="#related-work" title="Permanent link">&para;</a></h2>
 <p><strong>Project CYAN</strong> (<a href="https://wiki.unix-haters.org/doku.php?id=sgimips:cyan">wiki.unix-haters.org</a>)
 is a from-scratch FPGA SoC of the SGI <strong>Indigo IP20</strong>, the board generation just

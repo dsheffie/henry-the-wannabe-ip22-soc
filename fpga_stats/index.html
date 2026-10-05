@@ -11,6 +11,8 @@
       
       
       
+        <link rel="prev" href="../methodology/">
+      
       
       
         
@@ -21,7 +23,7 @@
     
     
       
-        <title>FPGA design stats (Vivado synth/impl) - Henry — the wannabe IP22 SoC</title>
+        <title>FPGA build stats - Henry — the wannabe IP22 SoC</title>
       
     
     
@@ -108,7 +110,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              FPGA design stats (Vivado synth/impl)
+              FPGA build stats
             
           </span>
         </div>
@@ -315,7 +317,7 @@
     
   
   
-    <span class="md-status md-status--draft (functional-sim validated, MAME-corroborated)"></span>
+    <span class="md-status md-status--draft (functional-sim validated, MAME-corroborated; Henry-RTL notes added 2026-10-04 against henry 209e6f6)"></span>
   
 
   
@@ -410,7 +412,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; Henry FSBL section checked 2026-10-04 against r9999/arcs/henry_arcs.S @ 5c89b70)"></span>
   
 
   
@@ -444,7 +446,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; Henry FSBL/console re-checked 2026-10-04 against henry 209e6f6 / r9999 5c89b70)"></span>
   
 
   
@@ -478,7 +480,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated; silicon-refined 2026-07 — see the hidden-L2 DMA section)"></span>
+    <span class="md-status md-status--draft (MAME-validated; silicon-refined 2026-07; RTL state re-checked 2026-10-04 against r9999 5c89b70)"></span>
   
 
   
@@ -530,6 +532,10 @@
   
     
     
+      
+        
+      
+        
       
         
       
@@ -612,7 +618,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -647,7 +653,42 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../peripherals/scc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SCC (Z85C30 console)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (silicon-validated; audited 2026-10-04 against henry main @209e6f6)"></span>
   
 
   
@@ -682,9 +723,37 @@
     
   
   
-    <span class="md-status md-status--draft (MAME + live-IRIX-trace validated)"></span>
+    <span class="md-status md-status--draft (MAME + live-IRIX-trace validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../peripherals/scsi_disk_theory_of_operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SCSI disk theory of operation
+  
+
+    
+  </span>
+  
   
 
       </a>
@@ -717,7 +786,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -787,7 +856,7 @@
     
   
   
-    <span class="md-status md-status--draft"></span>
+    <span class="md-status md-status--draft (henry status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -1132,6 +1201,174 @@
   
 
     
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FPGA build stats
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FPGA build stats
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#2026-10-04-r9999-5c89b70-l1d-flushes-start-only-from-a-drained-l1d-current-deployed-bit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2026-10-04 -- r9999 5c89b70 (L1D flushes start only from a drained L1D) -- CURRENT deployed bit
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2026-10-03-r9999-94e5e97-cp0-writes-commit-at-retire-cp0-ops-totally-ordered" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2026-10-03 -- r9999 94e5e97 (CP0 writes commit at retire; CP0 ops totally ordered)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2026-07-19-r9999-2edef07-submodule-on-main-16-kb-l1il1d-128-kb-l2-find_lowest_set_bit-programmable-debug-watchpoint" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2026-07-19 -- r9999 2edef07 (submodule-on-main: 16 KB L1I+L1D, 128 KB L2, find_lowest_set_bit, programmable debug watchpoint)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2026-07-03-1fdc585-mem-pipe-cache-hit-ops-wns-full-lut-breakdown-by-hierarchy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2026-07-03 -- 1fdc585 (mem-pipe CACHE hit-ops) -- WNS + full LUT breakdown by hierarchy
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2026-07-03 -- 1fdc585 (mem-pipe CACHE hit-ops) -- WNS + full LUT breakdown by hierarchy">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#lut-breakdown-by-hierarchy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LUT breakdown by hierarchy
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2026-06-24-scc-iocsv-control-write-fix-fp-complete-core-explore-pr-post-route-phys_opt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2026-06-24 -- SCC ioc.sv control-write fix (FP-complete core; Explore P&amp;R + post-route phys_opt)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2026-06-20-aadb09f-tlb-pfn-narrowed-to-pa_width-12-bev-base-fix-va-range-adel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2026-06-20 -- aadb09f (TLB PFN narrowed to PA_WIDTH-12; + BEV-base fix + VA-range AdEL)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2026-06-19-9bf1224-baseline-c-bit-cacheability-usersupkernel-adel-scc-rx-wrapper" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2026-06-19 -- 9bf1224 baseline (C-bit cacheability + user/sup/kernel AdEL + SCC Rx wrapper)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
   </ul>
 </nav>
                   </div>
@@ -1157,6 +1394,28 @@
       Table of contents
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#2026-10-04-r9999-5c89b70-l1d-flushes-start-only-from-a-drained-l1d-current-deployed-bit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2026-10-04 -- r9999 5c89b70 (L1D flushes start only from a drained L1D) -- CURRENT deployed bit
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2026-10-03-r9999-94e5e97-cp0-writes-commit-at-retire-cp0-ops-totally-ordered" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2026-10-03 -- r9999 94e5e97 (CP0 writes commit at retire; CP0 ops totally ordered)
+      
+    </span>
+  </a>
+  
+</li>
       
         <li class="md-nav__item">
   <a href="#2026-07-19-r9999-2edef07-submodule-on-main-16-kb-l1il1d-128-kb-l2-find_lowest_set_bit-programmable-debug-watchpoint" class="md-nav__link">
@@ -1253,10 +1512,138 @@ a synth (<code>rebuild_henry.tcl</code> writes <code>~/timing_after.rpt</code> +
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>./fpga_stats.sh<span class="w"> </span>&gt;&gt;<span class="w"> </span>docs/fpga_stats.md<span class="w">   </span><span class="c1"># appends a dated, commit-stamped block</span>
 </code></pre></div>
 <p><strong>Target:</strong> Ultra96-v2 (Zynq UltraScale+ ZU3EG), <code>clk_pl_0</code> @ <strong>100 MHz</strong> (10 ns).
-The WNS path has long been the <strong>icache -&gt; ITLB -&gt; <code>pa_reg</code></strong> chain (the 48-entry
-fully-associative TLB CAM), and it is <strong>route-dominated</strong> (~63% route) -- so area
-reductions that shrink the TLB array tend to help WNS more than logic-level
-counting suggests. Newest block first.</p>
+In most of the June–July 2026 builds logged below the WNS path was the <strong>icache -&gt; ITLB -&gt; <code>pa_reg</code></strong> chain (the
+48-entry fully-associative TLB CAM), <strong>route-dominated</strong> (~63% route). The 2-entry <strong>micro-ITLB</strong> took
+the CAM off the fetch path; since the memory-system rework (non-blocking L1D + LSU) the worst path
+sits in the <strong>L1D port-2 pipeline</strong>. Newest block first. Reports for each deployed bitstream are
+snapshotted next to it in <code>~/fpga/ultra96v2-henry/bit_&lt;r9999 sha&gt;/</code>.</p>
+<h2 id="2026-10-04-r9999-5c89b70-l1d-flushes-start-only-from-a-drained-l1d-current-deployed-bit">2026-10-04 -- r9999 5c89b70 (L1D flushes start only from a drained L1D) -- CURRENT deployed bit<a class="headerlink" href="#2026-10-04-r9999-5c89b70-l1d-flushes-start-only-from-a-drained-l1d-current-deployed-bit" title="Permanent link">&para;</a></h2>
+<p>Henry <code>main</code> @ <code>209e6f6</code>; bitstream md5 <code>f66c6d49dfb1…</code>; <code>impl_11</code>; built with
+<code>ENABLE_DEBUG_WATCHPOINT</code> on (the <code>gen_mipscore.sh</code> default). Core config: 16 KB L1I + 16 KB L1D,
+128 KB L2, ROB 16, micro-ITLB 2, L1D skid buffer <strong>off</strong>, RDCHK checker removed, unified int/FP divider
+in. Parsed with <code>./fpga_stats.sh</code> from <code>bit_5c89b70/*.rpt</code>.</p>
+<table>
+<thead>
+<tr>
+<th>metric</th>
+<th>value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>WNS @ 100 MHz</td>
+<td><strong>+0.120 ns</strong> (all user specified timing constraints met; 0 failing endpoints)</td>
+</tr>
+<tr>
+<td>Worst path</td>
+<td><code>cpu/dcache/r_req2_reg[204]</code> -&gt; <code>cpu/dcache/r_hit_busy_addr_reg</code></td>
+</tr>
+<tr>
+<td>Data path delay</td>
+<td>9.758 ns  (logic 3.256 ns / <strong>33.4%</strong>, route 6.502 ns / <strong>66.6%</strong>)</td>
+</tr>
+<tr>
+<td>Logic levels</td>
+<td>35  (LUT2=2 LUT3=1 LUT4=4 LUT5=6 LUT6=21 MUXF7=1)</td>
+</tr>
+<tr>
+<td>CLB LUTs</td>
+<td>56222 (79.68%)</td>
+</tr>
+<tr>
+<td>LUT as Logic</td>
+<td>54039 (76.59%)</td>
+</tr>
+<tr>
+<td>LUT as Memory (LUTRAM)</td>
+<td>2183 (7.58%)</td>
+</tr>
+<tr>
+<td>CLB Registers (FF)</td>
+<td>36397 (25.79%)</td>
+</tr>
+<tr>
+<td>Register as Latch</td>
+<td>0</td>
+</tr>
+<tr>
+<td>Block RAM</td>
+<td>63 (29.17%)</td>
+</tr>
+<tr>
+<td>DSP</td>
+<td>43 (11.94%)</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Path shape:</strong> the L1D port-2 request register <code>r_req2</code> -&gt; data-array / store-buffer byte select
+(<code>dc_data</code>, <code>r_sb_mask</code>) -&gt; D-TLB-dependent response / block decision (<code>dtlb/r_core_mem_rsp</code>,
+<code>r_core_mem_blk_valid</code>) -&gt; MQ push / next state -&gt; tag-RAM address (<code>dc_tag</code>) -&gt; <code>r_hit_busy_addr</code>.
+Still route-dominated (67%). vs. <code>94e5e97</code> below: +716 CLB LUTs and -0.057 ns WNS for the
+drained-L1D gating on all four flush arms.</p>
+</blockquote>
+<h2 id="2026-10-03-r9999-94e5e97-cp0-writes-commit-at-retire-cp0-ops-totally-ordered">2026-10-03 -- r9999 94e5e97 (CP0 writes commit at retire; CP0 ops totally ordered)<a class="headerlink" href="#2026-10-03-r9999-94e5e97-cp0-writes-commit-at-retire-cp0-ops-totally-ordered" title="Permanent link">&para;</a></h2>
+<p><code>impl_11</code>, bitstream md5 <code>f29a0d083fae…</code> (reports in <code>bit_94e5e97/</code>). First bits on the reworked
+memory system (r9999 <code>3b78e9b</code>: non-blocking L1D, unified LSU with store buffer + forwarding).</p>
+<table>
+<thead>
+<tr>
+<th>metric</th>
+<th>value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>WNS @ 100 MHz</td>
+<td><strong>+0.177 ns</strong> (all user specified timing constraints met)</td>
+</tr>
+<tr>
+<td>Worst path</td>
+<td><code>cpu/icache/insn_array/r_ram_reg_bram_3</code> -&gt; <code>cpu/icache/r_ufast_pa_reg[33]</code></td>
+</tr>
+<tr>
+<td>Data path delay</td>
+<td>9.471 ns  (logic 4.250 ns / <strong>44.9%</strong>, route 5.221 ns / <strong>55.1%</strong>)</td>
+</tr>
+<tr>
+<td>Logic levels</td>
+<td>31  (LUT2=6 LUT3=3 LUT4=6 LUT5=5 LUT6=11)</td>
+</tr>
+<tr>
+<td>CLB LUTs</td>
+<td>55506 (78.66%)</td>
+</tr>
+<tr>
+<td>LUT as Logic</td>
+<td>53323 (75.57%)</td>
+</tr>
+<tr>
+<td>LUT as Memory (LUTRAM)</td>
+<td>2183 (7.58%)</td>
+</tr>
+<tr>
+<td>CLB Registers (FF)</td>
+<td>36408 (25.80%)</td>
+</tr>
+<tr>
+<td>Register as Latch</td>
+<td>0</td>
+</tr>
+<tr>
+<td>Block RAM</td>
+<td>63 (29.17%)</td>
+</tr>
+<tr>
+<td>DSP</td>
+<td>43 (11.94%)</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>Worst path here is the <strong>micro-ITLB fast path</strong> (I-cache data array -&gt; next fetch PC -&gt; uITLB
+compare -&gt; <code>r_ufast_pa</code>), no longer the 48-way CAM.</p>
+</blockquote>
 <h2 id="2026-07-19-r9999-2edef07-submodule-on-main-16-kb-l1il1d-128-kb-l2-find_lowest_set_bit-programmable-debug-watchpoint">2026-07-19 -- r9999 2edef07 (submodule-on-main: 16 KB L1I+L1D, 128 KB L2, find_lowest_set_bit, programmable debug watchpoint)<a class="headerlink" href="#2026-07-19-r9999-2edef07-submodule-on-main-16-kb-l1il1d-128-kb-l2-find_lowest_set_bit-programmable-debug-watchpoint" title="Permanent link">&para;</a></h2>
 <p>First synth after the <code>r9999</code> submodule was repointed at a <strong>clean <code>origin/main</code></strong> (2edef07):
 <strong>16 KB L1I + 16 KB L1D</strong> (was 4 KB each; VIPT tag-widened so alias-safe above the 4 KB page),

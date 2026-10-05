@@ -319,7 +319,7 @@
     
   
   
-    <span class="md-status md-status--draft (functional-sim validated, MAME-corroborated)"></span>
+    <span class="md-status md-status--draft (functional-sim validated, MAME-corroborated; Henry-RTL notes added 2026-10-04 against henry 209e6f6)"></span>
   
 
   
@@ -414,7 +414,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; Henry FSBL section checked 2026-10-04 against r9999/arcs/henry_arcs.S @ 5c89b70)"></span>
   
 
   
@@ -448,7 +448,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; Henry FSBL/console re-checked 2026-10-04 against henry 209e6f6 / r9999 5c89b70)"></span>
   
 
   
@@ -482,7 +482,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated; silicon-refined 2026-07 — see the hidden-L2 DMA section)"></span>
+    <span class="md-status md-status--draft (MAME-validated; silicon-refined 2026-07; RTL state re-checked 2026-10-04 against r9999 5c89b70)"></span>
   
 
   
@@ -536,6 +536,10 @@
   
     
     
+      
+        
+      
+        
       
         
       
@@ -618,7 +622,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -653,7 +657,42 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SCC (Z85C30 console)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (silicon-validated; audited 2026-10-04 against henry main @209e6f6)"></span>
   
 
   
@@ -688,9 +727,37 @@
     
   
   
-    <span class="md-status md-status--draft (MAME + live-IRIX-trace validated)"></span>
+    <span class="md-status md-status--draft (MAME + live-IRIX-trace validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scsi_disk_theory_of_operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SCSI disk theory of operation
+  
+
+    
+  </span>
+  
   
 
       </a>
@@ -723,7 +790,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -924,7 +991,7 @@
     
   
   
-    <span class="md-status md-status--draft"></span>
+    <span class="md-status md-status--draft (henry status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -1269,6 +1336,33 @@
   
 
     
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fpga_stats/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FPGA build stats
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
   </ul>
 </nav>
                   </div>
@@ -1403,16 +1497,21 @@ library <code>v3f()</code> call (ship a 3-float / 12-byte vertex to the pipe). A
 Draft 1.5 (1992).</p>
 <h2 id="role-in-henry-future-work-graphics-only-uniprocessor-no-snoop">Role in Henry  (future-work; graphics-only; uniprocessor = no snoop)<a class="headerlink" href="#role-in-henry-future-work-graphics-only-uniprocessor-no-snoop" title="Permanent link">&para;</a></h2>
 <ul>
-<li>⚠️ <strong>Not boot-critical.</strong> Henry boots headless: GIO slots bus-error as "no device" (see <code>gio64</code>), there is no
-  graphics card, so nothing ever programs the VDMA descriptor registers. VDMA can be a no-op / unimplemented
-  decode and IRIX still boots. This doc exists because the block is architecturally interesting (a DMA engine
+<li>⚠️ <strong>Not boot-critical, and not implemented.</strong> Henry boots headless with no graphics card, so nothing ever
+  programs the VDMA descriptor registers.</li>
+<li><strong>Registers.</strong> In henry's <code>rtl/mc.sv</code> the whole VDMA register set is unimplemented: <code>0x150–0x1b8</code>
+    (mask/subst, cause/ctl, µTLB) and <code>0x2000+</code> (descriptor/run). It reads 0 and writes are ignored. A
+    <code>GIO_RUN</code> poll therefore reads "not running".</li>
+<li><strong>GIO probes.</strong> These do not bus-error in henry; they read a DRAM shadow (see <a href="../gio64/">GIO64</a>).</li>
+<li><strong>Boot.</strong> IRIX boots regardless. This doc exists because the block is architecturally interesting (a DMA engine
   with its own page-table walker) and because it <em>confirms</em> Henry's cache-coherence contract.</li>
 <li>✅ <strong>Distinct from HPC3.</strong> VDMA is the <strong>graphics/GIO</strong> master and the only DMA path that touches <em>virtual</em>
   addresses + page tables. The real SCSI / Ethernet / PBUS DMA (the boot-critical I/O) is <strong>HPC3</strong>, which is
   pure-physical scatter-gather — see <code>hpc3</code>. Don't conflate them.</li>
 <li>⚠️ <strong>Henry is uniprocessor R4000.</strong> Cache snooping in VDMA is an <strong>R4000MP-only</strong> feature (the large package).
-  r9999 / Henry never get hardware snoop, so the engine is <strong>non-coherent</strong> and software cache ops are
-  load-bearing (see Cache coherence below).</li>
+  r9999 / Henry have no working DMA snoop: the DMA→L2 snoop FIFO in <code>henry_soc.sv</code> is opt-in
+  (<code>ENABLE_DMA_SNOOP</code>), and the core ties its snoop input off. Any DMA engine is therefore <strong>non-coherent</strong>,
+  and software cache ops are load-bearing (see Cache coherence below).</li>
 </ul>
 <h2 id="address-translation-the-ptebase-tlb-hardware-page-table-walker">Address translation — the PTEBase µTLB + hardware page-table walker<a class="headerlink" href="#address-translation-the-ptebase-tlb-hardware-page-table-walker" title="Permanent link">&para;</a></h2>
 <p>The novel feature: the engine translates user virtual addresses <em>itself</em>, page-by-page, so the OS no longer has
@@ -1473,8 +1572,12 @@ coherence options and explicitly scopes one of them out for the uniprocessor:
   - <strong>DMA-out</strong> (memory -&gt; device, memory-&gt;GIO read): before the transfer, <strong><code>cache Hit-WB-Invalidate-D</code></strong> so
     dirty lines are flushed to DRAM and the engine reads current data.
 - This is the <em>same</em> coherence story as HPC3 (which has zero coherence hardware) — see the cache/coherence notes
-  in <code>hpc3</code> and the chip-registers digest. Henry modeling DMA as direct-to-DRAM + honoring those exact L1d ops =
-  correct, with <strong>zero coherence hardware</strong>.</p>
+  in <code>hpc3</code> and the chip-registers digest.
+- ⚠️ <strong>Henry caveat.</strong> On henry, guest L1 cache ops alone are <strong>not</strong> sufficient. r9999 has an L2 that IRIX
+  cannot see (<code>Config.SC</code> = no secondary cache), so IRIX never maintains it. henry's existing DMA paths
+  (SCSI/ENET) rely on ARM-requested L1D+L2 flushes / page-list flushes around host deposits (see
+  <a href="../hpc3/#cache-coherence-none-in-hardware-the-mandatory-software-contract">HPC3 cache coherence</a>). A future
+  VDMA engine would need the same treatment.</p>
 <h2 id="descriptor-register-set-a-register-set-not-an-in-memory-linked-list">Descriptor register set  (a register set, not an in-memory linked list)<a class="headerlink" href="#descriptor-register-set-a-register-set-not-an-in-memory-linked-list" title="Permanent link">&para;</a></h2>
 <p>⚠️ Unlike HPC3's in-memory descriptor chain, a VDMA "descriptor" <em>is</em> the set of MC registers below. Once a DMA
 starts they implicitly hold the running state, so the whole transfer is <strong>context-switchable</strong> (read them out /
@@ -1568,11 +1671,13 @@ linecount→zoomcount→bytecount walk with <code>stride</code>/<code>linewidth<
    second decoder. Software loads/invalidates the µTLB; HW only reads it.
 3. <strong>Restartable fault path</strong>: latch the four causes into <code>GIO_CAUSE</code>/<code>GIO_RUN</code>, stop at a save-able boundary,
    resume on <code>GIO_STDMA.Start</code>. All descriptor state lives in the (already context-switchable) registers.
-4. <strong>Non-snooping</strong>: model the engine as <strong>direct-to-DRAM</strong> and rely entirely on the L1d cache ops
-   (<code>Hit-Invalidate-D</code> after DMA-in, <code>Hit-WB-Invalidate-D</code> before DMA-out). No snoop logic, no coherence
-   hardware — uniprocessor-correct, and identical to the HPC3 contract.</p>
-<p>This block reinforces (does not introduce) Henry's coherence rule: the cache-op discipline that makes HPC3
-correct is the <em>same</em> discipline VDMA's spec mandates, and the spec says so explicitly for the uniprocessor.</p>
+4. <strong>Non-snooping</strong>: model the engine as <strong>direct-to-DRAM</strong> and rely on the L1d cache ops (<code>Hit-Invalidate-D</code>
+   after DMA-in, <code>Hit-WB-Invalidate-D</code> before DMA-out). Those are uniprocessor-correct on a real Indy, but on
+   henry they must be paired with something that covers the IRIX-invisible L2. That could be an ARM/HW flush
+   like the HPC3 paths use, or a working L2 snoop.</p>
+<p>This block reinforces (does not introduce) the IP22 coherence rule: the cache-op discipline that makes HPC3
+correct is the <em>same</em> discipline VDMA's spec mandates, and the spec says so explicitly for the uniprocessor.
+henry adds the extra L2 requirement noted above.</p>
 <h2 id="sources">Sources<a class="headerlink" href="#sources" title="Permanent link">&para;</a></h2>
 <ul>
 <li><code>~/code/sgi/docs/indy_docs/ip22/vdma.pdf</code> — SGI "Virtual DMA Specification", FastForward Project, Draft 1.5,

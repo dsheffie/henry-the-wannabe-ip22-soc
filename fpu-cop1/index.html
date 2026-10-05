@@ -319,7 +319,7 @@
     
   
   
-    <span class="md-status md-status--draft (functional-sim validated, MAME-corroborated)"></span>
+    <span class="md-status md-status--draft (functional-sim validated, MAME-corroborated; Henry-RTL notes added 2026-10-04 against henry 209e6f6)"></span>
   
 
   
@@ -414,7 +414,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; Henry FSBL section checked 2026-10-04 against r9999/arcs/henry_arcs.S @ 5c89b70)"></span>
   
 
   
@@ -448,7 +448,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; Henry FSBL/console re-checked 2026-10-04 against henry 209e6f6 / r9999 5c89b70)"></span>
   
 
   
@@ -482,7 +482,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated; silicon-refined 2026-07 — see the hidden-L2 DMA section)"></span>
+    <span class="md-status md-status--draft (MAME-validated; silicon-refined 2026-07; RTL state re-checked 2026-10-04 against r9999 5c89b70)"></span>
   
 
   
@@ -607,10 +607,21 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#previously-deferrable-ops-handled-via-soft-float-trap-not-omitted" class="md-nav__link">
+  <a href="#previously-deferrable-ops-now-in-hardware" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Previously "deferrable" ops — handled via soft-float trap, not omitted
+        Previously "deferrable" ops — now in hardware
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-still-traps-to-soft-float" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What still traps to soft-float
       
     </span>
   </a>
@@ -671,6 +682,10 @@
   
     
     
+      
+        
+      
+        
       
         
       
@@ -753,7 +768,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -788,7 +803,42 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../peripherals/scc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SCC (Z85C30 console)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (silicon-validated; audited 2026-10-04 against henry main @209e6f6)"></span>
   
 
   
@@ -823,9 +873,37 @@
     
   
   
-    <span class="md-status md-status--draft (MAME + live-IRIX-trace validated)"></span>
+    <span class="md-status md-status--draft (MAME + live-IRIX-trace validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../peripherals/scsi_disk_theory_of_operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SCSI disk theory of operation
+  
+
+    
+  </span>
+  
   
 
       </a>
@@ -858,7 +936,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -928,7 +1006,7 @@
     
   
   
-    <span class="md-status md-status--draft"></span>
+    <span class="md-status md-status--draft (henry status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -1273,6 +1351,33 @@
   
 
     
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../fpga_stats/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FPGA build stats
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
   </ul>
 </nav>
                   </div>
@@ -1334,10 +1439,21 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#previously-deferrable-ops-handled-via-soft-float-trap-not-omitted" class="md-nav__link">
+  <a href="#previously-deferrable-ops-now-in-hardware" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Previously "deferrable" ops — handled via soft-float trap, not omitted
+        Previously "deferrable" ops — now in hardware
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-still-traps-to-soft-float" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What still traps to soft-float
       
     </span>
   </a>
@@ -1403,13 +1519,13 @@
 <blockquote>
 <p>r9999 <strong>presents a working COP1 (FPU)</strong>: a clustered/banked FP register file, the full move and
 FP load/store plumbing, a real arithmetic datapath (unified single/double add/sub + multiply,
-compare, and converts in hardware), FP branches, and the IEEE/FCSR exception model. It is validated
-<strong>booting an FPU Linux kernel to <code>/init</code></strong> with lazy-FPU (<code>Status.CU1</code>) and <strong>running a double-precision
-self-test on henry silicon</strong> (an <code>awk</code> arithmetic test: <code>22/7</code>, <code>3.5*2.0</code>, <code>sqrt(2)</code>, <code>exp(1)</code> — all
-correct). The histograms below come from booting real IRIX 6.5.22 in MAME (<code>indy_4610</code>, <code>-nodrc</code>
+compare, converts, and divide/square-root in hardware), FP branches, and the IEEE/FCSR exception
+model. It was validated at bring-up <strong>booting an FPU Linux kernel to <code>/init</code></strong> with lazy-FPU
+(<code>Status.CU1</code>) and <strong>running a double-precision self-test on henry silicon</strong> (an <code>awk</code> arithmetic
+test: <code>22/7</code>, <code>3.5*2.0</code>, <code>sqrt(2)</code>, <code>exp(1)</code> — all correct). The histograms below come from booting real IRIX 6.5.22 in MAME (<code>indy_4610</code>, <code>-nodrc</code>
 interpreter) with a COP1-instruction histogram compiled into <code>mips3.cpp</code>; they remain accurate as the
 <strong>workload context</strong> — they show <em>what FP work the OS actually issues</em>, and r9999 covers all of it
-(the few ops not in the HW datapath — div/sqrt — trap to the OS soft-float emulator). This pairs with the
+in hardware (only denormal operands/results and undecoded COP1 ops trap to the OS soft-float emulator). This pairs with the
 <strong><code>Status.FR</code></strong> finding in <a href="../coherence-cache-tlb/#cp0-timekeeping-misc">Cache, coherence &amp; TLB</a>.</p>
 </blockquote>
 <h2 id="why-the-fpu-is-on-the-boot-path">Why the FPU is on the boot path<a class="headerlink" href="#why-the-fpu-is-on-the-boot-path" title="Permanent link">&para;</a></h2>
@@ -1444,13 +1560,13 @@ interpreter) with a COP1-instruction histogram compiled into <code>mips3.cpp</co
 <td><strong>Single-precision</strong> (<code>fmt=S</code>) math + compare</td>
 <td style="text-align: right;">25,147</td>
 <td style="text-align: right;">19.1%</td>
-<td>unified <code>fpu_add</code>/<code>fpu_mul</code>/<code>fpu_compare</code> (S)</td>
+<td>unified <code>fpu_add</code>/<code>fpu_mul</code>/<code>fpu_compare</code> (S); div/sqrt on <code>uni_divider</code></td>
 </tr>
 <tr>
 <td><strong>Double-precision</strong> (<code>fmt=D</code>) math + compare</td>
 <td style="text-align: right;">15,347</td>
 <td style="text-align: right;">11.6%</td>
-<td>same unified add/mul/compare (D)</td>
+<td>same unified units (D)</td>
 </tr>
 <tr>
 <td><strong>BC1</strong> FP conditional branches</td>
@@ -1468,28 +1584,36 @@ interpreter) with a COP1-instruction histogram compiled into <code>mips3.cpp</co
 </table>
 <p>Moves dominate, but ~31% (40,333 ops) is real FP work — and r9999 has the datapath for it.</p>
 <h2 id="the-op-set-r9999-implements">The op set r9999 implements<a class="headerlink" href="#the-op-set-r9999-implements" title="Permanent link">&para;</a></h2>
-<p>Union of all nonzero op funcs observed (with the hottest counts) — <strong>all of these are covered</strong>, either
-by the hardware datapath or (div/sqrt) by the soft-float trap:</p>
+<p>Union of all nonzero op funcs observed (with the hottest counts) — <strong>all of these are covered by the
+hardware datapath</strong>:</p>
 <ul>
 <li><strong>Arithmetic (HW):</strong> <code>ADD.S</code> (12,974), <code>ADD.D</code> (702), <code>MUL.S</code> (2,757), <code>MUL.D</code> (439), <code>SUB.S/D</code>,
   <code>ABS.D</code>, <code>NEG.S</code>, <code>MOV.S</code> (287), <code>MOV.D</code> (10,083). Add/sub and multiply are the unified single/double
-  <code>fpu_add</code> and <code>fpu_mul</code> units (fixed 2-cycle latency, <code>fmt</code> selects S/D, FCSR.RM rounding); abs/neg/mov
-  are single-cycle bit-twiddles.</li>
-<li><strong>Divide (soft-float):</strong> <strong><code>DIV.D</code> (128 — double divide is exercised)</strong> is <em>not</em> in the HW datapath —
-  r9999 raises the Unimplemented-Op (E) FP exception (see below) and the OS soft-float emulator computes it.</li>
+  <code>fpu_add</code> and <code>fpu_mul</code> units (fixed <strong>4-cycle</strong> latency, <code>FPU_LAT=4</code> in <code>machine.vh</code>; <code>fmt</code> selects
+  S/D, FCSR.RM rounding); abs/neg/mov are single-cycle bit-twiddles.</li>
+<li><strong>Divide (HW, iterative):</strong> <strong><code>DIV.D</code> (128 — double divide is exercised)</strong> runs on <strong><code>uni_divider.sv</code></strong>,
+  the unified iterative unit shared with the integer <code>div</code>/<code>ddiv</code> family (instance <code>d0</code> in <code>exec.sv</code>). It
+  is a restoring recurrence, one op in flight, variable latency; an FP div/sqrt pops from the FP queue
+  only when the unit is free and returns through the FP writeback port.</li>
 <li><strong>Convert / round (HW):</strong> <code>CVT.D.S</code>, <code>CVT.S.D</code>, <code>CVT.D.W</code> (502), <code>CVT.D.L</code> (672), <code>CVT.S.W</code>,
   <strong><code>TRUNC.W.D</code> (2,349)</strong>, <code>TRUNC.L.D</code> (538) — single-cycle <code>fpu_f2i</code>/<code>fpu_i2f</code>/<code>fpu_f2f</code>.</li>
 <li><strong>Compare (HW):</strong> <code>C.LT.{S,D}</code> (C.LT.S = 6,819, the hottest compare), <code>C.LE.{S,D}</code> (C.LE.S = 2,070),
   <code>C.EQ.{S,D}</code> — <code>fpu_compare</code> implements <strong>all 16 <code>C.cond</code> predicates</strong> and writes the FCR cc bit.</li>
 <li><strong>Branch (HW):</strong> <code>BC1{T,F}</code> plus the <code>BC1{TL,FL}</code> likely-variants, off the FCR cc bit.</li>
 </ul>
-<h3 id="previously-deferrable-ops-handled-via-soft-float-trap-not-omitted">Previously "deferrable" ops — handled via soft-float trap, not omitted<a class="headerlink" href="#previously-deferrable-ops-handled-via-soft-float-trap-not-omitted" title="Permanent link">&para;</a></h3>
+<h3 id="previously-deferrable-ops-now-in-hardware">Previously "deferrable" ops — now in hardware<a class="headerlink" href="#previously-deferrable-ops-now-in-hardware" title="Permanent link">&para;</a></h3>
 <p><strong><code>SQRT.S/.D</code>, <code>DIV.S</code>, and <code>CEIL/FLOOR/ROUND.{W,L}</code></strong> had zero hits in a full IRIX boot, so an earlier
-plan deferred them. They are now <strong>all handled</strong>: the CEIL/FLOOR/ROUND converts are in the HW <code>fpu_f2i</code>
-datapath (rm-selectable W/L variants), and <strong>divide and square-root — plus any COP1 op the decoder does
-not recognize — raise the Unimplemented-Op (E) FP exception</strong> (<code>FCSR.Cause.E</code>, FP Exception <strong>ExcCode 15</strong>)
-so the <strong>OS soft-float emulator</strong> (linux-mips <code>arch/mips/math-emu</code>; the IRIX equivalent) runs them. The
-catch-all <code>FP_UNIMPL</code> uop means an unimplemented COP1 op is <strong>trap-and-emulate, never SIGILL</strong>.</p>
+plan deferred them. They are now <strong>all in hardware</strong>: the CEIL/FLOOR/ROUND converts are in the HW
+<code>fpu_f2i</code> datapath (rm-selectable W/L variants), and <strong>divide and square-root (S and D) run on
+<code>uni_divider.sv</code></strong>. (For most of 2026 div/sqrt had no datapath and trapped to the OS emulator on every
+use — e.g. SPEC <code>applu</code> spent most of its time in the kernel — which is what motivated the unified
+divider.)</p>
+<h3 id="what-still-traps-to-soft-float">What still traps to soft-float<a class="headerlink" href="#what-still-traps-to-soft-float" title="Permanent link">&para;</a></h3>
+<p>The FP datapaths are <strong>normalized-only</strong>. A <strong>denormal operand, or a result that underflows</strong>, raises the
+<strong>Unimplemented-Op (E)</strong> FP exception (<code>FCSR.Cause.E</code>, FP Exception <strong>ExcCode 15</strong>) so the <strong>OS
+soft-float emulator</strong> (linux-mips <code>arch/mips/math-emu</code>; the IRIX equivalent) finishes the op; this applies
+to <code>uni_divider</code> as well (<code>fp_denorm</code>). The catch-all <code>FP_UNIMPL</code> uop does the same for any COP1 op the
+decoder does not recognize, so an unimplemented COP1 op is <strong>trap-and-emulate, never SIGILL</strong>.</p>
 <h2 id="fp-loadsstores-cop1x-maddmsub">FP loads/stores &amp; COP1X (MADD/MSUB)<a class="headerlink" href="#fp-loadsstores-cop1x-maddmsub" title="Permanent link">&para;</a></h2>
 <p>Counted separately (different primary opcodes). <strong>FP load/store traffic dwarfs the COP1 ops</strong> — 452,790
 load/stores vs 131,951 COP1 ops over the same boot, i.e. moving FP data in/out of the register file is
@@ -1531,8 +1655,9 @@ load/stores vs 131,951 COP1 ops over the same boot, i.e. moving FP data in/out o
 </tbody>
 </table>
 <p><strong><code>COP1X</code> (MADD/MSUB, opcode <code>0x13</code>) = 0</strong> — never executes (R4600 / MIPS III target). r9999 does not
-implement COP1X; consistent with the MIPS III baseline, and any such op would fall through <code>FP_UNIMPL</code> to
-the soft-float trap anyway.</p>
+implement COP1X; consistent with the MIPS III baseline, primary opcode <code>0x13</code> is not decoded, so such an
+op takes a <strong>Reserved Instruction</strong> exception (the decoder default, <code>II</code>) — <em>not</em> the <code>FP_UNIMPL</code>
+soft-float path, which covers only undecoded ops inside COP1 (opcode <code>0x11</code>).</p>
 <p><strong>Combined picture.</strong> Of all <strong>~585K FP-related instructions</strong> on the boot path: <strong>~77% are load/stores</strong>
 (86% of them 64-bit), ~14% moves/control, ~7% arithmetic, ~2% branches. So the highest-volume,
 must-be-correct FP items are the <strong>64-bit FP load/store datapath</strong> and the <strong>FR=1 64-bit register file</strong> —
@@ -1561,12 +1686,13 @@ hot path.</p>
 <li>MAME <code>indy_4610</code> booting IRIX 6.5.22 (the oracle), COP1/COP1X/FP-load-store histogram hooks in
   <code>~/code/mame/src/devices/cpu/mips/mips3.cpp</code> (uncommitted instrumentation).</li>
 <li>The <code>Status.FR</code> transition finding — <a href="../coherence-cache-tlb/">Cache, coherence &amp; TLB</a>.</li>
-<li>r9999 FPU RTL: <code>~/code/r9999/</code> — <code>fp_regfile.sv</code> (clustered/banked FP RF), <code>fpu_add.sv</code> / <code>fpu_mul.sv</code>
-  (unified single/double add-sub / multiply), <code>fpu_compare.sv</code> (all 16 predicates), <code>fpu_f2i.sv</code> /
-  <code>fpu_i2f.sv</code> / <code>fpu_f2f.sv</code> (converts), <code>uop.vh</code> (FP uop set incl. <code>FP_UNIMPL</code> / div / sqrt E-trap),
-  <code>exec.sv</code> (FR/CU1/FCSR + FP issue), <code>decode_mips.sv</code> (COP1 decode, FR=0 force, CU1 gate). Validated by
-  <code>tests/fpu/*</code> (co-sim clean + directed), an FPU Linux boot to <code>/init</code>, and a double self-test on henry
-  silicon; the FP-complete branch is synthesized separately (not the default synth path) and meets timing @ 100 MHz.</li>
+<li>r9999 FPU RTL (the <code>r9999/</code> submodule) — <code>fp_regfile.sv</code> (clustered/banked FP RF), <code>fpu_add.sv</code> /
+  <code>fpu_mul.sv</code> (unified single/double add-sub / multiply), <code>fpu_compare.sv</code> (all 16 predicates),
+  <code>fpu_f2i.sv</code> / <code>fpu_i2f.sv</code> / <code>fpu_f2f.sv</code> (converts), <code>uni_divider.sv</code> (FP div/sqrt + integer divide),
+  <code>uop.vh</code> (FP uop set incl. <code>FP_UNIMPL</code>), <code>exec.sv</code> (FR/CU1/FCSR + FP issue + divider routing),
+  <code>decode_mips.sv</code> (COP1 decode, FR=0 force, CU1 gate). Validated by <code>tests/fpu/*</code> (co-sim clean +
+  directed), an FPU Linux boot to <code>/init</code>, and a double self-test on henry silicon. The FPU is in every
+  henry build; current area/timing is on the <a href="../fpga_stats/">FPGA stats</a> page.</li>
 </ul>
 
 

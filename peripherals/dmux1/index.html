@@ -319,7 +319,7 @@
     
   
   
-    <span class="md-status md-status--draft (functional-sim validated, MAME-corroborated)"></span>
+    <span class="md-status md-status--draft (functional-sim validated, MAME-corroborated; Henry-RTL notes added 2026-10-04 against henry 209e6f6)"></span>
   
 
   
@@ -414,7 +414,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; Henry FSBL section checked 2026-10-04 against r9999/arcs/henry_arcs.S @ 5c89b70)"></span>
   
 
   
@@ -448,7 +448,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; Henry FSBL/console re-checked 2026-10-04 against henry 209e6f6 / r9999 5c89b70)"></span>
   
 
   
@@ -482,7 +482,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated; silicon-refined 2026-07 — see the hidden-L2 DMA section)"></span>
+    <span class="md-status md-status--draft (MAME-validated; silicon-refined 2026-07; RTL state re-checked 2026-10-04 against r9999 5c89b70)"></span>
   
 
   
@@ -536,6 +536,10 @@
   
     
     
+      
+        
+      
+        
       
         
       
@@ -618,7 +622,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -653,7 +657,42 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SCC (Z85C30 console)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (silicon-validated; audited 2026-10-04 against henry main @209e6f6)"></span>
   
 
   
@@ -688,9 +727,37 @@
     
   
   
-    <span class="md-status md-status--draft (MAME + live-IRIX-trace validated)"></span>
+    <span class="md-status md-status--draft (MAME + live-IRIX-trace validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scsi_disk_theory_of_operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SCSI disk theory of operation
+  
+
+    
+  </span>
+  
   
 
       </a>
@@ -723,7 +790,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -802,7 +869,7 @@
     
   
   
-    <span class="md-status md-status--draft"></span>
+    <span class="md-status md-status--draft (henry status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -827,7 +894,7 @@
     
   
   
-    <span class="md-status md-status--draft"></span>
+    <span class="md-status md-status--draft (henry status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -1258,6 +1325,33 @@
   
 
     
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fpga_stats/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FPGA build stats
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
   </ul>
 </nav>
                   </div>
@@ -1386,9 +1480,10 @@ r9999 already provides intrinsically:</p>
   on different clocks (CPU 50–65 MHz, GIO 33–40 MHz). DMUX is the gate array that physically routes 36-bit slices
   (32 data + 4 parity) between them, crosses the clock domains with FIFOs, and does the interleave/word-swap
   muxing. Two DMUX parts are used per machine, each handling 36 bits (dmux1.pdf p.1).</li>
-<li>In Henry, r9999's load/store path, the MC's memory interface, and the GIO64 bridge are all internal to the SoC
-  and already move data between CPU, memory, and peripherals. There is no asynchronous 36-bit gate-array boundary
-  to bridge, so the function DMUX performs has no separate existence.</li>
+<li>In Henry, data moves through r9999's L1/L2 → the 16-byte-line memory bus → <code>henry_soc.sv</code>'s device decode and
+  <code>mem_arbiter</code>. There are three device slaves (MC, HPC3, IOC2 register shims), the DMA masters, and one external
+  AXI memory port. There is <strong>no GIO64 bus or bridge at all</strong> (see <a href="../gio64/">GIO64</a>), and no asynchronous
+  36-bit gate-array boundary to bridge. The function DMUX performs has no separate existence.</li>
 <li>DMUX exposes <strong>zero memory-mapped registers</strong>. IRIX never addresses it. Nothing in the boot/PROM/kernel path
   reads or writes a "DMUX register," so there is no register model to implement (the <em>MC</em> registers that <em>control</em>
   DMUX — e.g. the FIFO high-water mark — live in the MC, and are documented in <code>mc.md</code>).</li>
@@ -1505,7 +1600,8 @@ chip: all of its behavior is selected cycle-by-cycle by MC-driven control pins, 
 how full the CPU write FIFO is, and drives every DMUX control pin (including <code>cpu_push</code> to load CPU write data and
 the <code>giostb</code>/command stream for GIO packing). DMUX just routes bytes when told.</p>
 <p>The <strong>"MUX HWM" / CPU-write-FIFO high-water mark</strong> referenced from the MC spec lives in MC's CPUCTRL1 (see
-<code>mc.md</code>, where <code>MC fifo HWM[3:0]</code> defaults to <code>0xC</code>). That is the MC telling itself how full to let <em>DMUX's</em>
+<code>mc.md</code>, where <code>MC fifo HWM[3:0]</code> defaults to <code>0xC</code> on real silicon; henry's <code>mc.sv</code> resets CPUCTRL1 to 0 and
+treats it as plain storage). That is the MC telling itself how full to let <em>DMUX's</em>
 32-entry CPU write FIFO get before it deasserts <code>cpu_wrrdy_n</code> to throttle the processor (dmux1.pdf p.4: "When the
 fifo is full the MC chip will deassert the processor cpu_wrrdy_n signal"). So the HWM is an MC register about a
 DMUX resource — and in Henry it's purely an MC-side concern. From the GIO64 side, MC throttles GIO bus masters
@@ -1515,7 +1611,7 @@ with <code>slvdly</code> when DMUX's GIO write/read FIFOs back up.</p>
 <ul>
 <li><strong>No register model</strong> — DMUX has no software-visible registers, so there is nothing for the PROM/ARCS/kernel to
   probe. (The HWM and friends are already covered by the MC model.)</li>
-<li><strong>No separate block</strong> — Henry's r9999↔memory and r9999↔GIO64 datapaths are the SoC-internal equivalent of what
+<li><strong>No separate block</strong> — Henry's r9999↔memory datapath (and the absence of any GIO64 datapath) replaces what
   DMUX does on a physical IP22 board; integrating the core subsumes the gate array. The clock-domain FIFOs, the
   interleave mux, and the GIO packers are artifacts of three physical chips on different clocks — Henry doesn't
   have that boundary.</li>
@@ -1524,7 +1620,8 @@ with <code>slvdly</code> when DMUX's GIO write/read FIFOs back up.</p>
      produce. Henry's load/store and GIO paths must return the correct bytes. (Compare with the MC big-endian
      alias note in <code>mc.md</code> — same theme: get the lanes right.)</li>
 <li><strong>Parity</strong> can be ignored. DMUX parity exists to <em>detect DRAM faults</em>; on simulated/SoC memory there are no
-     bit flips, and the parity-error interrupt path is maskable. Henry need not model parity gen/check to boot.</li>
+     bit flips, and the parity-error interrupt path is maskable. henry models no parity: the MC error registers
+     read 0, and the INT3 bus-error inputs are tied 0.</li>
 <li>The known DMUX silicon bug (bad-parity-on-<code>par_flush</code> corrupting the GIO FIFO, IDE-then-SCSI failure, p.37) is
   a hardware erratum with no bearing on a clean Henry datapath — do not replicate it.</li>
 </ul>

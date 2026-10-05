@@ -319,7 +319,7 @@
     
   
   
-    <span class="md-status md-status--draft (functional-sim validated, MAME-corroborated)"></span>
+    <span class="md-status md-status--draft (functional-sim validated, MAME-corroborated; Henry-RTL notes added 2026-10-04 against henry 209e6f6)"></span>
   
 
   
@@ -414,7 +414,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; Henry FSBL section checked 2026-10-04 against r9999/arcs/henry_arcs.S @ 5c89b70)"></span>
   
 
   
@@ -448,7 +448,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; Henry FSBL/console re-checked 2026-10-04 against henry 209e6f6 / r9999 5c89b70)"></span>
   
 
   
@@ -482,7 +482,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated; silicon-refined 2026-07 — see the hidden-L2 DMA section)"></span>
+    <span class="md-status md-status--draft (MAME-validated; silicon-refined 2026-07; RTL state re-checked 2026-10-04 against r9999 5c89b70)"></span>
   
 
   
@@ -534,6 +534,10 @@
   
     
     
+      
+        
+      
+        
       
         
       
@@ -616,7 +620,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -651,7 +655,42 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../peripherals/scc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SCC (Z85C30 console)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (silicon-validated; audited 2026-10-04 against henry main @209e6f6)"></span>
   
 
   
@@ -686,9 +725,37 @@
     
   
   
-    <span class="md-status md-status--draft (MAME + live-IRIX-trace validated)"></span>
+    <span class="md-status md-status--draft (MAME + live-IRIX-trace validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../peripherals/scsi_disk_theory_of_operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SCSI disk theory of operation
+  
+
+    
+  </span>
+  
   
 
       </a>
@@ -721,7 +788,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -791,7 +858,7 @@
     
   
   
-    <span class="md-status md-status--draft"></span>
+    <span class="md-status md-status--draft (henry status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -1264,6 +1331,33 @@
   
 
     
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fpga_stats/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FPGA build stats
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
   </ul>
 </nav>
                   </div>
@@ -1385,8 +1479,9 @@
 crosshair) for the Newport graphics board. It interprets tables held in its own external SRAM:
 a programmable video-timing state machine, a DID run-length stream, and a cursor pixel pattern.
 It is <strong>not</strong> programmed directly by the host — it sits on REX3's Display Control Bus (DCB), and
-the host pokes its registers/RAM through REX3. <strong>Not needed for headless Henry</strong> (graphics
-space bus-errors); this is future-work for a real display console.</p>
+the host pokes its registers/RAM through REX3. <strong>Not implemented in Henry</strong> (no VC2 or REX3/DCB
+logic in the RTL; Henry boots headless on the serial console). This page is reference +
+future-work for a display console.</p>
 </blockquote>
 <p>Part: VC2, SGI 099-8918-001, Toshiba TC160G, 144 PQFP, ~27.5k gates (vc2.pdf p.2).</p>
 <h2 id="role-architecture">Role &amp; architecture<a class="headerlink" href="#role-architecture" title="Permanent link">&para;</a></h2>
@@ -1642,14 +1737,22 @@ mode coincident with an X/Y move should be done with the cursor disabled.</p>
 redo bring-up steps 1–4; DID and cursor tables/registers retain their values.</p>
 <h2 id="henry-relevance">Henry relevance<a class="headerlink" href="#henry-relevance" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>Headless (now):</strong> N/A. Henry has no Newport board; the graphics address space bus-errors, so
-  VC2 is never touched. Boot does not depend on it.</li>
+<li><strong>Status (now): not implemented.</strong> Henry models no Newport chip; there is no REX3, so no DCB and
+  no VC2. (Accesses to the Newport aperture fall through to plain DRAM rather than bus-erroring —
+  see <a href="../#henry-relevance">the overview</a>.) No vertical-retrace interrupt is generated: the IOC2
+  Local1 sources, including VRETRACE, are tied to 0 in <code>henry_soc.sv</code>. Boot does not depend on VC2.</li>
 <li><strong>Future (graphics console):</strong> required for a real display. VC2 is the piece that turns frame
   pointers + tables into CRT sync/blank, the hardware cursor, and per-pixel window DIDs. A Henry
   graphics block would need (a) a REX3-equivalent DCB master to reach VC2, (b) the external table
   SRAM, and (c) the XMAP9/CMAP/RAMDAC downstream. The hardware cursor and DID-based window IDs are
   the host-visible features X/IRIX would drive. Until that whole pipeline exists, VC2 is a
   reference spec only.</li>
+<li><strong>Feasibility study (2026-10-02, <code>NEWPORT_FEASIBILITY.md</code>, study only):</strong> the recommended hybrid
+  design does <em>not</em> rebuild VC2 as hardware. VC2 register/RAM state (cursor, DID tables) would live
+  in an ARM-side software model fed by the DCB writes, scanout would composite the VC2 cursor in
+  software, and the PL would supply a 60 Hz timer as the vertical-retrace interrupt (gated by DCR
+  bit 0, VINTR enable). The study found IRIX <em>requires</em> that interrupt: the kernel's retrace handler
+  does cursor, buffer-swap and gamma work, and IRIS GL <code>swapbuffers</code> waits on it.</li>
 </ul>
 <h2 id="sources">Sources<a class="headerlink" href="#sources" title="Permanent link">&para;</a></h2>
 <ul>

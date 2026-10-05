@@ -319,7 +319,7 @@
     
   
   
-    <span class="md-status md-status--draft (functional-sim validated, MAME-corroborated)"></span>
+    <span class="md-status md-status--draft (functional-sim validated, MAME-corroborated; Henry-RTL notes added 2026-10-04 against henry 209e6f6)"></span>
   
 
   
@@ -414,7 +414,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; Henry FSBL section checked 2026-10-04 against r9999/arcs/henry_arcs.S @ 5c89b70)"></span>
   
 
   
@@ -448,7 +448,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; Henry FSBL/console re-checked 2026-10-04 against henry 209e6f6 / r9999 5c89b70)"></span>
   
 
   
@@ -482,7 +482,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated; silicon-refined 2026-07 — see the hidden-L2 DMA section)"></span>
+    <span class="md-status md-status--draft (MAME-validated; silicon-refined 2026-07; RTL state re-checked 2026-10-04 against r9999 5c89b70)"></span>
   
 
   
@@ -534,6 +534,10 @@
   
     
     
+      
+        
+      
+        
       
         
       
@@ -616,7 +620,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -651,7 +655,42 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../peripherals/scc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SCC (Z85C30 console)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (silicon-validated; audited 2026-10-04 against henry main @209e6f6)"></span>
   
 
   
@@ -686,9 +725,37 @@
     
   
   
-    <span class="md-status md-status--draft (MAME + live-IRIX-trace validated)"></span>
+    <span class="md-status md-status--draft (MAME + live-IRIX-trace validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../peripherals/scsi_disk_theory_of_operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SCSI disk theory of operation
+  
+
+    
+  </span>
+  
   
 
       </a>
@@ -721,7 +788,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -791,7 +858,7 @@
     
   
   
-    <span class="md-status md-status--draft"></span>
+    <span class="md-status md-status--draft (henry status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -1247,6 +1314,33 @@
   
 
     
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fpga_stats/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FPGA build stats
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
   </ul>
 </nav>
                   </div>
@@ -1347,8 +1441,9 @@
 
 <h1 id="rb2-frame-buffer-ro1-raster-output-henrynewport-block-spec">RB2 (frame buffer) &amp; RO1 (raster output) — Henry/Newport block spec<a class="headerlink" href="#rb2-frame-buffer-ro1-raster-output-henrynewport-block-spec" title="Permanent link">&para;</a></h1>
 <blockquote>
-<p>Intro: the back-end of the Newport pixel pipeline — RB2 holds the framebuffer pixels (written by REX3,
-read for scanout), RO1 handles raster output toward the DAC/video. NOT needed for headless Henry.</p>
+<p>Intro: the back-end of the Newport pixel pipeline — RB2 is the formatter/LogicOp glue between REX3 and the
+VRAM framebuffer (random port), RO1 reads the VRAM serial port for scanout toward XMAP9. <strong>Not implemented in
+Henry</strong> (no Newport logic in the RTL).</p>
 </blockquote>
 <p>Two small gate arrays sit at the tail of the Newport graphics board. <strong>RB2</strong> ("RAM Buffer 2") is the
 read/write formatter + LogicOp engine that fronts the VRAM frame buffer; <strong>RO1</strong> ("ReOrganizer 1")
@@ -1370,7 +1465,8 @@ to/from VRAM0/VRAM1 of that bank (rb2.pdf p.4, Fig 3.1 p.7).</p>
 and CID (window/context ID)</strong> auxiliary planes — selected by the draw-register <code>planes[2:0]</code> field
 (000 none, 001 RGB/CI, 010 RGBA, 100 OLAY, 101 PUP, 110 CID) (rb2.pdf p.9). Drawn depth is
 <code>drawdepth[1:0]</code> = 4 / 8 / 12 / 24 bits (rb2.pdf p.9). Double-buffering is supported (<code>dblsrc</code> picks
-source buffer0/buffer1; <code>dblbuf</code>/<code>rgbmode</code>/<code>fastclear</code> are draw-register bits) (rb2.pdf p.8).
+source buffer0/buffer1). The 12-bit draw register is <code>{fastclear, rgbmode, dblsrc, planes[2:0],
+drawdepth[1:0], logicop[3:0]}</code> (bits 11..0) (rb2.pdf p.8).
 The supported frame-buffer pixel formats (RGB-SB/DB 24-bit, CI-SB/DB 12-bit, 8-bit 3:3:2, RGBα 3324,
 CID/AUX 2-bit-CID + 2-bit-PUP + 8-bit-AUX, etc.) are enumerated in rb2.pdf Table 4.4 (p.12).</p>
 <p><strong>How REX3 writes it.</strong> Color+alpha from REX3 is latched into RB2, goes down the pixel pipe, and is
@@ -1415,11 +1511,11 @@ internally as 1/5 dot clock = 28 MHz</strong> (<code>Serial_clk0/1</code>, each 
 the 1/5-dot serial rate and drained at the 1/8-dot rate (ro1.pdf p.2, p.5). The serial clock is gated
 by <strong><code>Serial_enable</code> from VC2</strong> and readout by <strong><code>Display_enable</code> from VC2</strong>; VC2 must raise
 <code>Display_enable</code> 60–65 dot clocks after <code>Serial_enable</code> so the FIFOs pre-fill (overlay ≥4 entries,
-pixel ≥6) before active video (ro1.pdf p.2, p.5). Dot-clock range supported is 6 MHz (NTSC) to 140 MHz
-(76 Hz refresh) (ro1.pdf p.3).</p>
+pixel ≥6) before active video (ro1.pdf p.2, p.5). The dot clock ranges from ~12 MHz (NTSC) to 140 MHz
+(76 Hz refresh), i.e. RO1's ½-dot clock spans 6–70 MHz (ro1.pdf p.3).</p>
 <h2 id="the-pixel-pipeline-end-to-end">The pixel pipeline end-to-end<a class="headerlink" href="#the-pixel-pipeline-end-to-end" title="Permanent link">&para;</a></h2>
 <pre class="mermaid"><code>flowchart TD
-    REX3["&lt;b&gt;REX3&lt;/b&gt;&lt;br/&gt;&lt;small&gt;scan-convert · LogicOp front end&lt;/small&gt;"]
+    REX3["&lt;b&gt;REX3&lt;/b&gt;&lt;br/&gt;&lt;small&gt;scan-convert · pixel-pipe front end&lt;/small&gt;"]
     REX3 --&gt;|"RB2_DATA[7:0]×banks · RB2SEL[2:0] · masks"| RB2["&lt;b&gt;RB2 ×4&lt;/b&gt;&lt;br/&gt;&lt;small&gt;LogicOp + write/read format · random port&lt;/small&gt;"]
     RB2 &lt;--&gt;|"VRAM_DATA[23:0]/bank"| VRAM[("&lt;b&gt;VRAM&lt;/b&gt; frame buffer&lt;br/&gt;&lt;small&gt;RGB/CI + OLAY/PUP/CID · double-buffered&lt;/small&gt;")]
     VRAM --&gt;|"serial port · 8 B/serial-clk (1/5 dot)"| RO1["&lt;b&gt;RO1 ×3&lt;/b&gt;&lt;br/&gt;&lt;small&gt;overlay+color merge → 12b · de-stagger&lt;/small&gt;"]
@@ -1431,8 +1527,11 @@ pixel ≥6) before active video (ro1.pdf p.2, p.5). Dot-clock range supported is
 mode backend" diagram p.9 for VRAM→RO1→XMAP9→CMAP1, with VC2 supplying <code>serial_enable</code>/<code>display_enable</code>.)</p>
 <h2 id="henry-relevance">Henry relevance<a class="headerlink" href="#henry-relevance" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>Headless (current):</strong> n/a. Henry has no Newport board; graphics-space accesses bus-error by
-  design. Nothing here is on the boot path — RB2/RO1 are pure display back-end.</li>
+<li><strong>Status (current): not implemented.</strong> Henry models no Newport chip. Accesses to the Newport aperture
+  are not decoded as a device and fall through to plain DRAM — they do not bus-error (see
+  <a href="../#henry-relevance">the overview</a>). Nothing here is on the boot path — RB2/RO1 are pure display
+  back-end and have no host-visible registers of their own (RB2's write-mask/draw registers are loaded by
+  REX3 over <code>RB2SEL</code>, not by the host).</li>
 <li><strong>Future (graphics console):</strong> this pair defines the back half of any "wannabe Indy" display.
   RB2 is the <strong>framebuffer-storage + LogicOp/format</strong> model (4-bank × 2-pixel VRAM, RGB/CI + overlay
   planes, the 16 raster ops, double-buffer/write-mask semantics REX3 expects). RO1 is the <strong>scanout</strong>
@@ -1440,7 +1539,10 @@ mode backend" diagram p.9 for VRAM→RO1→XMAP9→CMAP1, with VC2 supplying <co
   <code>serial_enable</code>/<code>display_enable</code> handshake) that produces XMAP9-ready pixels. A Henry display path
   would re-implement RB2's formatter/LogicOp over its own framebuffer RAM and RO1's merge+scanout over
   a scanout FIFO — most of the staggering/serial-VRAM complexity is an artifact of 1990s VRAM and can
-  collapse into a simpler linear-framebuffer + scanout-DMA on modern memory.</li>
+  collapse into a simpler linear-framebuffer + scanout-DMA on modern memory. The 2026-10-02 feasibility
+  study (<code>NEWPORT_FEASIBILITY.md</code>, study only) takes that route in software: the RB2 LogicOp/write-mask
+  semantics live inside an ARM-side software REX3 drawing into a 1344×1024 CI8 framebuffer in DRAM, and
+  RO1's role is replaced by software scanout to VNC or DisplayPort.</li>
 </ul>
 <h2 id="sources">Sources<a class="headerlink" href="#sources" title="Permanent link">&para;</a></h2>
 <ul>

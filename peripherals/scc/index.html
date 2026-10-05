@@ -11,6 +11,10 @@
       
       
       
+        <link rel="prev" href="../ioc2/">
+      
+      
+        <link rel="next" href="../hpc3/">
       
       
         
@@ -315,7 +319,7 @@
     
   
   
-    <span class="md-status md-status--draft (functional-sim validated, MAME-corroborated)"></span>
+    <span class="md-status md-status--draft (functional-sim validated, MAME-corroborated; Henry-RTL notes added 2026-10-04 against henry 209e6f6)"></span>
   
 
   
@@ -410,7 +414,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; Henry FSBL section checked 2026-10-04 against r9999/arcs/henry_arcs.S @ 5c89b70)"></span>
   
 
   
@@ -444,7 +448,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; Henry FSBL/console re-checked 2026-10-04 against henry 209e6f6 / r9999 5c89b70)"></span>
   
 
   
@@ -478,7 +482,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated; silicon-refined 2026-07 — see the hidden-L2 DMA section)"></span>
+    <span class="md-status md-status--draft (MAME-validated; silicon-refined 2026-07; RTL state re-checked 2026-10-04 against r9999 5c89b70)"></span>
   
 
   
@@ -526,8 +530,10 @@
       
   
   
+    
   
   
+  
     
     
       
@@ -543,6 +549,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -552,11 +562,11 @@
       
     
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" checked>
         
           
           <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="">
@@ -577,7 +587,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_10">
             <span class="md-nav__icon md-icon"></span>
             
@@ -612,7 +622,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -647,12 +657,167 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
 
       </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SCC (Z85C30 console)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (silicon-validated; audited 2026-10-04 against henry main @209e6f6)"></span>
+  
+
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SCC (Z85C30 console)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (silicon-validated; audited 2026-10-04 against henry main @209e6f6)"></span>
+  
+
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-register-access-the-pointer-machine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Register access — the pointer machine ✅
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-address-decode-16-byte-bus-line-channel-ctrldata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Address decode (16-byte bus line → channel / ctrl|data)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-tx-datapath-output-is-decoupled-from-the-interrupt-timer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. TX datapath — output is decoupled from the interrupt timer
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-interrupt-path-tx_ip-to-the-exception-vector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Interrupt path — tx_ip to the exception vector ✅
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4a-rx-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4a. Rx path ✅
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-fixed-bug-control-write-data-byte-dropped-tx-interrupt-dead" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. ⚠️ Fixed bug: control-write data byte dropped → Tx interrupt dead
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -682,9 +847,37 @@
     
   
   
-    <span class="md-status md-status--draft (MAME + live-IRIX-trace validated)"></span>
+    <span class="md-status md-status--draft (MAME + live-IRIX-trace validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scsi_disk_theory_of_operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SCSI disk theory of operation
+  
+
+    
+  </span>
+  
   
 
       </a>
@@ -717,7 +910,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -787,7 +980,7 @@
     
   
   
-    <span class="md-status md-status--draft"></span>
+    <span class="md-status md-status--draft (henry status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -1132,6 +1325,33 @@
   
 
     
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fpga_stats/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FPGA build stats
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
   </ul>
 </nav>
                   </div>
@@ -1203,6 +1423,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#4a-rx-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4a. Rx path ✅
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#5-fixed-bug-control-write-data-byte-dropped-tx-interrupt-dead" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1248,14 +1479,17 @@ write regs (WR0..WR15) and 16 read regs (RR0..RR15) through a <strong>pointer</s
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>  CONTROL  (0x..30)                       DATA  (0x..34)
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>  ─────────────────                       ──────────────
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>  write, ptr==0 → WR0: cmd[5:3]           write → push a TX byte
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>        (e.g. RES_TXP=0x28)               read  → pop  an RX byte
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>        (e.g. RES_TXP=0x28)               read  → pop  an RX byte (console port only)
 <a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>        + new ptr = byte[2:0]
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>  write, ptr!=0 → WR[ptr], ptr→0          RR0 = status (Tx-empty bit2, Rx-avail bit0)
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>  read          → RR[ptr], ptr→0          RR3 = chip-wide interrupt-pending (gated by TxIE)
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>  Enable the Tx-buffer-empty interrupt (WR1.TxIE, bit1):
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>     CONTROL &lt;= 0x01   ; WR0 "point to register 1"   ptr 0 → 1
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>     CONTROL &lt;= 0x02   ; WR1 = 0x02 (TxIE)            ptr 1 → 0   ← carries the data byte
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>        (+8 if cmd = Point-High 0x08)
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>  write, ptr!=0 → WR[ptr], ptr→0          RR0 = status (Tx-empty bit2, Rx-avail bit0)
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>  read          → RR[ptr], ptr→0          RR1 = 0x01 idle / 0x00 shifting (no Rx errors)
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>                                          RR3 = chip-wide int-pending (Tx gated by WR1.TxIE,
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>                                                Rx gated by WR1[4:3])
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>  Enable the Tx-buffer-empty interrupt (WR1.TxIE, bit1):
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>     CONTROL &lt;= 0x01   ; WR0 "point to register 1"   ptr 0 → 1
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>     CONTROL &lt;= 0x02   ; WR1 = 0x02 (TxIE)            ptr 1 → 0   ← carries the data byte
 </code></pre></div>
 <h2 id="2-address-decode-16-byte-bus-line-channel-ctrldata">2. Address decode (16-byte bus line → channel / ctrl|data)<a class="headerlink" href="#2-address-decode-16-byte-bus-line-channel-ctrldata" title="Permanent link">&para;</a></h2>
 <p>henry delivers device accesses as a 16-byte line (<code>offs = addr[7:0]</code> base, byte <code>b</code> via <code>mask[b]</code>).
@@ -1284,6 +1518,10 @@ only raises <code>tx_ip</code> for the interrupt model.</p>
     B --&gt;|512 core cycles| TXIP["busy=0, &lt;b&gt;tx_ip=1&lt;/b&gt;&lt;br/&gt;(the interrupt event)"]</code></pre>
 <ul>
 <li><code>SCC_RR0 = 0x44</code> (Tx-Buffer-Empty | All-Sent); <strong>bit2</strong> is what software polls.</li>
+<li>A DATA write on <strong>either</strong> channel goes to the same console FIFO. henry has no separate sink for the second
+  port.</li>
+<li>A DATA write is only accepted (it re-arms <code>tx_ip</code> and starts the shift timer) while the console FIFO is not
+  full.</li>
 <li><code>TX_DRAIN = 512</code> gates <code>tx_ip</code> only, <strong>not</strong> output.</li>
 <li>Polled TX (<code>while(!(RR0 &amp; 0x04)); DATA = c;</code>) never touches <code>tx_ip</code> — so polling works even
   when the interrupt path is broken (this is exactly how the §5 bug stayed hidden).</li>
@@ -1304,7 +1542,21 @@ only raises <code>tx_ip</code> for the interrupt model.</p>
     A4 --&gt; VEC["vector 0x80000180&lt;br/&gt;&lt;small&gt;BEV=0; phys 0x180 backed by the System Memory Alias&lt;/small&gt;"]
     VEC --&gt; H["handler: write next DATA (re-arms, clears tx_ip)&lt;br/&gt;or WR0=RES_TXP + mask WR1.TxIE when done"]</code></pre>
 <p>RR3 (read at ptr==3) exposes the <strong>gated</strong> per-channel int-pending bits: <code>CHATxIP=0x10</code>,
-<code>CHBTxIP=0x02</code> (gated by <code>WR1.TxIE</code>).</p>
+<code>CHBTxIP=0x02</code> (gated by <code>WR1.TxIE</code>), and <code>CHARxIP=0x20</code>, <code>CHBRxIP=0x04</code> (gated by WR1 Rx-int mode
+<code>[4:3] != 0</code>). IRIX's console getty reads RR3 to find the pending source, and it will not read the
+character unless the Rx-IP bit is set.</p>
+<p>Note that <code>map_src[5]</code> uses the <strong>raw</strong> Rx-FIFO-non-empty level, not the WR1-gated Rx-IP. The INT3 masks
+(<code>cmeimask0</code>/<code>imask0</code>) are what gate it.</p>
+<h2 id="4a-rx-path">4a. Rx path ✅<a class="headerlink" href="#4a-rx-path" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Input.</strong> Host bytes enter an <strong>8-deep</strong> Rx FIFO in <code>ioc.sv</code>.</li>
+<li>On the FPGA the ARM writes AXI register <code>0x3B</code>: bit8 = push, [7:0] = byte. It first polls
+    <code>scc_rx_full</code> at read <code>0x3A</code> bit8.</li>
+<li>In simulation <code>henry_tb</code> drives <code>scc_rx_valid</code>/<code>scc_rx_byte</code>.</li>
+<li><strong>Status.</strong> RR0 bit0 is set on both ports while the FIFO is non-empty.</li>
+<li><strong>Read.</strong> A DATA read of the console port (<code>0x…37</code>, byte 7) returns the front byte and pops it.</li>
+<li><strong>Interrupt.</strong> It is level-triggered: <code>rx_avail</code> stays high until the ISR has drained the FIFO.</li>
+</ul>
 <h2 id="5-fixed-bug-control-write-data-byte-dropped-tx-interrupt-dead">5. ⚠️ Fixed bug: control-write data byte dropped → Tx interrupt dead<a class="headerlink" href="#5-fixed-bug-control-write-data-byte-dropped-tx-interrupt-dead" title="Permanent link">&para;</a></h2>
 <p><code>ioc.sv</code> classified each masked byte but captured <code>w_scc_wbyte</code> <strong>only on the data branch</strong>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="w">   </span><span class="n">w_scc_wbyte</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mh">8'h0</span><span class="p">;</span><span class="w">                       </span><span class="c1">// default</span>

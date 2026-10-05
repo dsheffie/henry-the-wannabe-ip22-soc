@@ -319,7 +319,7 @@
     
   
   
-    <span class="md-status md-status--draft (functional-sim validated, MAME-corroborated)"></span>
+    <span class="md-status md-status--draft (functional-sim validated, MAME-corroborated; Henry-RTL notes added 2026-10-04 against henry 209e6f6)"></span>
   
 
   
@@ -588,7 +588,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; Henry FSBL section checked 2026-10-04 against r9999/arcs/henry_arcs.S @ 5c89b70)"></span>
   
 
   
@@ -622,7 +622,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; Henry FSBL/console re-checked 2026-10-04 against henry 209e6f6 / r9999 5c89b70)"></span>
   
 
   
@@ -656,7 +656,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated; silicon-refined 2026-07 — see the hidden-L2 DMA section)"></span>
+    <span class="md-status md-status--draft (MAME-validated; silicon-refined 2026-07; RTL state re-checked 2026-10-04 against r9999 5c89b70)"></span>
   
 
   
@@ -708,6 +708,10 @@
   
     
     
+      
+        
+      
+        
       
         
       
@@ -790,7 +794,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -825,7 +829,42 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../peripherals/scc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SCC (Z85C30 console)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (silicon-validated; audited 2026-10-04 against henry main @209e6f6)"></span>
   
 
   
@@ -860,9 +899,37 @@
     
   
   
-    <span class="md-status md-status--draft (MAME + live-IRIX-trace validated)"></span>
+    <span class="md-status md-status--draft (MAME + live-IRIX-trace validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../peripherals/scsi_disk_theory_of_operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SCSI disk theory of operation
+  
+
+    
+  </span>
+  
   
 
       </a>
@@ -895,7 +962,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -965,7 +1032,7 @@
     
   
   
-    <span class="md-status md-status--draft"></span>
+    <span class="md-status md-status--draft (henry status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -1310,6 +1377,33 @@
   
 
     
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../fpga_stats/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FPGA build stats
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
   </ul>
 </nav>
                   </div>
@@ -1481,16 +1575,16 @@
 
 
 <h1 id="r9999-microarchitecture">r9999 microarchitecture<a class="headerlink" href="#r9999-microarchitecture" title="Permanent link">&para;</a></h1>
-<p><em>The CPU at the center of Henry. <code>r9999</code> is an </em><em>out-of-order, superscalar MIPS</em><em> core — its name is a wink at the </em><em>R10000</em><em> (<code>9999 = 10000 − 1</code>), and its shape is deliberately R10000-flavored: register renaming, a reorder buffer, out-of-order issue, separate integer/FP register files. But it targets the </em><em>R4600 ISA</em><em> (so IRIX/Indy runs the right path), it's </em><em>2-wide</em><em> instead of 4, and it's tuned to </em><em>fit and close timing on an FPGA</em><em>.</em></p>
-<p>This page is the r9999 answer to the <strong>R10000 block diagram (Fig. 1-5)</strong> from the MIPS R10000 User's Manual — written in the spirit of <a href="https://www.maizure.org/projects/evolution_x86_context_switch_linux/">maizure.org's reverse-engineering writeups</a>. Every number below is from the RTL in the <a href="https://github.com/dsheffie/r9999"><code>r9999</code></a> submodule (canonical, non-<code>FORMAL</code> config); <code>machine.vh</code> is the parameter header.</p>
+<p><em>The CPU at the center of Henry. <code>r9999</code> is an </em><em>out-of-order, superscalar MIPS</em><em> core — its name is a wink at the </em><em>R10000</em><em> (<code>9999 = 10000 − 1</code>), and its shape is deliberately R10000-flavored: register renaming, a reorder buffer, out-of-order issue, separate integer/FP register files. But it implements the </em><em>MIPS III</em><em> ISA and presents itself as an </em><em>R4400</em><em> (so IRIX/Indy runs the right path), it decodes, renames and retires </em><em>2 instructions/cycle</em><em> instead of 4, and it's tuned to </em><em>fit and close timing on an FPGA</em><em>.</em></p>
+<p>This page is the r9999 answer to the <strong>R10000 block diagram (Fig. 1-5)</strong> from the MIPS R10000 User's Manual — written in the spirit of <a href="https://www.maizure.org/projects/evolution_x86_context_switch_linux/">maizure.org's reverse-engineering writeups</a>. Every number below is from the RTL in the <a href="https://github.com/dsheffie/r9999"><code>r9999</code></a> submodule (canonical, non-<code>FORMAL</code> config, submodule @ <code>5c89b70</code>); <code>machine.vh</code> is the parameter header.</p>
 <h2 id="block-diagram">Block diagram<a class="headerlink" href="#block-diagram" title="Permanent link">&para;</a></h2>
 <pre class="mermaid"><code>flowchart TD
     SYS["&lt;b&gt;System interface&lt;/b&gt;&lt;br/&gt;→ Henry SoC / MC · AXI on FPGA&lt;br/&gt;physical address = 36-bit"]
     L2["&lt;b&gt;L2 cache&lt;/b&gt;&lt;br/&gt;128 KB · direct-mapped · 16 B line&lt;br/&gt;on-die · L1I + L1D arbitrate"]
     SYS --- L2
 
-    subgraph FE["Front end — 2-wide fetch"]
-        BP["&lt;b&gt;Branch predictor&lt;/b&gt; — gshare&lt;br/&gt;PHT 64K × 2-bit · GHist 64-bit&lt;br/&gt;BTB 128 · return stack 4"]
+    subgraph FE["Front end — up to 4 instructions / cycle"]
+        BP["&lt;b&gt;Branch predictor&lt;/b&gt; — gshare&lt;br/&gt;PHT 16K × 4 slots × 2-bit · 14-bit GHist&lt;br/&gt;BTB 128 · return stack 4"]
         L1I["&lt;b&gt;L1 I-cache&lt;/b&gt;&lt;br/&gt;16 KB · direct-mapped · 16 B line"]
         FQ["Fetch queue · 8 entries"]
         BP --&gt; L1I --&gt; FQ
@@ -1499,35 +1593,35 @@
     subgraph REN["Decode / rename — 2-wide"]
         DEC["&lt;b&gt;decode_mips&lt;/b&gt;&lt;br/&gt;2 uops / cycle"]
         DQ["Decode queue · 4"]
-        MAP["&lt;b&gt;Rename maps&lt;/b&gt;&lt;br/&gt;INT-RAT · FP-RAT · HILO-RAT&lt;br/&gt;+ free lists"]
+        MAP["&lt;b&gt;Rename maps&lt;/b&gt;&lt;br/&gt;INT-RAT · FP-RAT · HILO-RAT · FCR-RAT&lt;br/&gt;+ free lists"]
         DEC --&gt; DQ --&gt; MAP
     end
 
     subgraph OOO["Out-of-order issue"]
-        ROB["&lt;b&gt;Reorder buffer&lt;/b&gt; · 16 entries&lt;br/&gt;even/odd banked · retire 2 / cycle"]
+        ROB["&lt;b&gt;Reorder buffer&lt;/b&gt; · 16 entries&lt;br/&gt;even/odd banked · alloc (mrob) / completion (crob) split&lt;br/&gt;retire 2 / cycle"]
         ISCH["&lt;b&gt;Integer scheduler&lt;/b&gt; · 8 entries&lt;br/&gt;age-matrix oldest-ready · 1 ALU / cycle"]
-        MQS["&lt;b&gt;Memory queues&lt;/b&gt;&lt;br/&gt;UQ 8 · Mem-UQ 4 · store-data 4 · MQ 4"]
+        MQS["&lt;b&gt;LSU&lt;/b&gt;&lt;br/&gt;mem UQ 4 → age-matrix pool 8&lt;br/&gt;→ request queue 4"]
         FQS["&lt;b&gt;FP queue&lt;/b&gt; · 8 entries&lt;br/&gt;+ registered FP read stage"]
     end
 
     subgraph PRF["Physical register files"]
         IPRF["&lt;b&gt;INT PRF&lt;/b&gt; (clustered) · 2 banks × 64&lt;br/&gt;rf4r2w 4R/2W · 1 write port per bank&lt;br/&gt;non-mem bank + mem (load) bank"]
-        FPRF["&lt;b&gt;FP PRF&lt;/b&gt; (clustered) · 2 banks × 64&lt;br/&gt;non-mem (move) + mem (load) banks"]
+        FPRF["&lt;b&gt;FP PRF&lt;/b&gt; (clustered) · 2 banks × 64&lt;br/&gt;FP-arith/move + mem (load) banks"]
         HILO["&lt;b&gt;HILO PRF&lt;/b&gt; · 4 × 128-bit"]
     end
 
     subgraph EXU["Execution units"]
         ALU["&lt;b&gt;Integer ALU&lt;/b&gt;&lt;br/&gt;1-cycle"]
         MUL["&lt;b&gt;Multiplier&lt;/b&gt;&lt;br/&gt;3-cycle → HILO"]
-        DIV["&lt;b&gt;Divider&lt;/b&gt;&lt;br/&gt;~65-cycle → HILO"]
+        DIV["&lt;b&gt;Unified divider&lt;/b&gt;&lt;br/&gt;int div → HILO · FP div/sqrt&lt;br/&gt;iterative · 1 op in flight"]
         LSU["&lt;b&gt;Load / Store&lt;/b&gt;&lt;br/&gt;AGU integrated"]
-        FPU["&lt;b&gt;COP1 FPU&lt;/b&gt;&lt;br/&gt;S/D add · mul (2-cyc)&lt;br/&gt;compare · convert · abs/neg/mov&lt;br/&gt;div/sqrt → soft-float (E-trap)"]
+        FPU["&lt;b&gt;COP1 FPU&lt;/b&gt;&lt;br/&gt;S/D add · mul · compare (4-cycle)&lt;br/&gt;convert · abs/neg/mov"]
     end
 
-    ITLB["&lt;b&gt;I-TLB&lt;/b&gt;&lt;br/&gt;48-entry FA CAM"]
+    ITLB["&lt;b&gt;I-TLB&lt;/b&gt;&lt;br/&gt;2-entry micro-ITLB → 48-entry FA CAM"]
     DTLB["&lt;b&gt;D-TLB&lt;/b&gt;&lt;br/&gt;48-entry FA CAM"]
     TSH["TLB shadow RAM · 48&lt;br/&gt;tlbr index reads · tlbwi/tlbwr broadcast to both CAMs"]
-    L1D["&lt;b&gt;L1 D-cache&lt;/b&gt;&lt;br/&gt;16 KB · direct-mapped · 16 B line"]
+    L1D["&lt;b&gt;L1 D-cache&lt;/b&gt;&lt;br/&gt;16 KB · direct-mapped · 16 B line&lt;br/&gt;hit-under-miss · 8-slot store buffer"]
 
     FQ --&gt; DEC
     MAP --&gt; ROB
@@ -1539,6 +1633,7 @@
     ISCH --&gt; DIV
     MQS --&gt; LSU
     FQS --&gt; FPU
+    FQS --&gt; DIV
     IPRF -.-&gt;|read| ALU
     IPRF -.-&gt;|read| LSU
     FPRF -.-&gt;|read| LSU
@@ -1555,19 +1650,21 @@
     TSH -.-&gt;|sync| ITLB
     TSH -.-&gt;|sync| DTLB</code></pre>
 <h2 id="walking-the-pipeline">Walking the pipeline<a class="headerlink" href="#walking-the-pipeline" title="Permanent link">&para;</a></h2>
-<p><strong>Front end (2-wide).</strong> Each cycle the <strong>gshare</strong> predictor indexes a <strong>64K × 2-bit</strong> pattern-history table by folding a <strong>64-bit global history</strong> against the PC, with a <strong>128-entry BTB</strong> and a <strong>4-entry return stack</strong>; speculative <em>and</em> architectural copies of the history/RAS are kept so a misprediction restarts cleanly. The <strong>L1 I-cache</strong> (16 KB, direct-mapped, 16 B lines) delivers up to <strong>two instructions/cycle</strong> into an <strong>8-entry fetch queue</strong>. <em>(<code>l1i.sv</code>, <code>compute_pht_idx</code>, <code>machine.vh</code>)</em></p>
-<p><strong>Decode / rename (2-wide).</strong> <code>decode_mips</code> cracks up to two instructions into uops; a <strong>4-entry decode queue</strong> buffers them for the allocator, which renames through three maps — <strong>integer</strong>, <strong>FP</strong>, and <strong>HILO</strong> RATs with free lists — onto the physical register files. <em>(<code>decode_mips.sv</code>, <code>core.sv</code>)</em></p>
-<p><strong>Out-of-order issue.</strong> Renamed uops allocate into a <strong>16-entry reorder buffer</strong> (split even/odd so two consecutive entries write different banks → 2 allocate and 2 retire per cycle). Integer ALU ops wait in an <strong>8-entry scheduler</strong> that picks the <strong>oldest ready</strong> entry via an age matrix; memory ops flow through dedicated queues (<strong>UQ 8</strong>, <strong>Mem-UQ 4</strong>, <strong>store-data 4</strong>, <strong>MQ 4</strong>), and FP-compute ops flow through a separate <strong>8-entry FP queue</strong> with a registered FP read stage feeding the COP1 FPU. Issue is <strong>1 ALU op + 1 memory op per cycle</strong>. <em>(<code>core.sv</code>, <code>exec.sv</code>, <code>fair_sched.sv</code>)</em></p>
-<p><strong>Misprediction / exception recovery — no RAT checkpoints.</strong> r9999 keeps two rename maps per register class: the speculative <strong>allocation RAT</strong> and a <strong>retirement RAT</strong> that follows the committed architectural map. On a branch mispredict or exception it does <strong>not</strong> roll back to a per-branch snapshot. Instead the machine <strong>drains</strong> (state <code>DRAIN</code>): younger uops are squashed and it waits for the offending op to reach the head of the 16-entry ROB — at which point the <em>retirement</em> RAT already holds the correct map. It then copies <strong>retirement RAT → allocation RAT</strong> in a single cycle (state <code>RAT</code>: <code>r_alloc_rat &lt;= r_retire_rat</code>, and likewise for FP/HILO) and restarts fetch. No checkpoint storage, no finite-checkpoint allocation stall, and the <em>same</em> path handles both mispredictions and exceptions. <em>(<code>core.sv</code> — <code>DRAIN → RAT → ACTIVE</code> state machine, <code>t_rat_copy</code>)</em></p>
+<p><strong>Front end.</strong> Each cycle the <strong>gshare</strong> predictor indexes a <strong>16K-entry pattern-history table</strong> by XORing a <strong>14-bit global history</strong> (history length = index width, <code>GBL_HIST_LEN = LG_PHT_SZ</code>) with the PC; each PHT entry packs <strong>four 2-bit counters</strong>, one per instruction slot of a 16 B fetch line (128 Kbit total). A <strong>128-entry BTB</strong> and a <strong>4-entry return stack</strong> complete the predictor; speculative <em>and</em> architectural copies of the history/RAS are kept so a misprediction restarts cleanly. (An earlier 64-bit history folded into the index tripled mispredicts on <code>compress</code> and was dropped — see the comment above <code>GBL_HIST_LEN</code> in <code>machine.vh</code>.) The <strong>L1 I-cache</strong> (16 KB, direct-mapped, 16 B lines) pushes <strong>up to four instructions per cycle</strong> — the rest of the line up to the first control transfer — into an <strong>8-entry fetch queue</strong>, which feeds decode two at a time. <em>(<code>l1i.sv</code> — <code>compute_pht_idx</code>, the <code>t_push_insn{,2,3,4}</code> paths; <code>machine.vh</code>)</em></p>
+<p><strong>Decode / rename (2-wide).</strong> <code>decode_mips</code> cracks up to two instructions into uops; a <strong>4-entry decode queue</strong> buffers them for the allocator, which renames through four maps — <strong>integer</strong>, <strong>FP</strong>, <strong>HILO</strong>, and the FP condition-code (<strong>FCR</strong>) RATs with free lists — onto the physical register files. <em>(<code>decode_mips.sv</code>, <code>core.sv</code>)</em></p>
+<p><strong>Out-of-order issue.</strong> Renamed uops allocate into a <strong>16-entry reorder buffer</strong>, banked even/odd so the two entries allocated (or retired) in a cycle always land in different banks → 2 allocate and 2 retire per cycle. The ROB's storage is further split rv64core-style into <strong>alloc-only fields</strong> (<code>mrob_entry_t</code>, one write port per bank, no reset → LUTRAM) and <strong>completion-written fields</strong> (<code>crob_entry_t</code>, multi-ported flops); <code>rob_merge</code> presents the union to readers. Integer ALU ops wait in an <strong>8-entry scheduler</strong> that picks the <strong>oldest ready</strong> entry via an age matrix. Memory ops go through an in-order <strong>mem uop queue (4)</strong> into the <strong>LSU</strong> (below), and FP-compute ops flow through a separate <strong>8-entry FP queue</strong> with a registered FP read stage feeding the COP1 FPU (or the divider, for div/sqrt). <em>(<code>core.sv</code> — <code>r_rob_even/odd</code>, <code>r_mrob_even/odd</code>; <code>exec.sv</code>)</em></p>
+<p><strong>Memory pipeline (LSU, non-blocking L1D).</strong> The LSU is an <strong>8-entry age-matrix pool</strong> (<code>LG_MEM_SCHED_ENTRIES=3</code>) behind the mem uop queue. Simple loads stay in the pool until answered; plain stores do their <strong>address pass at issue</strong> (translation, fault check, PA/mask recorded in the L1D-side <strong>store buffer</strong>, one slot per LSU entry), capture their data separately, and are <strong>written to the cache in program order after they retire</strong>. A younger load compares its PA against the older stores' store-buffer slots and <strong>forwards from the youngest fully covering store</strong>; partial overlaps block the load until the store drains. Merge loads/stores (<code>lwl/lwr/ldl/ldr</code>, <code>swl/swr/sdl/sdr</code>) and <code>sc/scd</code> are LSU ops too (SC issues only when oldest). The <strong>L1D</strong> serves <strong>hits under an outstanding miss</strong> (port 2 keeps running while a fill is in flight), returns fill data straight to the owning load, and parks misses/conflicts in an <strong>8-entry retry queue</strong> (MRQ). Loads that are uncacheable — by segment <em>or</em> by the matched TLB entry's <code>C</code> attribute — are released by the MRQ only when non-speculative (at the ROB head, or the head's committable delay slot). Wrong-path memory ops are dropped by a 1-bit <strong>restart color</strong> rather than waited out, so a flush only waits for non-memory ops. CACHE hit-type ops (<code>Hit-Invalidate</code>/<code>Hit-WB-Invalidate</code>/<code>Hit-WB</code> on the D-side) are LSU ops translated through the D-TLB and admitted only at the ROB head. <em>(<code>exec.sv</code> LSU block; <code>l1d.sv</code> — store buffer <code>r_sb_*</code>, MRQ <code>r_mem_q</code>; <code>machine.vh</code>)</em></p>
+<p><strong>CP0 ordering.</strong> CP0 writes commit <strong>at retire</strong>, not at execute: <code>mtc0</code>/<code>dmtc0</code> stage <code>{data, reg, 64-bit}</code> in a ROB-indexed buffer (<code>exec.sv r_cp0_stage_*</code>) that <code>core.sv</code> commits when the writer retires (a CP0 writer retires alone), so a wrong-path, squashed or nullified <code>mtc0</code> never changes CP0. All CP0 accesses are <strong>totally ordered</strong> as if CP0 were one renamed register: writers (<code>MTC0/DMTC0/TLBP/TLBR</code>) bump an allocation and a retirement sequence number, and readers (<code>MFC0/DMFC0/TLBR/TLBWI/TLBWR/TLBP/ERET</code>) snapshot the allocation sequence and issue once the committed sequence catches up. <code>mfc0</code> is therefore no longer oldest-first; <code>mtc0</code> to registers only software reads (<code>Index</code>, <code>EntryLo0/1</code>, <code>Context</code>, <code>PageMask</code>, <code>EPC</code>, <code>XContext</code>, <code>ErrorEPC</code>, the console reg) is a plain pipelined op, while writes to registers the machine consumes implicitly (<code>Status</code>, <code>EntryHi</code>, <code>Config</code>, <code>Cause</code>, <code>Count</code>, <code>Compare</code>, <code>Wired</code>, Watch) still serialize. <em>(<code>core.sv</code> — <code>r_cp0_alloc_seq</code>/<code>r_cp0_retire_seq</code>; <code>exec.sv</code>)</em></p>
+<p><strong>Misprediction / exception recovery — no RAT checkpoints.</strong> r9999 keeps two rename maps per register class: the speculative <strong>allocation RAT</strong> and a <strong>retirement RAT</strong> that follows the committed architectural map. On a branch mispredict or exception it does <strong>not</strong> roll back to a per-branch snapshot. Instead the machine <strong>drains</strong> (state <code>DRAIN</code>): younger uops are squashed and it waits for the offending op to reach the head of the 16-entry ROB — at which point the <em>retirement</em> RAT already holds the correct map. It waits only for in-flight <strong>non-memory</strong> ops (dead memory ops are left to finish and their responses are discarded by restart color), then copies <strong>retirement RAT → allocation RAT</strong> in a single cycle (state <code>RAT</code>: <code>r_alloc_rat &lt;= t_rat_copy ? r_retire_rat : …</code>, and likewise for FP/HILO/FCR) and restarts fetch. No checkpoint storage, no finite-checkpoint allocation stall, and the <em>same</em> path handles both mispredictions and exceptions. <em>(<code>core.sv</code> — <code>DRAIN → RAT → ACTIVE</code> state machine, <code>t_rat_copy</code>)</em></p>
 <div class="admonition note">
 <p class="admonition-title">Why skipping RAT checkpoints is fine</p>
 <p>This was a <strong>design judgment</strong>, not a derived result. Per-branch <strong>RAT checkpointing</strong> — snapshot the logical→physical map, restore it in one cycle, and reclaim the physical registers allocated since — is fundamentally a <strong>PRF-machine technique</strong> (the R10000 is the classic example). Intel's <strong>"data-in-ROB" P6 and Nehalem</strong> can't use it: with no physical register file, speculative values live in ROB entries, so recovery instead falls out of rolling the ROB tail back and restoring the map from the retirement (committed) state. r9999 <em>is</em> PRF-based — so the R10000-style checkpoint scheme was on the table — but it deliberately borrows the <strong>data-in-ROB-style restore-from-retirement</strong> recovery (drain to commit, copy retirement RAT → allocation RAT), a ballpark call from P6/Nehalem experience that the modest drain latency is fine.</p>
-<p><strong>Henry Wong's thesis</strong> gives the matching quantitative corroboration — <em>A Superscalar Out-of-Order x86 Soft Processor for FPGA</em>, U. Toronto 2017, in the repo as <code>Wong_Henry_T_201711_PhD_thesis.pdf</code> (Ch. 7, Register Renaming). Two advantages over checkpoints: <strong>one mechanism covers both branch mispredictions and exceptions</strong>, and there's <strong>no cap on outstanding branches</strong> (checkpoints are finite — the R10000 stalls when it runs out). The drawback — recovery isn't instantaneous; the bad branch must commit first — he measures at only <strong>~2.3 % of cycles (≈ 4 clocks per pipeline flush)</strong>, and that's an <em>upper bound</em> (the core is usually still retiring useful older work). It stays small because branches <strong>resolve in program order</strong> (mispredicts detected near commit) and a <strong>long front end</strong> delays corrected-path instructions until after the drain.</p>
+<p><strong>Henry Wong's thesis</strong> gives the matching quantitative corroboration — <em>A Superscalar Out-of-Order x86 Soft Processor for FPGA</em>, U. Toronto 2017 (Ch. 7, Register Renaming). Two advantages over checkpoints: <strong>one mechanism covers both branch mispredictions and exceptions</strong>, and there's <strong>no cap on outstanding branches</strong> (checkpoints are finite — the R10000 stalls when it runs out). The drawback — recovery isn't instantaneous; the bad branch must commit first — he measures at only <strong>~2.3 % of cycles (≈ 4 clocks per pipeline flush)</strong>, and that's an <em>upper bound</em> (the core is usually still retiring useful older work). It stays small because branches <strong>resolve in program order</strong> (mispredicts detected near commit) and a <strong>long front end</strong> delays corrected-path instructions until after the drain.</p>
 </div>
-<p><strong>Register files (clustered).</strong> The integer PRF is a <strong>clustered (banked) register file</strong> (<code>rf4r2w</code>, 4 read / 2 write): it's split into <strong>two single-write-port banks</strong> selected by the high bit of the physical-register number — a <strong>non-memory bank</strong> written by ALU/move results (write port 0) and a <strong>memory bank</strong> written by load results (write port 1). That's the whole reason the physical-register count is large: <strong>2 banks × 64 = 128</strong>, not a deep rename window. It's the FPGA-friendly way to get two write ports per cycle out of plain single-write-port block RAMs (a Henry-Wong-style clustered RF) instead of paying for a true multi-write-port file. The <strong>FP PRF</strong> (<code>fp_regfile.sv</code>) is banked the same way (non-memory bank = <code>mtc1</code>/moves <strong>and FP-arithmetic results</strong>, memory bank = FP loads, selected by the physical-reg MSB, with a registered read stage), the <strong>FCR</strong> (FP control regs) has its own rename domain, and a small <strong>4 × 128-bit HILO PRF</strong> holds multiply/divide results. The effective rename window is still bounded by the <strong>16-entry ROB</strong>. <em>(<code>rf4r2w.sv</code> — "Clustered (banked) register file"; <code>exec.sv</code>)</em></p>
-<p><strong>Execution units.</strong> One <strong>integer ALU</strong> (1-cycle), a <strong>3-cycle pipelined multiplier</strong> and an <strong>iterative ~65-cycle divider</strong> (both writing the HILO PRF), and a <strong>load/store unit</strong> with address generation folded in (no separate AGU stage) feeding the L1 D-cache. The <strong>COP1 FPU</strong> is real hardware: a unified single/double <strong><code>fpu_add</code></strong> (add+sub) and <strong><code>fpu_mul</code></strong> (mul) — one unit each, the format bit selects S/D, <strong>fixed 2-cycle latency</strong>, FCSR.RM rounding — plus a unified <strong><code>fpu_compare</code></strong> (all 16 <code>C.cond</code> predicates, writes the FCR condition-code bit), single-cycle <strong>abs/neg/mov</strong>, and a single-cycle <strong>convert path</strong> (<code>fpu_f2f</code>/<code>fpu_f2i</code>/<code>fpu_i2f</code>: <code>CVT.S.D</code>/<code>CVT.D.S</code>, <code>CVT.{W,L}.{S,D}</code> with ROUND/TRUNC/CEIL/FLOOR, and <code>CVT.{S,D}.{W,L}</code>). <strong>DIV and SQRT have no datapath</strong> — the FPU raises the <strong>Unimplemented-Op (E)</strong> bit so they trap as an <strong>FP Exception</strong> (<code>ExcCode 15</code>, <code>FCSR.Cause.E</code>) and the OS soft-float emulator runs them; a catch-all <code>FP_UNIMPL</code> uop does the same for any COP1 op not decoded in hardware (trap-and-emulate rather than <code>SIGILL</code>). The core reports an R4000-family FPU id (<code>FIR</code>). <em>(<code>exec.sv</code>, <code>fpu.sv</code>, <code>fpu_add.sv</code>, <code>fpu_mul.sv</code>, <code>fpu_compare.sv</code>, <code>fpu_f2f.sv</code>, <code>fpu_f2i.sv</code>, <code>fpu_i2f.sv</code>, <code>mul.sv</code>, <code>divider.sv</code>)</em></p>
-<p><strong>FP exceptions and control.</strong> <code>Status.CU1</code> (R/W, resets 0) gates the FPU for <strong>lazy context switch</strong> — a COP1 op with <code>CU1=0</code> raises <strong>Coprocessor-Unusable</strong> (<code>Cause.CE=1</code>). <code>Status.FR</code> (R/W, resets 1) selects the register mode: <strong>FR=1</strong> (<code>n32</code>/<code>n64</code>, 32×64-bit) is the full path; <strong>FR=0</strong> (<code>o32</code>) is handled by decode-force — odd-register compute and doubleword ops become <strong>Reserved Instruction</strong>, while single-word <code>lwc1</code>/<code>swc1</code>/<code>mtc1</code>/<code>mfc1</code> do a half merge/extract through the even register. The IEEE flags <code>{V,Z,O,U,I}</code> (and a denorm-operand/result → E flag, which <strong>always</strong> traps) are carried ROB-side-band with each result: on a trap they set <code>FCSR.Cause</code>, otherwise they OR into the sticky <code>FCSR.Flags</code> at retire. FP moves (<code>mtc1</code>/<code>mfc1</code>, <code>dmtc1</code>/<code>dmfc1</code>, <code>cfc1</code>/<code>ctc1</code> with <code>FCR0=FIR</code>, <code>FCR31=FCSR</code>) and FP load/store (<code>lwc1</code>/<code>swc1</code>, <code>ldc1</code>/<code>sdc1</code>) round out the path; FP branches <code>BC1T</code>/<code>BC1F</code>/<code>BC1TL</code>/<code>BC1FL</code> read the FCR condition-code bit and resolve in the integer pipe. <em>(<code>decode_mips.sv</code>, <code>exec.sv</code>, <code>fpu.sv</code>, <code>uop.vh</code>)</em></p>
-<p><strong>Memory &amp; translation.</strong> L1 D-cache is 16 KB direct-mapped (16 B lines); L1I and L1D arbitrate for a shared <strong>on-die 128 KB direct-mapped L2</strong>, which fronts the <strong>system interface</strong> out to the Henry SoC / memory controller (AXI on the FPGA), with <strong>36-bit physical addresses</strong>. Translation presents the R4x00 <strong>48-entry fully-associative TLB</strong> (dual-page even/odd, 4 KB pages, 8-bit ASID, global bit) — but it is <strong>not</strong> a single shared joint TLB. r9999 <strong>duplicates the CAM per L1 cache</strong> — an <strong>I-TLB</strong> in <code>l1i</code> and a <strong>D-TLB</strong> (<code>dtlb</code>) in <code>l1d</code> — so instruction fetch and load/store translate <strong>in parallel</strong> without contending for one structure, and keeps them coherent by <strong>broadcasting every <code>tlbwi</code>/<code>tlbwr</code> to both CAMs</strong> (<code>core_l1d_l1i.sv</code>). Because a content-addressed CAM can't be read by index, a separate <strong>48-entry RAM shadow</strong> (<code>r_shadow_tlb</code> in <code>exec.sv</code>) holds the entries so the index-addressed instructions — <code>tlbr</code> in particular — can read them back. The I-side additionally puts a small <strong>2-entry micro-ITLB</strong> (<code>itlb.sv</code>, <code>N_UITLB_ENTRIES=2</code>) in front of its CAM for a 1-cycle translation hit; the D-side is the bare 48-way CAM. <em>(<code>l1i.sv</code>, <code>l1d.sv</code>, <code>itlb.sv</code>, <code>tlb.sv</code>, <code>exec.sv</code>, <code>core_l1d_l1i.sv</code>)</em></p>
+<p><strong>Register files (clustered).</strong> The integer PRF is a <strong>clustered (banked) register file</strong> (<code>rf4r2w</code>, 4 read / 2 write): it's split into <strong>two single-write-port banks</strong> selected by the high bit of the physical-register number — a <strong>non-memory bank</strong> written by ALU/move results (write port 0) and a <strong>memory bank</strong> written by load results (write port 1). That's the whole reason the physical-register count is large: <strong>2 banks × 64 = 128</strong>, not a deep rename window. It's the FPGA-friendly way to get two write ports per cycle out of plain single-write-port RAMs (a Henry-Wong-style clustered RF) instead of paying for a true multi-write-port file. The <strong>FP PRF</strong> (<code>fp_regfile.sv</code>) is banked the same way (bank 0 = FP-arithmetic and move results, bank 1 = FP loads, selected by the physical-reg MSB, with a registered read stage), the <strong>FCR</strong> (FP condition codes) has its own 4-entry rename domain, and a small <strong>4 × 128-bit HILO PRF</strong> holds multiply/divide results. The effective rename window is still bounded by the <strong>16-entry ROB</strong>. <em>(<code>rf4r2w.sv</code> — "Clustered (banked) register file"; <code>fp_regfile.sv</code>; <code>exec.sv</code>)</em></p>
+<p><strong>Execution units.</strong> One <strong>integer ALU</strong> (1-cycle), a <strong>3-cycle pipelined multiplier</strong> (<code>MUL_LAT=3</code>), a <strong>unified iterative divider</strong> (<code>uni_divider.sv</code>, instance <code>d0</code>) and a <strong>load/store unit</strong> with address generation folded in (no separate AGU stage) feeding the L1 D-cache. The unified divider runs integer <code>div/divu/ddiv/ddivu</code> (writing the HILO PRF; a coarse leading-zero skip of 8/16/32 steps keeps small divides short, worst case reserved as <code>DIV32_LAT = 66</code> cycles) <strong>and IEEE single/double <code>DIV</code> and <code>SQRT</code></strong> on one shared restoring recurrence, one op in flight; FP div/sqrt pop from the FP queue only when the unit is free and drain into the FP writeback port. The <strong>COP1 FPU</strong> proper is a unified single/double <strong><code>fpu_add</code></strong> (add+sub) and <strong><code>fpu_mul</code></strong> (mul) — the format bit selects S/D, <strong>fixed 4-cycle latency</strong> (<code>FPU_LAT=4</code>), FCSR.RM rounding — plus a unified <strong><code>fpu_compare</code></strong> (all 16 <code>C.cond</code> predicates, writes the FCR condition-code bit), single-cycle <strong>abs/neg/mov</strong>, and a single-cycle <strong>convert path</strong> (<code>fpu_f2f</code>/<code>fpu_f2i</code>/<code>fpu_i2f</code>: <code>CVT.S.D</code>/<code>CVT.D.S</code>, <code>CVT.{W,L}.{S,D}</code> with ROUND/TRUNC/CEIL/FLOOR, and <code>CVT.{S,D}.{W,L}</code>). The datapaths are <strong>normalized-only</strong>: a denormal operand or an underflowing result raises the <strong>Unimplemented-Op (E)</strong> bit, which traps as an <strong>FP Exception</strong> (<code>ExcCode 15</code>, <code>FCSR.Cause.E</code>) so the OS soft-float emulator finishes the op; a catch-all <code>FP_UNIMPL</code> uop does the same for any COP1 op not decoded in hardware (trap-and-emulate rather than <code>SIGILL</code>). The core reports an R4000-family FPU id (<code>FIR = 0x500</code>). <em>(<code>exec.sv</code>, <code>fpu.sv</code>, <code>fpu_add.sv</code>, <code>fpu_mul.sv</code>, <code>fpu_compare.sv</code>, <code>fpu_f2f.sv</code>, <code>fpu_f2i.sv</code>, <code>fpu_i2f.sv</code>, <code>mul.sv</code>, <code>uni_divider.sv</code>)</em></p>
+<p><strong>FP exceptions and control.</strong> <code>Status.CU1</code> (R/W, resets 0) gates the FPU for <strong>lazy context switch</strong> — a COP1 op with <code>CU1=0</code> raises <strong>Coprocessor-Unusable</strong> (<code>Cause.CE=1</code>). <code>Status.FR</code> (R/W, resets 1) selects the register mode: <strong>FR=1</strong> (<code>n32</code>/<code>n64</code>, 32×64-bit) is the full path; <strong>FR=0</strong> (<code>o32</code>) is handled by decode-force — odd-register compute and doubleword ops become <strong>Reserved Instruction</strong>, while single-word <code>lwc1</code>/<code>swc1</code>/<code>mtc1</code>/<code>mfc1</code> do a half merge/extract through the even register. The IEEE flags <code>{V,Z,O,U,I}</code> (and the denorm-operand/result → E flag, which <strong>always</strong> traps) are carried ROB-side-band with each result: on a trap they set <code>FCSR.Cause</code>, otherwise they OR into the sticky <code>FCSR.Flags</code> at retire. FP moves (<code>mtc1</code>/<code>mfc1</code>, <code>dmtc1</code>/<code>dmfc1</code>, <code>cfc1</code>/<code>ctc1</code> with <code>FCR0=FIR</code>, <code>FCR31=FCSR</code>) and FP load/store (<code>lwc1</code>/<code>swc1</code>, <code>ldc1</code>/<code>sdc1</code>) round out the path; FP branches <code>BC1T</code>/<code>BC1F</code>/<code>BC1TL</code>/<code>BC1FL</code> read the FCR condition-code bit and resolve in the integer pipe. <em>(<code>decode_mips.sv</code>, <code>exec.sv</code>, <code>fpu.sv</code>, <code>uop.vh</code>)</em></p>
+<p><strong>Memory &amp; translation.</strong> L1 D-cache is 16 KB direct-mapped (16 B lines); L1I and L1D arbitrate for a shared <strong>on-die 128 KB direct-mapped L2</strong>, which fronts the <strong>system interface</strong> out to the Henry SoC / memory controller (AXI on the FPGA), with <strong>36-bit physical addresses</strong> (<code>PA_WIDTH=36</code>). Translation presents the R4x00 <strong>48-entry fully-associative TLB</strong> (dual-page even/odd, <strong>variable page size 4 KB–16 MB via <code>PageMask</code></strong>, 8-bit ASID, global bit) — but it is <strong>not</strong> a single shared joint TLB. r9999 <strong>duplicates the CAM per L1 cache</strong> — an <strong>I-TLB</strong> in <code>l1i</code> and a <strong>D-TLB</strong> (<code>dtlb</code>) in <code>l1d</code> — so instruction fetch and load/store translate <strong>in parallel</strong> without contending for one structure, and keeps them coherent by <strong>broadcasting every <code>tlbwi</code>/<code>tlbwr</code> to both CAMs</strong> (<code>core_l1d_l1i.sv</code>). Because a content-addressed CAM can't be read by index, a separate <strong>48-entry RAM shadow</strong> (<code>r_shadow_tlb</code> in <code>exec.sv</code>) holds the entries so the index-addressed instructions — <code>tlbr</code> in particular — can read them back. The I-side additionally puts a small <strong>2-entry micro-ITLB</strong> (<code>itlb.sv</code>, <code>N_UITLB_ENTRIES=2</code>) in front of its CAM for a fast translation hit; it caches each entry's <code>PageMask</code> and reuses the CAM's masked compare, so large instruction pages translate correctly. The D-side is the bare 48-way CAM, driven from the request as it is presented to the L1D so the port-2 accept decision stays off the CAM path. <em>(<code>l1i.sv</code>, <code>l1d.sv</code>, <code>itlb.sv</code>, <code>tlb.sv</code>, <code>exec.sv</code>, <code>core_l1d_l1i.sv</code>)</em></p>
 <h2 id="r9999-vs-the-r10000-its-named-after">r9999 vs. the R10000 it's named after<a class="headerlink" href="#r9999-vs-the-r10000-its-named-after" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -1581,22 +1678,22 @@
 <tr>
 <td>ISA</td>
 <td>MIPS IV (R10000)</td>
-<td>MIPS III/IV, <strong>presents as R4600</strong> (<code>PRId 0x2020</code>)</td>
+<td>MIPS III, <strong>presents as R4400</strong> (<code>PRId 0x0440</code>)</td>
 </tr>
 <tr>
 <td>Fetch / decode / issue / retire</td>
 <td>4-wide</td>
-<td><strong>2-wide</strong></td>
+<td>fetch <strong>up to 4</strong>/cycle into an 8-entry queue; decode, rename, retire <strong>2-wide</strong></td>
 </tr>
 <tr>
 <td>Branch prediction</td>
 <td>512-entry 2-bit BHT</td>
-<td><strong>gshare</strong>: 64K×2b PHT, 64-bit GHist, 128 BTB, 4 RAS</td>
+<td><strong>gshare</strong>: 16K × 4 × 2b PHT (128 Kbit), 14-bit GHist, 128 BTB, 4 RAS</td>
 </tr>
 <tr>
 <td>Physical registers</td>
 <td>64 int + 64 FP (true multiport RF)</td>
-<td><strong>128 int + 128 FP</strong> (clustered: 2 banks × 64) + 4 HILO</td>
+<td><strong>128 int + 128 FP</strong> (clustered: 2 banks × 64) + 4 HILO + 4 FCR</td>
 </tr>
 <tr>
 <td>In-flight window</td>
@@ -1611,12 +1708,17 @@
 <tr>
 <td>Issue queues</td>
 <td>3 × 16 (address / integer / FP)</td>
-<td>8-entry integer scheduler + memory queues + <strong>FP issue/read stage</strong></td>
+<td>8-entry integer scheduler + 8-entry LSU pool + 8-entry FP queue</td>
+</tr>
+<tr>
+<td>Load/store</td>
+<td>address queue, non-blocking</td>
+<td><strong>LSU</strong> with store buffer + store→load forwarding, hit-under-miss L1D, stores written after retire</td>
 </tr>
 <tr>
 <td>Functional units</td>
 <td>2 ALU + addr-calc + FP add + FP mul</td>
-<td><strong>1 ALU + mul + div + load/store + COP1 FPU</strong> (unified S/D add + mul + compare + convert; abs/neg/mov)</td>
+<td><strong>1 ALU + mul + unified int/FP divider + load/store + COP1 FPU</strong> (unified S/D add + mul + compare + convert; abs/neg/mov)</td>
 </tr>
 <tr>
 <td>L1 I / D</td>
@@ -1631,27 +1733,27 @@
 <tr>
 <td>TLB</td>
 <td>64-entry, single shared</td>
-<td><strong>48-entry FA CAM, duplicated per L1</strong> (I-TLB + D-TLB) + RAM shadow; R4x00-style software model</td>
+<td><strong>48-entry FA CAM, duplicated per L1</strong> (I-TLB + D-TLB) + RAM shadow + 2-entry micro-ITLB; R4x00-style software model</td>
 </tr>
 <tr>
 <td>Register width / FPU</td>
 <td>64-bit · full pipelined FPU</td>
-<td>64-bit · <strong>COP1 FPU</strong>: unified S/D add + mul + compare + full convert set (2-cyc arith) + moves/ld-st/branches; <strong>div/sqrt punted to soft-float</strong> via an Unimplemented-Op (E) trap — a Henry/FPGA simplification vs the R10000's fully pipelined FP divide/sqrt</td>
+<td>64-bit · <strong>COP1 FPU</strong>: unified S/D add + mul + compare + full convert set (4-cycle arith) + moves/ld-st/branches; <strong>div/sqrt on the shared iterative divider</strong>; denormals trap to soft-float via an Unimplemented-Op (E) trap</td>
 </tr>
 </tbody>
 </table>
 <h2 id="why-it-diverges-from-the-r10000">Why it diverges from the R10000<a class="headerlink" href="#why-it-diverges-from-the-r10000" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>It's an R4x00 <em>ISA</em> target, not an R10000.</strong> IRIX's <code>/unix</code> branches on <code>PRId.IMP</code> in <code>start</code>; r9999 presents <strong>R4600</strong> so the kernel takes the Indy per-CPU path (see <a href="https://github.com/dsheffie/r9999">MAME_QUESTIONS Q5</a>). The <strong>48-entry TLB</strong> mirrors the R4x00 (not the R10000's 64), which is also what IRIX's <code>wirepda</code>/refill code expects.</li>
-<li><strong>It's built for an FPGA.</strong> 2-wide instead of 4, <strong>direct-mapped</strong> caches, and a modest on-die L2 keep LUT/BRAM/timing in budget on the Ultra96-v2 (Zynq UltraScale+). Conversely the <strong>gshare PHT is much larger</strong> than the R10000's BHT — block RAM is cheap on FPGA, so prediction accuracy is bought with BRAM rather than logic.</li>
+<li><strong>It's an R4x00 <em>ISA</em> target, not an R10000.</strong> IRIX's <code>/unix</code> branches on <code>PRId.IMP</code> in <code>start</code>. r9999 presents an <strong>R4400</strong> (imp <code>0x04</code>, rev <code>0x40</code>): an earlier R4600 setting (imp <code>0x20</code>) was used to dodge what turned out to be a since-fixed TLB bug, and the R4400 is preferred because IRIX honors its <code>Config.DB</code> bit and manages <strong>16-byte L1 lines</strong> to match r9999's (<code>LG_L1D_CL_LEN=4</code>), whereas the R4600 path hardcodes 32-byte lines (see the comment above <code>PRID_VALUE</code> in <code>machine.vh</code>). The <strong>48-entry TLB</strong> mirrors the R4x00 (not the R10000's 64), which is also what IRIX's <code>wirepda</code>/refill code expects.</li>
+<li><strong>It's built for an FPGA.</strong> 2-wide decode/retire instead of 4, <strong>direct-mapped</strong> caches, and a modest on-die L2 keep LUT/BRAM/timing in budget on the Ultra96-v2 (Zynq UltraScale+). Conversely the <strong>gshare PHT is much larger</strong> than the R10000's BHT — block RAM is cheap on FPGA, so prediction accuracy is bought with BRAM rather than logic.</li>
 <li><strong>The big physical-register counts are a clustered RF, not a deep window.</strong> 128 INT / 128 FP physical registers = <strong>2 banks × 64</strong>. Each register file is split into two single-write-port banks (non-memory results vs memory/load results), selected by the preg-number MSB, so the core gets two write ports per cycle from cheap single-write-port FPGA RAMs instead of a true multi-write-port file. The architectural rename window is still gated by the <strong>16-entry ROB</strong> — the count is an implementation artifact of the banking, not extra in-flight capacity.</li>
 <li><strong>No RAT checkpoints — even though it's a PRF machine.</strong> RAT checkpointing is a PRF-machine technique, so the R10000-style scheme was available to r9999 — but it instead drains to the ROB head and restores the map from the retirement RAT, the data-in-ROB-style (P6/Nehalem) recovery chosen from experience and corroborated by Wong (Ch. 7). See the rename-recovery note above.</li>
-<li><strong>The COP1 FPU keeps the common ops in hardware and punts the rare ones.</strong> Unified single/double <code>fpu_add</code>/<code>fpu_mul</code> (2-cycle), a unified <code>fpu_compare</code>, single-cycle abs/neg/mov, and the full single-cycle convert path are real datapath; <strong>div and sqrt have no hardware</strong> — they (and any COP1 op not decoded in HW) raise the <strong>Unimplemented-Op (E)</strong> bit and trap to the OS soft-float emulator as an FP Exception. That's a deliberate area/timing split for the FPGA — the rare, expensive iterative ops cost LUTs and timing the common path doesn't — versus the R10000's fully pipelined FP divide/sqrt. <code>Status.CU1</code> gives lazy-FPU context switching and <code>Status.FR</code> selects n32/n64 (FR=1) vs o32 (FR=0, decode-forced); the core reports an R4000-family FPU id so software probes succeed. The FPU is why LUT-as-logic on the Ultra96-v2 rose ~50K→57K (81%) and DSP 34→43, while timing still closes (<strong>WNS +0.235 ns @ 100 MHz</strong>). Validation: <code>tests/fpu/*</code> co-sim clean, the FPU-enabled IP22 Linux kernel boots to <code>/init</code> under lazy-FPU, and an <code>awk</code> double-precision self-test runs correctly on Henry <strong>silicon</strong> (incl. <code>sqrt(2)</code> via the soft-float E-trap and <code>exp(1)</code> via libm).</li>
+<li><strong>The FPU shares one iterative divider with the integer side.</strong> Unified single/double <code>fpu_add</code>/<code>fpu_mul</code> (4-cycle), a unified <code>fpu_compare</code>, single-cycle abs/neg/mov, and the full single-cycle convert path are pipelined datapath; <strong>div and sqrt run on <code>uni_divider</code></strong>, the same restoring recurrence that does integer division (one op in flight), instead of a dedicated pipelined FP divide/sqrt like the R10000's. Before that unit existed every FP div/sqrt trapped to the OS emulator; now only <strong>denormal</strong> operands/results (and any COP1 op not decoded in HW) raise the <strong>Unimplemented-Op (E)</strong> bit and trap to soft-float. <code>Status.CU1</code> gives lazy-FPU context switching and <code>Status.FR</code> selects n32/n64 (FR=1) vs o32 (FR=0, decode-forced); the core reports an R4000-family FPU id so software probes succeed. Validation at FPU bring-up: <code>tests/fpu/*</code> co-sim clean, the FPU-enabled IP22 Linux kernel boots to <code>/init</code> under lazy-FPU, and an <code>awk</code> double-precision self-test runs correctly on Henry <strong>silicon</strong>. Current area/timing is on the <a href="../fpga_stats/">FPGA stats</a> page.</li>
 </ul>
 <div class="admonition note">
-<p class="admonition-title">Known FPGA bottleneck</p>
+<p class="admonition-title">FPGA timing bottleneck</p>
+<p>In most of the mid-2026 Ultra96-v2 builds the critical path was the <strong>fully-associative 48-entry TLB CAM</strong> behind instruction fetch (icache → 48-way ITLB match → <code>pa</code>), route-dominated. The 48-entry size is fixed by the architecture, so the fix was the <strong>2-entry micro-ITLB</strong> in front of the I-side CAM. As of the current bitstream (r9999 <code>5c89b70</code>, <strong>WNS +0.120 ns @ 100 MHz</strong>) the worst path is inside the <strong>L1D port-2 pipeline</strong> — <code>dcache/r_req2</code> → store-buffer/data-array select → D-TLB-dependent response/block decision → tag-RAM address → <code>r_hit_busy_addr</code> (35 logic levels, ~67 % route). The previous bitstream (<code>94e5e97</code>, WNS +0.177 ns) was limited by the micro-ITLB fast path (<code>icache/insn_array</code> → <code>r_ufast_pa</code>). See <a href="../fpga_stats/">FPGA stats</a>.</p>
 </div>
-<p>The <strong>fully-associative 48-entry TLB CAMs</strong> — one per L1 cache, so every fetch <em>and</em> every load/store does a 48-way parallel CAM match — are the current critical path on the Ultra96-v2 build (negative WNS at 100 MHz). The 48-entry size is fixed by the architecture; the fix is a hardware <strong>micro-TLB</strong> in front of each CAM — a small fast L1 translation cache that removes the big CAM from the common-case path. This is <strong>now built on the I-side</strong> as a 2-entry micro-ITLB (<code>itlb.sv</code>); the D-side CAM is still bare.</p>
 <hr />
 <h2 id="branch-delay-slots-and-the-control-fsm">Branch delay slots and the control FSM<a class="headerlink" href="#branch-delay-slots-and-the-control-fsm" title="Permanent link">&para;</a></h2>
 <p>The single biggest ISA difference between r9999 (MIPS) and its sibling RISC-V soft core <code>rv64core</code> isn't register width or opcodes — it's one architectural rule: <strong>in MIPS the instruction after a branch (the <em>delay slot</em>) always enters the pipeline, and on a taken branch it executes <em>before</em> control reaches the target.</strong> RISC-V has no such rule. That one rule is why r9999's primary control FSM (<code>core.sv</code>) carries a cluster of states <code>rv64core</code> simply doesn't have:</p>
@@ -1666,7 +1768,7 @@
 <tbody>
 <tr>
 <td>The delay slot itself</td>
-<td><strong><code>DELAY_SLOT</code></strong></td>
+<td>handled inside <strong><code>DRAIN</code></strong> (<code>r_ds_done</code>); a <code>DELAY_SLOT</code> enum value is declared but never entered</td>
 <td>—</td>
 </tr>
 <tr>
@@ -1675,7 +1777,7 @@
 <td>folded inline into <code>ACTIVE</code> → <code>DRAIN</code></td>
 </tr>
 <tr>
-<td>A fault <em>inside</em> a delay slot</td>
+<td>A redirecting branch whose serializing delay slot is not yet allocated</td>
 <td><strong><code>SERIALIZE_IN_FAULTED_DELAY_SLOT</code>, <code>WAIT_FOR_SERIALIZE_IN_FAULTED_DELAY_SLOT</code></strong></td>
 <td>—</td>
 </tr>
@@ -1684,25 +1786,26 @@
 <p><code>rv64core</code> spends its "extra" states on RISC-V concerns instead — <code>WAIT_FOR_CSR_WRITE</code>, <code>WAIT_FOR_MMU</code>, and a legacy syscall-emulation monitor path — none of which touch control flow. Every corner case below is a place where r9999's FSM must do something the RISC-V machine never thinks about.</p>
 <p><strong>1. The branch and its delay slot are one atomic unit.</strong> When a branch reaches the ROB head needing a redirect, r9999 doesn't just restart — it captures the branch's metadata (<code>n_has_delay_slot</code>, <code>n_take_br</code>, <code>n_restart_pc</code>) and enters <code>DRAIN</code>, and <code>head_of_rob_ptr_valid</code> is held true in <code>DRAIN</code> <em>only while <code>!r_ds_done</code></em> so the delay slot can still retire. The pair commit together (<code>retire</code>/<code>retire_two</code>); you can never retire the branch and squash its slot. <code>rv64core</code>'s branch path is one line — <code>n_restart_pc = t_rob_head.target_pc</code> — retire, redirect, done.</p>
 <p><strong>2. Misprediction recovery must preserve the slot.</strong> r9999 recovers <code>ACTIVE → DRAIN → RAT → ACTIVE</code> (the no-checkpoint recovery described above): it drains younger work <em>but lets the delay slot through</em>, then copies the retirement RAT back. The squash boundary is "after the delay slot," not "after the branch." In <code>rv64core</code> the boundary is simply "after the branch" — there's nothing in between.</p>
-<p><strong>3. Branch-likely nullification.</strong> MIPS <code>beql</code>/<code>bnel</code>/… <em>nullify</em> their delay slot when the branch is <strong>not</strong> taken. r9999 marks these <code>has_nullifying_delay_slot</code>, and <code>DRAIN</code> encodes the rule directly: if <code>r_take_br</code> the slot retires (<code>t_retire</code>); if not, <code>t_retire</code> stays 0 and the slot is dropped — <code>n_ds_done</code> is set either way. RISC-V has no branch-likely, so <code>rv64core</code> has no nullify concept at all.</p>
+<p><strong>3. Branch-likely nullification.</strong> MIPS <code>beql</code>/<code>bnel</code>/… <em>nullify</em> their delay slot when the branch is <strong>not</strong> taken. r9999 marks these <code>has_nullifying_delay_slot</code>, and <code>DRAIN</code> encodes the rule directly: if <code>r_take_br</code> the slot retires (<code>t_retire</code>) once it completes; if not, <code>t_retire</code> stays 0, the slot is dropped <strong>without waiting for it to complete</strong>, and <code>head_of_rob_ptr_valid</code> is withheld from it so an oldest-first op there (<code>tlbwr</code>, an uncached access, …) can never execute its side effect — <code>n_ds_done</code> is set either way. RISC-V has no branch-likely, so <code>rv64core</code> has no nullify concept at all.</p>
 <p><strong>4. A fault in the delay slot blames the branch.</strong> The famous one. In <code>ARCH_FAULT</code> → <code>WRITE_EPC</code>, r9999 computes <code>n_epc = in_delay_slot ? (pc − 4) : pc</code> and sets <code>n_exc_in_delay = in_delay_slot</code> — <strong>EPC points at the branch, and <code>Cause.BD</code> is set.</strong> On <code>eret</code> the kernel re-executes the branch, which re-executes the slot. <code>rv64core</code> writes <code>n_epc = t_mrob_head.pc</code> — always the faulting instruction's own PC, no BD bit, no <code>−4</code>. (This BD/EPC handling, and gating EPC on <code>Status.EXL</code> for nested refills, is exactly the bug class from <code>MAME_QUESTIONS</code> Q5 / round-7.)</p>
-<p><strong>5. A branch <em>in</em> a delay slot — architecturally UNPREDICTABLE — is given a defined answer.</strong> When the head instruction is itself in a delay slot, r9999 restarts to <code>r_last_branch_target</code> rather than its own <code>target_pc</code>: <code>n_restart_pc = in_delay_slot ? r_last_branch_target : t_rob_head.target_pc</code>. The <em>outer</em> branch wins; the inner branch's target is discarded. Tellingly, this exact ternary appears in <strong>three</strong> states — <code>ACTIVE</code>, <code>WAIT_FOR_SERIALIZE_AND_RESTART</code>, and <code>CACHE_FLUSH</code> — every place a redirect is produced. <code>grep</code> for <code>in_delay_slot</code>/<code>last_branch_target</code> in <code>rv64core/core.sv</code> returns nothing.</p>
+<p><strong>5. A branch <em>in</em> a delay slot — architecturally UNPREDICTABLE — is given a defined answer.</strong> When the head instruction is itself in a delay slot, r9999 restarts to <code>r_last_branch_target</code> rather than its own <code>target_pc</code>: <code>n_restart_pc = in_delay_slot ? r_last_branch_target : t_rob_head.target_pc</code>. The <em>outer</em> branch wins; the inner branch's target is discarded. Tellingly, this exact ternary appears in <strong>four</strong> states — <code>ACTIVE</code>, <code>DRAIN</code> (a faulting delay slot), <code>WAIT_FOR_SERIALIZE_AND_RESTART</code>, and <code>CACHE_FLUSH</code> — every place a redirect is produced. <code>grep</code> for <code>in_delay_slot</code>/<code>last_branch_target</code> in <code>rv64core/core.sv</code> returns nothing.</p>
 <p><strong>6. The exception boundary can't fall between the pair.</strong> You may not take an interrupt or fault <em>between</em> a branch and its delay slot. r9999 enforces this at allocation: with a fault pending, the alloc condition is gated by <code>r_pending_fault ? r_in_delay_slot : 1'b1</code> — only the delay slot may still be allocated, nothing past it — so the machine resolves the pair before redirecting to a vector. <code>n_in_delay_slot</code> is threaded through rename from the just-allocated branch's <code>has_delay_slot</code>. <code>rv64core</code>'s alloc has no such guard.</p>
-<p><strong>7. When the slot faults but the branch must commit first.</strong> If a delay slot faults while its branch is a serializing/oldest-first op, r9999 can't just take the fault — it routes through <code>SERIALIZE_IN_FAULTED_DELAY_SLOT</code> / <code>WAIT_FOR_SERIALIZE_IN_FAULTED_DELAY_SLOT</code>, which allocate and wait for the <em>branch</em> (<code>rob_next_head</code>) to complete, then decide the fault against the correct instruction. Two whole states exist solely for this ordering puzzle; <code>rv64core</code>, with no pair to order, has zero.</p>
-<p><strong>The tax.</strong> r9999 needs a 3-state exception sequence (<code>ARCH_FAULT</code> → <code>WRITE_EPC</code> → <code>EXCEPTION_DRAIN</code>) where <code>rv64core</code> writes <code>epc</code>/<code>cause</code> inline and falls straight into <code>DRAIN</code>, plus four extra delay-slot states besides — all to honor one ISA rule. This is, literally, the control-complexity tax of branch delay slots that RISC-V was designed to avoid: a win for a scalar 5-stage R2000 pipeline, but on an out-of-order machine the delay slot turns every redirect, every exception, and every squash into a "…and the delay slot" special case.</p>
+<p><strong>7. When the branch must redirect but its slot hasn't been allocated yet.</strong> A serializing op (<code>mtc0</code>/<code>dmtc0</code> to a register the machine consumes implicitly) is held in the decode queue until the ROB is empty. If the branch ahead of it reaches the ROB head needing a redirect (<code>faulted</code> — e.g. a mispredict) while that serializing delay slot is still in the decode queue, the pair can't commit together. r9999 routes this through <code>SERIALIZE_IN_FAULTED_DELAY_SLOT</code> / <code>WAIT_FOR_SERIALIZE_IN_FAULTED_DELAY_SLOT</code>: allocate the slot alone, wait for it (<code>rob_next_head</code>) to complete, then resume the normal redirect. Two whole states exist solely for this ordering puzzle; <code>rv64core</code>, with no pair to order, has zero. (The "slot itself faulted" sub-case in the WAIT state is believed unreachable — the only serializing ops can't fault at execute — and carries a <code>//todo</code> in <code>core.sv</code>.)</p>
+<p><strong>The tax.</strong> r9999 needs a 3-state exception sequence (<code>ARCH_FAULT</code> → <code>WRITE_EPC</code> → <code>EXCEPTION_DRAIN</code>) where <code>rv64core</code> writes <code>epc</code>/<code>cause</code> inline and falls straight into <code>DRAIN</code>, plus two extra faulted-delay-slot states and delay-slot bookkeeping threaded through <code>DRAIN</code>, allocation and every redirect — all to honor one ISA rule. This is, literally, the control-complexity tax of branch delay slots that RISC-V was designed to avoid: a win for a scalar 5-stage R2000 pipeline, but on an out-of-order machine the delay slot turns every redirect, every exception, and every squash into a "…and the delay slot" special case.</p>
 <h2 id="the-tlb-translation-datapath">The TLB — translation datapath<a class="headerlink" href="#the-tlb-translation-datapath" title="Permanent link">&para;</a></h2>
-<p>r9999's MMU is a software-managed MIPS TLB: a <strong>48-entry fully-associative JTLB</strong>, instantiated <strong>twice</strong> — one copy in <code>l1i.sv</code> (the ITLB, fetch translation) and one in <code>l1d.sv</code> (the DTLB, load/store translation). Both are kept identical: every <code>TLBWR</code>/<code>TLBWI</code> broadcasts the written entry on <code>tlb_entry_out</code>/<code>tlb_entry_out_valid</code> (assembled in <code>exec.sv</code> from the CP0 staging regs) to <strong>both</strong> caches' <code>tlb_entry_in</code> ports, so one software write lands in both CAMs. The I-side puts a small <strong>2-entry micro-ITLB</strong> (<code>itlb.sv</code>, <code>N_UITLB_ENTRIES=2</code>) in front of its CAM — a 1-cycle-hit fast path with LFSR-random replacement, flushed on <code>TLBWI</code>/<code>TLBWR</code> and on an ASID change; the D-side is the bare 48-way CAM, which remains the design's worst timing path (the fully-associative match → priority encode → PFN mux dominates WNS).</p>
-<p><strong>Dual-page entries.</strong> Each entry is a MIPS even/odd <em>pair</em>: one <code>VPN2</code> (page number, low bit dropped) plus two physical halves — <code>pfn0/v0/d0/c0/g0</code> (even) and <code>pfn1/v1/d1/c1/g1</code> (odd); <code>va[12]</code> selects the half on a hit. Pages are <strong>4 KB only</strong> — <code>PageMask</code> is stored (and must read back what was written; it is <strong>not</strong> RAZ/WI) but is <strong>not used in the match</strong>. Variable-page-size matching is a deferred gap, safe because a vanilla IRIX/Linux boot writes 100% <code>PageMask=0</code>.</p>
+<p>r9999's MMU is a software-managed MIPS TLB: a <strong>48-entry fully-associative JTLB</strong>, instantiated <strong>twice</strong> — one copy in <code>l1i.sv</code> (the ITLB, fetch translation) and one in <code>l1d.sv</code> (the DTLB, load/store translation). Both are kept identical: every <code>TLBWR</code>/<code>TLBWI</code> broadcasts the written entry on <code>tlb_entry_out</code>/<code>tlb_entry_out_valid</code> (assembled in <code>exec.sv</code> from the CP0 staging regs) to <strong>both</strong> caches' <code>tlb_entry_in</code> ports, so one software write lands in both CAMs. The I-side puts a small <strong>2-entry micro-ITLB</strong> (<code>itlb.sv</code>, <code>N_UITLB_ENTRIES=2</code>) in front of its CAM — a fast path with LFSR-random replacement that caches each entry's <code>PageMask</code>, flushed on <code>TLBWI</code>/<code>TLBWR</code> and on an ASID change; the D-side is the bare 48-way CAM. Each CAM is the fully-associative match → priority encode → PFN mux; it was the design's worst timing path until the micro-ITLB took it off the fetch path (see the timing note above).</p>
+<p><strong>Dual-page entries.</strong> Each entry is a MIPS even/odd <em>pair</em>: one <code>VPN2</code> (page number, low bit dropped) plus two physical halves — <code>pfn0/v0/d0/c0/g0</code> (even) and <code>pfn1/v1/d1/c1/g1</code> (odd). <strong>Variable page sizes (4 KB … 16 MB) are supported:</strong> each slot stores <code>PageMask[24:13]</code>, the match ignores the masked VPN2 bits, and a size index selects which VA bit picks the even/odd half (<code>va[12]</code> for 4 KB) and how many VA bits pass through to the PA. <code>PageMask</code> reads back what was written (it is <strong>not</strong> RAZ/WI). The same masked compare and size mux are reused by the micro-ITLB.</p>
 <h3 id="two-stage-lookup-and-why-conflating-the-stages-bites">Two-stage lookup (and why conflating the stages bites)<a class="headerlink" href="#two-stage-lookup-and-why-conflating-the-stages-bites" title="Permanent link">&para;</a></h3>
 <p>A MIPS TLB lookup is <strong>two independent stages</strong>:</p>
 <ol>
 <li><strong>Match</strong> — does any slot's <code>(VPN2, R, ASID/Global)</code> equal the VA's? In <code>tlb.sv</code>:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>w_hit8k[i]         = (r_tlb[i].vpn[26:0] == va[39:13]) &amp; (r_tlb[i].r == va[63:62]);
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>w_addr_space_match = (r_tlb[i].asid == asid) | (r_tlb[i].g0 &amp; r_tlb[i].g1);
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>w_hits[i]          = w_addr_space_match[i] &amp; w_hit8k[i] &amp; r_tlb_written[i];
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>w_hit8k[i]         = (((r_tlb[i].vpn[26:0] ^ va[39:13]) &amp; {15'h7fff, ~r_tlb[i].pagemask[11:0]}) == 27'd0)
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>                     &amp; (r_tlb[i].r == va[63:62]);
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>w_addr_space_match = (r_tlb[i].asid == asid) | (r_tlb[i].g0 &amp; r_tlb[i].g1);
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>w_hits[i]          = w_addr_space_match[i] &amp; w_hit8k[i] &amp; r_tlb_written[i];
 </code></pre></div>
-   The compare is the <strong>full</strong> <code>VPN2 = va[39:13]</code> (27 bits) <strong>plus region <code>R = va[63:62]</code></strong>, matching the Sail spec (<code>mips_tlb.sail tlbEntryMatch</code>) — not a 19-bit <code>va[31:13]</code> shortcut. <strong>No match ⇒ TLB Refill.</strong></li>
-<li><strong>Validity</strong> — only <em>after</em> a match: the selected half's <code>V</code> (<code>va[12] ? v1 : v0</code>). <code>V=0 ⇒ TLB-Invalid</code>; a store with <code>D=0 ⇒ TLB-Modified</code>; else <code>PA = {pfn, va[11:0]}</code>.</li>
+   The compare is the <strong>full</strong> <code>VPN2 = va[39:13]</code> (27 bits, minus the <code>PageMask</code>-masked low bits) <strong>plus region <code>R = va[63:62]</code></strong>, matching the Sail spec (<code>mips_tlb.sail tlbEntryMatch</code>) — not a 19-bit <code>va[31:13]</code> shortcut. <strong>No match ⇒ TLB Refill.</strong></li>
+<li><strong>Validity</strong> — only <em>after</em> a match: the selected half's <code>V</code> (<code>va[12] ? v1 : v0</code> for 4 KB pages; a higher VA bit for larger pages). <code>V=0 ⇒ TLB-Invalid</code>; a store with <code>D=0 ⇒ TLB-Modified</code>; else <code>PA = {pfn, page offset}</code>.</li>
 </ol>
 <p>The point that bites: <strong>Refill ("no slot for this page") and Invalid ("slot exists but page not present") are different exceptions with different handlers.</strong> Refill = "go look it up"; Invalid = "I have a slot marked not-present, go fault it in."</p>
 <h3 id="the-r_tlb_written-slot-bit-sail-entryvalid">The <code>r_tlb_written</code> slot bit (= Sail <code>entry.valid</code>)<a class="headerlink" href="#the-r_tlb_written-slot-bit-sail-entryvalid" title="Permanent link">&para;</a></h3>
@@ -1745,11 +1848,12 @@
 <h3 id="vector-selection">Vector selection<a class="headerlink" href="#vector-selection" title="Permanent link">&para;</a></h3>
 <p><code>core.sv</code> picks the refill vector by the <strong>addressing mode of the faulting access</strong>: the <strong>XTLB</strong> vector (<code>ebase+0x080</code>) when 64-bit addressing is active for that mode (<code>in_64b_kernel_mode | in_64b_supervisor_mode | in_64b_user_mode</code>), else the 32-bit <strong>TLB</strong> vector (<code>ebase+0x000</code>); both only when <code>EXL=0</code>. A nested miss (<code>EXL=1</code>) and TLB-Invalid/Modified fall to the general vector (<code>ebase+0x180</code>). n64 user processes run <code>UX=1</code>, so a user miss vectors to XTLB refill — which is why the handler reads <code>XContext</code>.</p>
 <h3 id="segment-decode-mipssegsv">Segment decode (<code>mipsseg.sv</code>)<a class="headerlink" href="#segment-decode-mipssegsv" title="Permanent link">&para;</a></h3>
-<p>Ahead of the CAM, <code>mipsseg</code> classifies the VA: <strong>xkphys</strong> (<code>va[63:62]=10</code>, needs <code>w_in_64b_mode</code>) → unmapped <code>PA=va[58:0]</code>; <strong>xkuseg/xsseg/xkseg</strong> (64-bit mode) → TLB-mapped; <strong>32-bit compat</strong> (sign-extended <code>va[63:32]=ffffffff</code>, or <code>!w_in_64b_mode</code>) → <code>kuseg/kseg0/kseg1/kseg2</code> by <code>va[31:29]</code>. <code>w_in_64b_mode = in_kernel_mode | (in_user_mode &amp; UX) | (in_supervisor_mode &amp; SX)</code> — kernel is always 64-bit-capable (independent of KX, which gates only addressing/XTLB selection). A mapped non-compat VA outside <code>SEGBITS</code> raises AdEL/AdES.</p>
+<p>Ahead of the CAM, <code>mipsseg</code> classifies the VA: <strong>xkphys</strong> (<code>va[63:62]=10</code>, needs <code>w_in_64b_mode</code>) → unmapped <code>PA=va[58:0]</code>; <strong>xkuseg/xsseg/xkseg</strong> (64-bit mode) → TLB-mapped; <strong>32-bit compat</strong> (sign-extended <code>va[63:32]=ffffffff</code>, or <code>!w_in_64b_mode</code>) → <code>kuseg/kseg0/kseg1/kseg2</code> by <code>va[31:29]</code>. <code>w_in_64b_mode = in_64b_kernel_mode | in_64b_supervisor_mode | in_64b_user_mode</code>, i.e. <code>(kernel &amp; KX) | (supervisor &amp; SX) | (user &amp; UX)</code> (<code>exec.sv</code>). A mapped non-compat VA outside <code>SEGBITS</code> raises AdEL/AdES.</p>
 <blockquote>
 <p><strong>Doc note:</strong> the older "match only the low-19-bit <code>VPN2</code> / ignore region" workaround (commit <code>e451d50</code>, described in <a href="../coherence-cache-tlb/">Cache, coherence &amp; TLB</a>) was <strong>superseded</strong> by the full Sail-conformant <code>va[39:13]+R</code> compare now in <code>tlb.sv</code>; the high-VA <code>wirepda</code> case it patched is handled correctly because <code>EntryHi</code> stores the full <code>VPN2</code>/<code>R</code> from the GPR (per Sail <code>MTC0</code>).</p>
 </blockquote>
-<p><strong>Open TLB gaps:</strong> variable page size (<code>PageMask</code> in the match), i-side out-of-range PA/VA AdEL, and TLB-<code>C</code> cacheability for mapped pages (currently hardcoded in <code>mipsseg</code>).</p>
+<p><strong>TLB cacheability:</strong> on the D-side the matched entry's <code>C</code> attribute decides cacheability of a mapped access (<code>C==3</code> cached, anything else uncached), and uncached-by-TLB loads are held until non-speculative (see the LSU paragraph above).</p>
+<p><strong>Open TLB gaps:</strong> the I-side ignores the TLB <code>C</code> attribute (instruction fetch is always cached) and has no out-of-range-PFN Address Error yet (<code>l1i.sv</code>: <code>cache_attr()</code>/<code>out_of_range()</code> left unconnected; the D-side has both).</p>
 <hr />
 <p><em>All structural facts above are from the r9999 RTL (<code>*.sv</code>) and <code>machine.vh</code>, canonical (non-<code>FORMAL</code>) configuration. The <a href="../irix-boot-flow/">IRIX boot flow</a> page covers what this core </em>runs<em>; this page covers what it </em>is<em>.</em></p>
 

@@ -319,7 +319,7 @@
     
   
   
-    <span class="md-status md-status--draft (functional-sim validated, MAME-corroborated)"></span>
+    <span class="md-status md-status--draft (functional-sim validated, MAME-corroborated; Henry-RTL notes added 2026-10-04 against henry 209e6f6)"></span>
   
 
   
@@ -414,7 +414,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; Henry FSBL section checked 2026-10-04 against r9999/arcs/henry_arcs.S @ 5c89b70)"></span>
   
 
   
@@ -448,7 +448,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; Henry FSBL/console re-checked 2026-10-04 against henry 209e6f6 / r9999 5c89b70)"></span>
   
 
   
@@ -482,7 +482,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated; silicon-refined 2026-07 — see the hidden-L2 DMA section)"></span>
+    <span class="md-status md-status--draft (MAME-validated; silicon-refined 2026-07; RTL state re-checked 2026-10-04 against r9999 5c89b70)"></span>
   
 
   
@@ -536,6 +536,10 @@
   
     
     
+      
+        
+      
+        
       
         
       
@@ -627,7 +631,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -652,7 +656,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -673,6 +677,17 @@
       Table of contents
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-henry-implements-rtlmcsv" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What henry implements (rtl/mc.sv)
+      
+    </span>
+  </a>
+  
+</li>
       
         <li class="md-nav__item">
   <a href="#role-in-henry" class="md-nav__link">
@@ -806,7 +821,42 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SCC (Z85C30 console)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (silicon-validated; audited 2026-10-04 against henry main @209e6f6)"></span>
   
 
   
@@ -841,9 +891,37 @@
     
   
   
-    <span class="md-status md-status--draft (MAME + live-IRIX-trace validated)"></span>
+    <span class="md-status md-status--draft (MAME + live-IRIX-trace validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scsi_disk_theory_of_operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SCSI disk theory of operation
+  
+
+    
+  </span>
+  
   
 
       </a>
@@ -876,7 +954,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -946,7 +1024,7 @@
     
   
   
-    <span class="md-status md-status--draft"></span>
+    <span class="md-status md-status--draft (henry status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -1291,6 +1369,33 @@
   
 
     
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fpga_stats/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FPGA build stats
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
   </ul>
 </nav>
                   </div>
@@ -1316,6 +1421,17 @@
       Table of contents
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-henry-implements-rtlmcsv" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What henry implements (rtl/mc.sv)
+      
+    </span>
+  </a>
+  
+</li>
       
         <li class="md-nav__item">
   <a href="#role-in-henry" class="md-nav__link">
@@ -1442,6 +1558,91 @@ GIO64 arbiter, locks/semaphores, and the graphics/GIO DMA engine. <strong>#1 got
 8-byte stride and big-endian IRIX reads the +4/+c alias, not the table offset</strong> — see the next section before
 trusting any address. Legend: ✅ confirmed in MAME, ⚠️ correction vs the SGI doc / vs earlier MAME notes.</p>
 </blockquote>
+<h2 id="what-henry-implements-rtlmcsv">What henry implements (<code>rtl/mc.sv</code>)<a class="headerlink" href="#what-henry-implements-rtlmcsv" title="Permanent link">&para;</a></h2>
+<p><strong>Decode.</strong> henry selects the MC for <code>pa[31:20] == 0x1fa</code> (<code>henry_soc.sv:255</code>). Inside, only <code>pa[16:0]</code> is
+decoded, so the 1 MB window aliases every 128 KB. Reads return data only for <strong>full-word</strong> accesses (all four
+byte-enables of a word). The core byte-swaps device word loads, so values are stored byte-reversed: stored
+<code>0x13000000</code> is read by IRIX as <code>0x13</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Offset(s) decoded</th>
+<th>Register</th>
+<th>henry behaviour</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0x00/0x04</code></td>
+<td>CPUCTRL0</td>
+<td>R/W storage, reset 0. No side effects: endian, refresh and watchdog bits are ignored</td>
+</tr>
+<tr>
+<td><code>0x08/0x0c</code></td>
+<td>CPUCTRL1</td>
+<td>R/W storage, reset 0</td>
+</tr>
+<tr>
+<td><code>0x18/0x1c</code></td>
+<td>SYSID</td>
+<td>constant; IRIX reads <strong><code>0x13</code></strong>, i.e. CHIP_REV = 3 and bit 4 (EISA) = 1. This matches MAME, whose Indy (<code>ip24_base</code>) config sets <code>eisa_present</code> = 1 on a rev C MC</td>
+</tr>
+<tr>
+<td><code>0x2c</code></td>
+<td>RPSS_DIVIDER</td>
+<td>write-only storage (reads 0, has no effect)</td>
+</tr>
+<tr>
+<td><code>0x30</code></td>
+<td>EEROM</td>
+<td>writes stored. A read <strong>at <code>0x30</code> only</strong> returns stored <code>0x00000010</code>. The BE alias <code>0x34</code> reads 0</td>
+</tr>
+<tr>
+<td><code>0x84</code></td>
+<td>GIO64_ARB</td>
+<td>write-only storage (<strong>reads 0</strong>)</td>
+</tr>
+<tr>
+<td><code>0xc4</code>, <code>0xcc</code></td>
+<td>MEMCFG0, MEMCFG1</td>
+<td>R/W <strong>at the BE alias only</strong> (<code>0xc0</code>/<code>0xc8</code> read 0). MEMCFG0 resets to the <code>MEMCFG0</code> parameter (below), MEMCFG1 to 0</td>
+</tr>
+<tr>
+<td><code>0xd4</code>, <code>0xdc</code></td>
+<td>CPU_MEMACC, GIO_MEMACC</td>
+<td>R/W storage at the BE alias, reset 0</td>
+</tr>
+<tr>
+<td><code>0x1004</code></td>
+<td>RPSS_CTR</td>
+<td>free-running core-clock counter ÷ 10 = <strong>100 ns ticks at the 100 MHz core clock</strong></td>
+</tr>
+<tr>
+<td>everything else</td>
+<td>CTRLD, REF_CTR, watchdog, error regs, semaphores, locks, DMA/VDMA, DMA µTLB</td>
+<td><strong>read 0, writes ignored</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>MEMCFG0 default.</strong> The parameter is <code>0x0000203f</code>, which IRIX reads as <strong><code>0x3f200000</code></strong>. That decodes to
+bank 0 base <code>0x20</code> (<code>0x08000000</code>), MSIZE <code>0x1f</code> (8M×36, a <strong>128 MB</strong> bank), VLD=1, BNK=0; banks 1/2/3 absent.
+The FSBL may rewrite it.</p>
+<p>The MC registers are <strong>descriptive only</strong>: henry does not decode DRAM from MEMCFG. Every CPU access that misses
+the MC/HPC3/IOC2 windows passes straight through to the external memory bus. Before arbitration, henry applies
+one remap, the <strong>IP22 System Memory Alias</strong>: a CPU PA below <code>0x80000</code> gets bit 27 set, so phys <code>0x0–0x7ffff</code>
+lands on <code>0x08000000–0x0807ffff</code> (<code>henry_soc.sv:549</code>, applied at <code>w_cpu_req_addr</code>). Only the CPU master is
+remapped; DMA masters use the address as given.</p>
+<p><strong>FPGA DRAM fold.</strong> On the FPGA, the AXI master folds the guest PA in <code>sgi_mode</code>
+(<code>ip_hdl/axi_is_the_worst_v1_0_M00_AXI.v:363-399</code>):</p>
+<ul>
+<li><code>0x08000000–0x17ffffff</code> → <code>pa[27:0]</code>.</li>
+<li><code>0x1f000000–0x1fffffff</code> → <code>0x10000000 | pa[23:0]</code>. This is a 16 MB DRAM shadow that holds the PROM/ARCS image
+  and absorbs the GIO apertures.</li>
+<li>Anything else → identity.</li>
+<li>A result above the runtime <code>addrmask</code> is rejected: writes are dropped, and reads return the poison
+  <code>0xA5A5…</code>. It is never a bus error.</li>
+</ul>
+<p>The ARM-side <code>scsi_fpga_map</code> in <code>driver/scsi_arm.h</code> must stay in sync with this fold.</p>
 <h2 id="role-in-henry">Role in Henry<a class="headerlink" href="#role-in-henry" title="Permanent link">&para;</a></h2>
 <p>The MC is the system's spine: the R4000-class core (r9999) talks to DRAM through it, and the boot PROM / ARCS
 shim / IRIX kernel poke its control registers to size memory, calibrate clocks (via the RPSS and refresh
@@ -1453,7 +1654,8 @@ maskable/disabled at reset and are not needed for first boot.</p>
 <p><strong>The MC sits on the low 32 bits (<code>sysad[31:0]</code>) of the 64-bit sysad doubleword. Every register therefore answers
 at TWO byte addresses 4 apart, and which one the CPU uses depends on endian mode</strong> (mc.pdf p.25):</p>
 <ul>
-<li><strong>Big-endian CPU (Henry/IRIX default): use the odd-word address — table offset <code>+4</code> (ends in <code>4</code> or <code>c</code>).</strong></li>
+<li><strong>Big-endian CPU (Henry/IRIX default): use the odd-word address — table offset <code>+4</code> (ends in <code>4</code> or <code>c</code>).</strong>
+  (henry's <code>mc.sv</code> decodes <em>only</em> this alias for MEMCFG/MEMACC; see the table above.)</li>
 <li>Little-endian CPU: use the even-word address — the table offset itself (ends in <code>0</code> or <code>8</code>).</li>
 </ul>
 <p>So the "table offset" column below is the canonical/LE address; the "BE alias" column (= offset <code>+4</code>) is <strong>what
@@ -1486,11 +1688,14 @@ IRIX actually reads</strong>. Concretely:</p>
 </table>
 <p>Implementation: decode <code>pa[?:3]</code> (8-byte granule) for the register select and <strong>ignore <code>pa[2]</code></strong> (the +4/+0
 alias bit) — both halves of the doubleword map to the same 32-bit register. Drive/return data on the low 32
-sysad bits in either case.</p>
+sysad bits in either case. (henry implements this both-halves aliasing only for CPUCTRL0/1 and SYSID. The
+other registers decode a single offset.)</p>
 <p>Containing memory-map context (mc.pdf p.22): MC registers occupy <code>0x1fa00000–0x1faffff</code> (1 MB). Henry's RAM
 windows: <strong>Low Local Memory <code>0x08000000–0x17ffffff</code> (256 MB)</strong> and <strong>High System Memory <code>0x20000000–0x2fffffff</code>
 (256 MB, kseg-mapped only)</strong> ⇒ up to <strong>30-bit PA</strong> ⚠️ (not 29 — earlier 29-bit note was a small-RAM artifact).
-The <strong>bottom 512 KB <code>0x0–0x7ffff</code> ALIASES low RAM</strong> so exception vectors <code>0x0</code>/<code>0x80</code> hit <code>0x08000000</code>/<code>0x08000080</code>.</p>
+The <strong>bottom 512 KB <code>0x0–0x7ffff</code> ALIASES low RAM</strong> so exception vectors <code>0x0</code>/<code>0x80</code> hit <code>0x08000000</code>/<code>0x08000080</code>.
+henry implements this alias for CPU accesses (<code>henry_soc.sv:549</code>). On the FPGA, how much of the low/high RAM
+windows is actually backed depends on the AXI DRAM fold and <code>addrmask</code> (see above).</p>
 <h2 id="register-map">Register map<a class="headerlink" href="#register-map" title="Permanent link">&para;</a></h2>
 <p>Offsets are table offsets (add <code>+4</code> for the BE alias IRIX uses). Full chip table is mc.pdf p.24–25.</p>
 <table>
@@ -1797,14 +2002,17 @@ the SGI doc p.33 text says MEMCFG0={0,1}/MEMCFG1={2,3}, but Henry follows the MA
 </tr>
 </tbody>
 </table>
-<p><strong>SIMM size table</strong> (MSIZE code → SIMM type → bank bytes, ×4 SIMMs/bank):</p>
+<p><strong>SIMM size table.</strong> MSIZE code → SIMM type. A bank is 4 SIMMs. mc.pdf §3.1.1 puts the minimum system at
+"four 256Kx36 simms (4 MBytes)", consistent with Linux's <code>((memcfg &amp; 0x1f00) + 0x100) &lt;&lt; 14</code>. An earlier
+version of this table listed the <em>per-SIMM</em> size under "bank size".</p>
 <table>
 <thead>
 <tr>
 <th>MSIZE</th>
 <th>SIMM</th>
 <th>subbanks</th>
-<th>bank size</th>
+<th>per SIMM</th>
+<th>bank (×4)</th>
 </tr>
 </thead>
 <tbody>
@@ -1813,43 +2021,50 @@ the SGI doc p.33 text says MEMCFG0={0,1}/MEMCFG1={2,3}, but Henry follows the MA
 <td>256K×36</td>
 <td>1</td>
 <td>1 MB</td>
+<td>4 MB</td>
 </tr>
 <tr>
 <td><code>00001</code></td>
 <td>512K×36</td>
 <td>2</td>
 <td>2 MB</td>
+<td>8 MB</td>
 </tr>
 <tr>
 <td><code>00011</code></td>
 <td>1M×36</td>
 <td>1</td>
 <td>4 MB</td>
+<td>16 MB</td>
 </tr>
 <tr>
 <td><code>00111</code></td>
 <td>2M×36</td>
 <td>2</td>
 <td>8 MB</td>
+<td>32 MB</td>
 </tr>
 <tr>
 <td><code>01111</code></td>
 <td>4M×36</td>
 <td>1</td>
 <td>16 MB</td>
+<td>64 MB</td>
 </tr>
 <tr>
 <td><code>11111</code></td>
 <td>8M×36</td>
 <td>2</td>
 <td>32 MB</td>
+<td>128 MB</td>
 </tr>
 </tbody>
 </table>
 <p>Rules: SIMMs install in groups of 4 (one bank); all four must be same size; base must be aligned to bank size;
 configure largest SIMMs at lowest base (size-descending) or you get holes/overlap. If two banks decode the same
 address ⇒ bus-error interrupt and the access does not complete.</p>
-<p><strong>Worked decode of MEMCFG0 = <code>0x23200000</code></strong> ✅ (Henry's live MAME value):
+<p><strong>Worked decode of MEMCFG0 = <code>0x23200000</code></strong> ✅ (the MAME value; henry's RTL default is <code>0x3f200000</code> = 128 MB,
+see the top of this page):
 - Bits <code>[31:16]</code> = <code>0x2320</code> → high-half bank (bank 0): BASE0 = <code>0x20</code>, MSIZE0 = <code>0b00011</code>, VLD0 = 1, BNK0 = 0.
 - Bits <code>[15:0]</code> = <code>0x0000</code> → low-half bank (bank 2): VLD2 = 0 (absent).
 - BASE0 <code>0x20</code> → base phys = <code>0x20 &lt;&lt; 22 = 0x08000000</code> ✅ (start of Low Local Memory).
@@ -1859,7 +2074,9 @@ address ⇒ bus-error interrupt and the access does not complete.</p>
 <ul>
 <li><strong>Refresh / CTRLD / REF_CTR:</strong> CTRLD (reset <code>0x0C30</code>) is the preload for a down-counter clocked at the CPU rate
   (20 ns @ 50 MHz); on reaching 0 it reloads from CTRLD and issues a refresh burst. REF_CTR returns the live
-  16-bit count. <strong>REF_CTR must advance</strong> between reads — the kernel busy-loops on it for clock calibration.</li>
+  16-bit count. <strong>REF_CTR must advance</strong> between reads — the kernel busy-loops on it for clock calibration.
+  ⚠️ henry does <strong>not</strong> model CTRLD or REF_CTR (both read 0), and IRIX and Linux still boot on henry. Treat
+  the "must advance" claim as unconfirmed for the paths henry exercises.</li>
 <li><strong>Watchdog (CPUCTRL0.DOG / DOGC / DOGR):</strong> 20-bit counter counting refresh bursts (~64 µs each ⇒ rollover
   ~67 s). Enabled by CPUCTRL0.DOG; rollover to 0 resets the machine. Writing DOGR (any data) clears it; software
   must pet it at least every ~60 s. Off at reset.</li>
@@ -1874,11 +2091,18 @@ address ⇒ bus-error interrupt and the access does not complete.</p>
   storage for Henry (no real multi-master arbitration needed on a uniprocessor headless build).</li>
 </ul>
 <h2 id="minimum-for-a-henry-irix-boot">Minimum for a Henry IRIX boot<a class="headerlink" href="#minimum-for-a-henry-irix-boot" title="Permanent link">&para;</a></h2>
+<p>The list below is the original MAME-derived plan. What henry actually ships is the table at the top of this
+page:</p>
+<ul>
+<li>REF_CTR, CTRLD and the error registers read 0.</li>
+<li>CPUCTRL0 has no side effects.</li>
+<li>MEMCFG is not used to route DRAM.</li>
+</ul>
 <p>Must-implement subset (everything else can be inert storage that reads back what was written):</p>
 <ol>
 <li><strong>CPUCTRL0</strong> (<code>0x00</code>/+4) — R/W; honor LITTLE=0 (BE); reset value with REFS=2, RFE=1; the <code>0xbfa00004</code>
    uncached reads must return the stored CPUCTRL0. → verify: kernel's clock-calibration read loop doesn't hang.</li>
-<li><strong>SYSID</strong> (<code>0x18</code>/+4) — R; return CHIP_REV in <code>[3:0]</code>, <strong>EISA bit <code>[4]</code> = 0</strong> (Indy has no EISA). → verify:
+<li><strong>SYSID</strong> (<code>0x18</code>/+4) — R; return CHIP_REV in <code>[3:0]</code> and the EISA bit in <code>[4]</code>. henry returns <code>0x13</code> (EISA = 1, as MAME's Indy config does), not the "EISA = 0" this plan originally assumed. → verify:
    IRIX MC-identification probe passes.</li>
 <li><strong>CTRLD + REF_CTR</strong> (<code>0x40</code>,<code>0x48</code>) — REF_CTR must advance; CTRLD R/W storage. → verify: refresh-calibration
    loop terminates.</li>
@@ -1916,8 +2140,8 @@ address ⇒ bus-error interrupt and the access does not complete.</p>
 <tr>
 <td><code>0xbfa0001c</code></td>
 <td>SYSID</td>
-<td><code>[3:0]</code>=CHIP_REV (RevA=0/RevB=1), <code>[4]</code>=0</td>
-<td>EISA absent ⇒ Indy</td>
+<td><code>[3:0]</code>=CHIP_REV, <code>[4]</code>=EISA</td>
+<td>henry (and MAME) return <code>0x13</code>: rev 3, EISA bit set</td>
 </tr>
 <tr>
 <td><code>0xbfa00004</code></td>
@@ -1932,10 +2156,10 @@ address ⇒ bus-error interrupt and the access does not complete.</p>
 <td>refresh preload</td>
 </tr>
 <tr>
-<td><code>0x1fa01000</code></td>
-<td>RPSS_CTR</td>
+<td><code>0x1fa01004</code></td>
+<td>RPSS_CTR (BE)</td>
 <td>monotonically increasing</td>
-<td>+1 per 100 ns</td>
+<td>+1 per 100 ns (henry: core clock ÷ 10)</td>
 </tr>
 </tbody>
 </table>

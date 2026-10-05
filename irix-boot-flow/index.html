@@ -319,7 +319,7 @@
     
   
   
-    <span class="md-status md-status--draft (functional-sim validated, MAME-corroborated)"></span>
+    <span class="md-status md-status--draft (functional-sim validated, MAME-corroborated; Henry-RTL notes added 2026-10-04 against henry 209e6f6)"></span>
   
 
   
@@ -414,7 +414,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; Henry FSBL section checked 2026-10-04 against r9999/arcs/henry_arcs.S @ 5c89b70)"></span>
   
 
   
@@ -448,7 +448,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; Henry FSBL/console re-checked 2026-10-04 against henry 209e6f6 / r9999 5c89b70)"></span>
   
 
   
@@ -482,7 +482,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated; silicon-refined 2026-07 — see the hidden-L2 DMA section)"></span>
+    <span class="md-status md-status--draft (MAME-validated; silicon-refined 2026-07; RTL state re-checked 2026-10-04 against r9999 5c89b70)"></span>
   
 
   
@@ -534,6 +534,10 @@
   
     
     
+      
+        
+      
+        
       
         
       
@@ -616,7 +620,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -651,7 +655,42 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../peripherals/scc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SCC (Z85C30 console)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (silicon-validated; audited 2026-10-04 against henry main @209e6f6)"></span>
   
 
   
@@ -686,9 +725,37 @@
     
   
   
-    <span class="md-status md-status--draft (MAME + live-IRIX-trace validated)"></span>
+    <span class="md-status md-status--draft (MAME + live-IRIX-trace validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../peripherals/scsi_disk_theory_of_operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SCSI disk theory of operation
+  
+
+    
+  </span>
+  
   
 
       </a>
@@ -721,7 +788,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -791,7 +858,7 @@
     
   
   
-    <span class="md-status md-status--draft"></span>
+    <span class="md-status md-status--draft (henry status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -1519,6 +1586,33 @@
   
 
     
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../fpga_stats/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FPGA build stats
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
   </ul>
 </nav>
                   </div>
@@ -2010,8 +2104,8 @@
 <h2 id="phase-5-cpu-frequency-timing-calibration">Phase 5 — CPU frequency &amp; timing calibration<a class="headerlink" href="#phase-5-cpu-frequency-timing-calibration" title="Permanent link">&para;</a></h2>
 <p>IRIX measures the CPU clock rather than trusting a constant. <strong><code>findcpufreq_raw</code></strong> times a fixed loop, and <strong><code>_cpuclkper100ticks</code></strong> calibrates CPU cycles against the IOC <strong>8254 PIT</strong> (counter 2 @ <code>0x1fbd98b0</code>), busy-polling the timer down to zero while sampling CP0 <code>Count</code>. <strong><code>is_ioc1</code></strong> / <strong><code>is_fullhouse</code></strong> here read the MC/IOC registers to confirm the board class.</p>
 <div class="admonition note">
-<p class="admonition-title">Headless-platform note</p>
-<p>Neither the r9999 RTL sim nor <code>interp_mips</code> model the PIT, so this loop runs once and yields a garbage clock — <em>harmless</em>; the boot proceeds. MAME (which has a PIT) loops it 641×.</p>
+<p class="admonition-title">Henry note (updated 2026-10)</p>
+<p>When this trace was taken, neither the r9999 RTL sim nor <code>interp_mips</code> modeled the PIT, so this loop ran once and produced a garbage clock (harmless; MAME, which has a PIT, loops it 641×). Both now model <strong>i8254 counter 2</strong> at the real <strong>1 MHz</strong> rate: <code>rtl/ioc.sv</code> (<code>PIT_DIV=100</code> at the 100 MHz core clock; <code>PIT_DIV=2</code> under Verilator to shorten the calibration) and <code>interp_mips/sgi_hpc.cc</code>. Counter 2 raises no interrupt, and the IRIX/Linux tick comes from CP0 Count/Compare. <code>ioc.sv</code> also models counter 0 as a periodic INT3 Timer0 source, which neither kernel uses for its tick.</p>
 </div>
 <h2 id="phase-6-pdas-locks-exception-vectors">Phase 6 — PDAs, locks &amp; exception vectors<a class="headerlink" href="#phase-6-pdas-locks-exception-vectors" title="Permanent link">&para;</a></h2>
 <p><strong><code>initmasterpda</code> / <code>alloc_cpupda</code></strong> finish the boot CPU's PDA; the lock primitives (<code>init_mutex</code>, <code>mrlock_init</code>, <code>spinlock_init</code>, <code>init_sema</code>) come online; and <strong><code>_hook_exceptions</code></strong> installs the real exception/interrupt vectors — general (<code>0x180</code>), TLB-refill (<code>0x000</code>), XTLB (<code>0x080</code>), cache-error. From here the CPU can take and service faults properly. <code>delay_calibrate</code> / <code>_ticksper1024inst</code> finalize the busy-wait constant from the measured frequency.</p>
@@ -2035,7 +2129,7 @@
 <p>Cache maintenance (<code>cache_operation</code>, <code>clean_dcache</code>/<code>clean_icache</code> and their refill helpers) and the kernel <strong>timer</strong> subsystem (<code>ktimer_init</code>) initialize. Then the <strong>console</strong> is chosen: <strong><code>cn_init</code> → <code>gfx_earlyinit</code> → <code>tp_dogui</code></strong> decides graphical vs serial, and the framebuffer family is probed — <code>gr2_earlyinit</code> (absent), then <strong><code>ng1_earlyinit</code> → <code>newportProbe</code></strong>. <code>badaddr</code> is the safe "does hardware respond?" probe (read with the bus-error handler armed). On success <strong><code>newportInit</code> → <code>newportInitInfo</code> → <code>initNg1Cursor</code></strong> bring the Newport up (<a href="../graphics/"><code>graphics/index.md</code></a>).</p>
 <div class="admonition warning">
 <p class="admonition-title">Henry/RTL gotcha</p>
-<p>Henry's <strong><code>newportProbe</code> returns 0</strong> (no board) where MAME's returns nonzero — IRIX doesn't detect the Newport. First <em>permanent</em> RTL-vs-MAME divergence; real but separate from the Phase-9 blocker (MAME_QUESTIONS Q6 round-2).</p>
+<p>Henry's <strong><code>newportProbe</code> returns 0</strong> (no board) where MAME's returns nonzero — IRIX doesn't detect the Newport. First <em>permanent</em> RTL-vs-MAME divergence; real but separate from the Phase-9 blocker (MAME_QUESTIONS Q6 round-2). Note that Henry has no graphics model and <strong>raises no bus errors</strong> here. <code>henry_soc.sv</code> decodes only MC, HPC3 and IOC2; the graphics/GIO windows (<code>0x1f000000–0x1f9fffff</code>) go to the AXI memory port, which maps them onto a 16 MB DRAM window. So <code>badaddr</code> probes there succeed and read DRAM contents rather than faulting.</p>
 </div>
 <h2 id="phase-12-hardware-settle-delay">Phase 12 — Hardware-settle delay<a class="headerlink" href="#phase-12-hardware-settle-delay" title="Permanent link">&para;</a></h2>
 <p><strong><code>initNg1Cursor</code></strong> issues a <strong><code>us_delay</code></strong> for the Newport cursor hardware to settle, which spins in <strong><code>delayloop</code></strong> — and that single busy-wait consumes the remaining <strong>10.9 million instructions</strong> of this capture. Beyond here (not in this trace) lies the rest of <code>main()</code>: process 0, the scheduler, <code>init</code>, and root-filesystem mount.</p>
@@ -2121,7 +2215,7 @@
 <li><strong>Symbol attribution.</strong> PCs are mapped to the nearest preceding <code>nm</code> text symbol, so a few instructions attributed to a function are really unnamed static helpers placed after it in the binary. The clearest example: a printf/<code>cmn_err</code>-family helper sits just after <code>panic()</code> and gets counted as <strong><code>panic</code></strong> (9,380 instrs) — but the literal <code>panic</code> entry (<code>0x8815bf2c</code>) executes <strong>0 times</strong>. No panic occurs in this boot.</li>
 <li><strong>Trace extent.</strong> 14M instructions reaches the Newport probe, then a 10.9M-instruction <code>us_delay</code>/<code>delayloop</code> runs out the capture. The scheduler, <code>init</code>, and rootfs mount are past the window.</li>
 <li><strong>It's an oracle, not a model.</strong> This is MAME's R4600 path. Where Henry or the r9999 RTL diverge from it, that divergence <em>is</em> the bug — the warnings above flag the ones we've already chased through <a href="https://github.com/dsheffie/r9999">MAME_QUESTIONS.md</a>.</li>
-<li><strong>Delay loops &amp; timers.</strong> MAME models the IOC 8254 PIT; the headless r9999 sim does not, so timing-calibration loops (<code>_cpuclkper100ticks</code>, <code>findcpufreq_raw</code>, <code>delayloop</code> counts) differ harmlessly between them.</li>
+<li><strong>Delay loops &amp; timers.</strong> MAME models the IOC 8254 PIT. Henry's RTL now models PIT counter 2 too (see Phase 5), but the Verilator build runs it fast (<code>PIT_DIV=2</code>). So timing-calibration loops (<code>_cpuclkper100ticks</code>, <code>findcpufreq_raw</code>, <code>delayloop</code> counts) still differ harmlessly between MAME, RTL sim and silicon.</li>
 </ul>
 <hr />
 <h2 id="appendix-a-every-executed-function-by-phase">Appendix A — Every executed function, by phase<a class="headerlink" href="#appendix-a-every-executed-function-by-phase" title="Permanent link">&para;</a></h2>

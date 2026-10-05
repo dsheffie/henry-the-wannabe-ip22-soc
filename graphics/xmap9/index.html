@@ -319,7 +319,7 @@
     
   
   
-    <span class="md-status md-status--draft (functional-sim validated, MAME-corroborated)"></span>
+    <span class="md-status md-status--draft (functional-sim validated, MAME-corroborated; Henry-RTL notes added 2026-10-04 against henry 209e6f6)"></span>
   
 
   
@@ -414,7 +414,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; Henry FSBL section checked 2026-10-04 against r9999/arcs/henry_arcs.S @ 5c89b70)"></span>
   
 
   
@@ -448,7 +448,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; Henry FSBL/console re-checked 2026-10-04 against henry 209e6f6 / r9999 5c89b70)"></span>
   
 
   
@@ -482,7 +482,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated; silicon-refined 2026-07 — see the hidden-L2 DMA section)"></span>
+    <span class="md-status md-status--draft (MAME-validated; silicon-refined 2026-07; RTL state re-checked 2026-10-04 against r9999 5c89b70)"></span>
   
 
   
@@ -534,6 +534,10 @@
   
     
     
+      
+        
+      
+        
       
         
       
@@ -616,7 +620,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -651,7 +655,42 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../peripherals/scc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SCC (Z85C30 console)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (silicon-validated; audited 2026-10-04 against henry main @209e6f6)"></span>
   
 
   
@@ -686,9 +725,37 @@
     
   
   
-    <span class="md-status md-status--draft (MAME + live-IRIX-trace validated)"></span>
+    <span class="md-status md-status--draft (MAME + live-IRIX-trace validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../peripherals/scsi_disk_theory_of_operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SCSI disk theory of operation
+  
+
+    
+  </span>
+  
   
 
       </a>
@@ -721,7 +788,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -791,7 +858,7 @@
     
   
   
-    <span class="md-status md-status--draft"></span>
+    <span class="md-status md-status--draft (henry status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -1247,6 +1314,33 @@
   
 
     
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fpga_stats/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FPGA build stats
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
   </ul>
 </nav>
                   </div>
@@ -1347,10 +1441,11 @@
 
 <h1 id="xmap9-colormap-pixel-mapping-henrynewport-block-spec">XMAP9 — Colormap / Pixel Mapping (Henry/Newport block spec)<a class="headerlink" href="#xmap9-colormap-pixel-mapping-henrynewport-block-spec" title="Permanent link">&para;</a></h1>
 <blockquote>
-<p>Intro: XMAP9 takes framebuffer (RB2) pixel values and maps them through color-map / pixel-mode logic toward
-the RO1 DAC. Programmed via REX3's DCB. NOT needed for headless Henry. This is the backend of the Newport
-graphics subsystem: it picks which "plane" (pixel / overlay / underlay / cursor / pop-up / video) is visible at
-each pixel, formats it into a CMAP address or 24-bit RGB, and steers the result to the CMAP and the RO1 DAC.</p>
+<p>Intro: XMAP9 takes framebuffer pixel values (read out of VRAM by the RO1 reorganizers) and maps them through
+pixel-mode logic toward the CMAP and RAMDAC. Programmed via REX3's DCB. <strong>Not implemented in Henry</strong> (no
+Newport logic in the RTL). This is the backend of the Newport graphics subsystem: it picks which "plane"
+(pixel / overlay / underlay / cursor / pop-up / video) is visible at each pixel, formats it into a CMAP address
+or 24-bit RGB, and sends the result to the CMAP, whose output drives the RAMDAC.</p>
 </blockquote>
 <p>XMAP9 is an LSI Logic 1.0 µm CMOS gate array (part 099-8913-001, L1A7726, 208 PQFP, ~19K gates), running at
 half the pixel clock (70 MHz for a 1280×1024 @ 76 Hz screen). Newport uses <strong>two</strong> XMAP9s — one on the even
@@ -1366,7 +1461,7 @@ modes, plus double buffering for the 4- and 12-bit modes.</p>
     VC2["VC2"] -.-&gt;|"DID / cursor / blank"| XMAP9
     XMAP9 --&gt;|"Pix_Out (24b) + Pix_Tag"| CMAP["CMAP"]
     CMAP --&gt;|"CMAP_RGB (24b)"| XMAP9
-    CMAP --&gt; OUT["RO1 / RAMDAC"] --&gt; RGB([R/G/B])
+    CMAP --&gt; OUT["RAMDAC"] --&gt; RGB([R/G/B])
     XMAP9 &lt;--&gt;|bidir| VEB["Video Expansion Board"]</code></pre>
 <ul>
 <li><strong>Inputs:</strong> <code>Pix_In[23:0]</code> (interleaved pixel data from RO1; in 8-bit systems bits 23:8 are ignored),
@@ -1380,7 +1475,7 @@ modes, plus double buffering for the 4- and 12-bit modes.</p>
   optional Express Video board (<code>Vid0_*</code>, <code>Vid1_*</code>, two channels at pixel-clock/4, bidirectional in Express mode).</li>
 </ul>
 <p>Internally (Fig 2 / §5) the chip is a pipeline: <strong>Mode Register Table</strong> (32 entries × 24-bit control words,
-indexed by <code>VC_DID</code>+<code>VC_Cur</code>) → <strong>Zero Detect</strong> → <strong>Pixel Format</strong> (reformats each plane into a CI address or
+indexed by the 5-bit <code>VC_DID</code>) → <strong>Zero Detect</strong> → <strong>Pixel Format</strong> (reformats each plane into a CI address or
 duplicates bits up to 24-bit RGB) → <strong>Pixel Select1</strong> (the plane-priority decision tree, §3.3) → <strong>Pixel
 Select2</strong> (the actual mux, drives <code>Pix_Tag</code>). A parallel <strong>Video Select</strong> block handles the graphics→video path.
 Per-window behaviour lives entirely in the mode word selected by that window's DID; global state lives in the
@@ -1478,8 +1573,10 @@ constant 33 MHz. Both XMAP9s share one <code>DCB_CS_Both_N</code> strobe. All re
 <li>bit 0 — Pop-Up enable (0 = off → the 2 pup bits become aux bits; 1 = on)</li>
 </ul>
 <p><strong>The CMAP</strong> is an external 8K-entry (13-bit address) color map (separate Vitelic part, see CMAP spec). XMAP9
-does not contain colormap RAM — it only <em>forms the address</em>. In CI mode the upper 11 bits come from the mode
-register's <code>MSB_CMAP[4:0]</code> (and per-plane MSB registers), the lower bits from pixel data. In RGB mode <code>Pix_Tag</code>
+does not contain colormap RAM — it only <em>forms the address</em>. In CI mode only the low 13 bits of <code>Pix_Out</code> are
+used (the CMAP ignores <code>Pix_Out[23:13]</code>); the top bits of that 13-bit address come from the mode word's
+<code>MSB_CMAP[4:0]</code> (e.g. 5 bits for 8-bit CI, 1 bit for 12-bit CI) — or from the Cursor / Pop-Up MSB registers for
+those planes — and the rest from pixel data. In RGB mode <code>Pix_Tag</code>
 selects one of three hardcoded 256×24 RGB maps inside the CMAP, addressed as <code>{11101|11110|11111, 8-bit color}</code>,
 applied per color channel.</p>
 <h2 id="programming-model">Programming model<a class="headerlink" href="#programming-model" title="Permanent link">&para;</a></h2>
@@ -1487,7 +1584,7 @@ applied per color channel.</p>
 registers above.</p>
 <ul>
 <li><strong>Mode words (the colormap/pixel-mode "program").</strong> 32 entries, one 24-bit control word each, indexed by a
-  window's <code>{VC_DID, VC_Cur}</code>. A write delivers 4 bytes over the DCB in one atomic op — <code>{5-bit entry addr,
+  window's 5-bit display ID (<code>VC_DID</code>). A write delivers 4 bytes over the DCB in one atomic op — <code>{5-bit entry addr,
   byte0, byte1, byte2}</code> (byte0 = bits 23:16, big-endian) — and lands in a FIFO that is <strong>only drained into the
   mode RAM during blanking</strong> (<code>VC_C_Blank_N</code> low), so the visible screen never tears. The host must not overrun
   the FIFO: poll the grey-coded <em>FIFO Entries Available</em> register (CRS 2), or pace writes to the
@@ -1577,15 +1674,19 @@ registers above.</p>
 </ul>
 <h2 id="henry-relevance">Henry relevance<a class="headerlink" href="#henry-relevance" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>Headless Henry: n/a.</strong> Henry has no framebuffer and bus-errors all GIO64 graphics-slot accesses (see
-  <code>peripherals/gio64.md</code>), so REX3/XMAP9/CMAP/RO1 never exist on the bus and IRIX skips the graphics console.
-  None of this block is needed to boot.</li>
+<li><strong>Status: not implemented.</strong> Henry has no framebuffer and models none of REX3/XMAP9/CMAP/RO1. Accesses to
+  the Newport aperture are not decoded as a device and fall through to plain DRAM (they do not bus-error; see
+  <a href="../#henry-relevance">the overview</a>). Henry boots headless on the serial console; none of this block is
+  needed to boot.</li>
 <li><strong>Future graphics console.</strong> A real display would require the whole Newport backend, not just XMAP9: REX3 (the
   rendering engine + DCB master), the RB2/VRAM framebuffer, RO1 (VRAM reorg → pixel stream), VC2 (timing, DID,
   cursor), the external CMAP, and the RAMDAC. XMAP9's job in that chain is purely the colormap-address / plane-mux
-  formatting described here. For a minimal headless-with-text-console intermediate, none of the per-window mode
-  machinery is required — but there is no partial XMAP9: it sits inline on every displayed pixel. Treat this doc
-  as a reference for <em>when</em> a framebuffer is added, not a near-term implementation target.</li>
+  formatting described here. There is no partial XMAP9 in hardware — it sits inline on every displayed pixel —
+  but the 2026-10-02 feasibility study (<code>NEWPORT_FEASIBILITY.md</code>, study only) proposes no XMAP9 hardware at all:
+  the driver's DCB writes to XMAP9 (mode table, MSB registers) would be replayed into an ARM-side software model,
+  and software scanout would apply the per-DID mode words and CMAP lookup. The PL would only answer the reads the
+  driver polls (e.g. a constant "FIFO entries available"). Treat this doc as a reference for <em>when</em> a display
+  path is added, not a near-term implementation target.</li>
 </ul>
 <h2 id="sources">Sources<a class="headerlink" href="#sources" title="Permanent link">&para;</a></h2>
 <ul>

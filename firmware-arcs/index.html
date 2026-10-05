@@ -319,7 +319,7 @@
     
   
   
-    <span class="md-status md-status--draft (functional-sim validated, MAME-corroborated)"></span>
+    <span class="md-status md-status--draft (functional-sim validated, MAME-corroborated; Henry-RTL notes added 2026-10-04 against henry 209e6f6)"></span>
   
 
   
@@ -423,7 +423,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; Henry FSBL section checked 2026-10-04 against r9999/arcs/henry_arcs.S @ 5c89b70)"></span>
   
 
   
@@ -448,7 +448,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; Henry FSBL section checked 2026-10-04 against r9999/arcs/henry_arcs.S @ 5c89b70)"></span>
   
 
   
@@ -469,6 +469,17 @@
       Table of contents
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#henrys-fsbl-henry_arcs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Henry's FSBL (henry_arcs)
+      
+    </span>
+  </a>
+  
+</li>
       
         <li class="md-nav__item">
   <a href="#the-kernel-entry-handoff" class="md-nav__link">
@@ -607,7 +618,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; Henry FSBL/console re-checked 2026-10-04 against henry 209e6f6 / r9999 5c89b70)"></span>
   
 
   
@@ -641,7 +652,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated; silicon-refined 2026-07 — see the hidden-L2 DMA section)"></span>
+    <span class="md-status md-status--draft (MAME-validated; silicon-refined 2026-07; RTL state re-checked 2026-10-04 against r9999 5c89b70)"></span>
   
 
   
@@ -693,6 +704,10 @@
   
     
     
+      
+        
+      
+        
       
         
       
@@ -775,7 +790,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -810,7 +825,42 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../peripherals/scc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SCC (Z85C30 console)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (silicon-validated; audited 2026-10-04 against henry main @209e6f6)"></span>
   
 
   
@@ -845,9 +895,37 @@
     
   
   
-    <span class="md-status md-status--draft (MAME + live-IRIX-trace validated)"></span>
+    <span class="md-status md-status--draft (MAME + live-IRIX-trace validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../peripherals/scsi_disk_theory_of_operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SCSI disk theory of operation
+  
+
+    
+  </span>
+  
   
 
       </a>
@@ -880,7 +958,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -950,7 +1028,7 @@
     
   
   
-    <span class="md-status md-status--draft"></span>
+    <span class="md-status md-status--draft (henry status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -1295,6 +1373,33 @@
   
 
     
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../fpga_stats/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FPGA build stats
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
   </ul>
 </nav>
                   </div>
@@ -1320,6 +1425,17 @@
       Table of contents
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#henrys-fsbl-henry_arcs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Henry's FSBL (henry_arcs)
+      
+    </span>
+  </a>
+  
+</li>
       
         <li class="md-nav__item">
   <a href="#the-kernel-entry-handoff" class="md-nav__link">
@@ -1455,6 +1571,78 @@ kernel read RAM geometry straight from the MC. Everything below is big-endian (S
 Legend: ✅ confirmed in MAME, ⚠️ correction vs an earlier assumption.</p>
 </blockquote>
 <hr />
+<h2 id="henrys-fsbl-henry_arcs">Henry's FSBL (<code>henry_arcs</code>)<a class="headerlink" href="#henrys-fsbl-henry_arcs" title="Permanent link">&para;</a></h2>
+<p>What Henry actually ships is <strong>one</strong> first-stage boot loader, <code>r9999/arcs/henry_arcs.S</code> (built to
+<code>henry_arcs.bin</code> by <code>r9999/arcs/Makefile</code>), that boots <strong>both IP22 Linux and IRIX</strong>. It replaces the
+older stub-style <code>arcs_irix.S</code> / <code>arcs_fw.S</code>. The host loads it at the PROM, physical <code>0x1fc00000</code>
+(<code>henry_tb --arcs</code>, default address; the ARM driver on the FPGA), loads the kernel ELF into DRAM, and
+patches the kernel entry into the word at <strong><code>0xBFC00008</code></strong> (<code>arcs_kentry_slot</code>, default <code>0x88005960</code>).
+The core resets to <code>0xBFC00000</code>, and the FSBL then:</p>
+<ol>
+<li><strong>Programs <code>MEMCFG0 = 0x3f203f40</code></strong> (2 × 128 MB banks = 256 MB), so IRIX <code>hinv</code> sees all of RAM.</li>
+<li><strong>Copies the SPB/romvec block</strong> from the PROM to kseg1 <code>0xA0001000</code> (phys <code>0x1000</code>; Henry's
+   low-512 KB System Memory Alias, <code>henry_soc.sv:544-597</code>, puts it in DRAM at <code>0x08001000</code>, below the
+   kernel <code>_text</code> at <code>0x08004000</code>).</li>
+<li>Prints the heartbeat <code>r9999 PROM: CPU alive, handing off to the kernel</code> over the SCC (polls RR0 at
+   <code>0xbfbd9830</code>, writes the data byte at <code>0xbfbd9837</code>).</li>
+<li>Writes the station MAC <code>08:00:69:12:34:56</code> into the ds1386 bbRAM at <code>0xbfbe04e8…</code> (one byte per word).
+   It then prints that and the NMC93CS56 EEPROM words 125–127 back as hex (a <code>TEMP DEBUG</code> block still in
+   the source).</li>
+<li>Copies the <code>argv</code>/<code>envp</code> blob (the MAME strings below) to kseg0 <code>0x88fff000</code>.</li>
+<li>Sets <code>a0 = 8</code>, <code>a1 = argv</code>, <code>a2 = envp</code>, zeroes <code>a3</code>, <code>v0</code>/<code>v1</code> and <code>t0</code>–<code>t9</code>, and <code>jr</code>s to the patched
+   entry. It does <strong>not</strong> write Status, <code>gp</code> or <code>sp</code>: the kernel starts with r9999's reset Status
+   (<code>ERL=1</code>, <code>BEV=1</code>, <code>CU0=1</code>, <code>FR=1</code>) and sets up its own <code>gp</code>/<code>sp</code>.</li>
+</ol>
+<p>Its romvec (in the copied SPB block) is small:</p>
+<table>
+<thead>
+<tr>
+<th>idx</th>
+<th>entry</th>
+<th>Henry's stub</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>3–6</td>
+<td>Halt / PowerDown / Restart / Reboot</td>
+<td>store to the magic-halt register <code>0xBFD00000</code>, then spin</td>
+</tr>
+<tr>
+<td>9</td>
+<td>GetPeer</td>
+<td>NULL</td>
+</tr>
+<tr>
+<td>10</td>
+<td>GetChild</td>
+<td>root component (<code>SGI-IP22</code>) for a NULL query, else NULL</td>
+</tr>
+<tr>
+<td>18</td>
+<td>GetMemoryDescriptor</td>
+<td>one FreeContiguous descriptor: base <code>0x08004000</code>, 128 MB − 16 KB (Linux uses it)</td>
+</tr>
+<tr>
+<td>27</td>
+<td>Write</td>
+<td>writes bytes to the CP0 reg-7 putchar console</td>
+</tr>
+<tr>
+<td>30</td>
+<td>GetEnvironmentVariable</td>
+<td>returns <code>"08:00:69:12:34:56"</code> for <strong>every</strong> name (<code>-DSINGLE_USER</code> build: a name starting with <code>i</code>, i.e. <code>initstate</code>, returns <code>"SINGLE"</code>)</td>
+</tr>
+<tr>
+<td>all others, incl. 34 FlushAllCaches</td>
+<td><code>stub_default</code>: return 0</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p>The SPB it plants matches the layout below except that <code>RestartBlock</code>, <code>GeneralException</code> and
+<code>UTLB-miss</code> are <strong>0</strong>, and the PrivateVector is 13 <code>stub_default</code> entries.</p>
+<hr />
 <h2 id="the-kernel-entry-handoff">The kernel entry handoff<a class="headerlink" href="#the-kernel-entry-handoff" title="Permanent link">&para;</a></h2>
 <p>Henry jumps to <code>/unix</code> <code>start</code> (entry <strong><code>0x88005960</code></strong>, kseg0) with:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>a0 = 0x00000008          ; argc = 8
@@ -1491,7 +1679,8 @@ first C routine <code>0x880255e8(a0,a1,a2,a3=0x880059b0)</code>. Everything else
 <a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>...      sw    a1 / sw a2            ; saves a1,a2 similarly
 <a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>880059a8 jal   0x880255e8           ; first C call with the saved boot args
 </code></pre></div>
-<p><strong>Henry leaves gp/sp = 0</strong>; the kernel sets them itself in the prologue. Do not try to pre-seed them.</p>
+<p>The kernel sets <code>gp</code>/<code>sp</code> itself in the prologue, so there is no need to pre-seed them (Henry's FSBL
+leaves them untouched).</p>
 <hr />
 <h2 id="the-spb-system-parameter-block-phys-0x1000">The SPB (System Parameter Block) @ phys <code>0x1000</code><a class="headerlink" href="#the-spb-system-parameter-block-phys-0x1000" title="Permanent link">&para;</a></h2>
 <p>The kernel finds <em>everything</em> through the SPB. Plant it verbatim at <strong>phys <code>0x1000</code></strong> (kseg1 <code>0xa0001000</code>,
@@ -1524,7 +1713,8 @@ reserved NULL slots (idx 8, 19) match the MAME dump exactly, confirming the layo
 the running kernel calls almost none of these</strong> — so most entries can be simple stubs that return cleanly. The one
 the kernel actually invokes is <strong>GetEnvironmentVariable (30)</strong>; the rest are sash-era. Addresses below are the real
 Indy PROM's (<code>indy_4610</code>) for reference — for Henry only the <strong>semantics</strong> and <strong>whether the kernel calls it</strong>
-matter. Mark which Henry must implement vs may stub:</p>
+matter. The right-hand column is the requirement derived from MAME; what Henry's FSBL actually installs is in
+<a href="#henrys-fsbl-henry_arcs">Henry's FSBL</a>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>idx  name                  PROM addr   caller   Henry
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a> 0   Load                  9fc31a8c    [s]      stub (sash-only loader)
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a> 1   Invoke                9fc31bd8    [s]      stub
@@ -1569,8 +1759,10 @@ value (NULL / ESUCCESS=0 / a static TIMEINFO/SYSTEMID). ⚠️ Do <strong>not</s
 walkers (GetChild/GetPeer/GetParent) must return NULL cleanly or a tiny <code>System→CPU→FPU</code> / <code>System→MemoryUnit</code>
 tree; a garbage COMPONENT pointer crashes early probing. ARCS status codes are POSIX-numbered (<code>ESUCCESS=0</code>).</p>
 <p>The kernel's single call is <code>GetEnvironmentVariable(a0=NULL)</code> — likely fetching the env-block base or an init
-probe (exact return semantics: open item). Implement it to walk the env block (next section) by name, returning a
-pointer to the value string (or NULL if absent).</p>
+probe (exact return semantics: open item). The general answer is to walk the env block (next section) by name and
+return a pointer to the value string (or NULL if absent). Henry's FSBL takes a shortcut: it returns the MAC string
+for every name. The <a href="../irix-boot-flow/#phase-3-mlreset-platform-reset-system-identity">boot-flow trace</a> shows the
+kernel's call coming from <code>init_sysid</code> → <code>arcs_getenv("eaddr")</code>, so the shortcut is enough.</p>
 <p><code>PrivateVector</code> (13 SGI extensions @ <code>0xa0001c00</code>) — semantics TBD; not observed called by the kernel. A table of
 NULLs is acceptable until something is found to need it.</p>
 <hr />
@@ -1622,9 +1814,9 @@ in <strong><code>peripherals/mc.md</code></strong> — implement those registers
   size from the MSIZE table (<code>0b01111</code>=16 MB, <code>0b11111</code>=32 MB, …), <code>VLD</code> valid bit, <code>BNK</code> sub-banks.</li>
 <li>Live golden values (16 MB Indy): <code>MEMCFG0=0x23200000</code> (hiBank base=0x20→<code>0x08000000</code>, MSIZE=0b00011=16 MB,
   VLD=1; loBank invalid), <code>MEMCFG1=0x00000000</code>, <code>CPU_MEMACC (0xd0)=0x11453433</code> (opaque DRAM timing — store/return).</li>
-<li>For Henry's DRAM (256 MB at <code>0x08000000</code>): set bank base <code>0x20</code>, widen MSIZE / add banks so the decoded
-  base+size cover <code>0x08000000–0x17ffffff</code> (the arcs FSBL programs these MEMCFG regs at POST → <code>hinv</code> reports
-  256 MB; a single bank can be up to 256 MB, and the values are programmable without a re-synth). Cross-check the
+<li>For Henry's DRAM (256 MB at <code>0x08000000</code>): the decoded base+size must cover <code>0x08000000–0x17ffffff</code>.
+  The <code>henry_arcs</code> FSBL writes <strong><code>MEMCFG0 = 0x3f203f40</code></strong> (two 128 MB banks) before handing off, so <code>hinv</code>
+  reports 256 MB. The registers are plain storage in <code>rtl/mc.sv</code>, so this needs no re-synth. Cross-check the
   decoded total against <code>physmem</code>/<code>maxmem</code>
   (<code>0x8832d1f0</code>/<code>0x8832d1f8</code>) after <code>szmem</code> runs, and against <code>_physmem_start = 0x08000000</code>.</li>
 </ul>
@@ -1643,7 +1835,7 @@ in <strong><code>peripherals/mc.md</code></strong> — implement those registers
    <code>OSLoad*</code>/<code>SystemPartition</code>/<code>root</code>.</li>
 <li><strong>Exception-vector area</strong> — page 0 is real RAM; alias phys <code>0x0</code>/<code>0x80</code> to <code>0x08000000</code>/<code>0x08000080</code> (MC low
    alias). SPB sits just above at <code>0x1000</code>. The kernel installs its own GE/UTLB handlers early.</li>
-<li><strong>Enter <code>start</code> (<code>0x88005960</code>) with <code>a0=8 (argc), a1=argv, a2=envp</code></strong> (see the ✅ 2026-06-15 correction above — the earlier <code>a1=a2=0</code> was wrong), a clean GPR file, gp/sp = 0 (kernel sets them).</li>
+<li><strong>Enter <code>start</code> (<code>0x88005960</code>) with <code>a0=8 (argc), a1=argv, a2=envp</code></strong> (see the ✅ 2026-06-15 correction above — the earlier <code>a1=a2=0</code> was wrong). A clean GPR file is fine, and gp/sp need no seeding (the kernel sets them).</li>
 </ol>
 <p><strong>Not needed:</strong> a live <code>GetMemoryDescriptor</code> (kernel reads MC MEMCFG — see above), live <code>GetTime</code> (kernel uses the
 CP0 Count/Compare timer for the scheduler tick), the config tree, or any file-I/O romvec entry (sash did all disk
@@ -1654,7 +1846,8 @@ I/O; Henry already loaded <code>/unix</code>).</p>
 <li>Decode the single kernel <code>GetEnvironmentVariable(a0=NULL)</code> call — exact name resolved / how the return is used
   (getenv-of-NULL to fetch the env-block base, vs an init probe). Determines how minimal idx-30 can be.</li>
 <li>Exact meaning of <code>a0=8</code> to <code>start</code> (minor — <code>start</code> saves it and boot succeeds regardless).</li>
-<li>Whether <code>FlushAllCaches</code> (idx 34) needs a real r9999 cache flush at the handoff or can be a no-op for direct boot.</li>
+<li>Whether <code>FlushAllCaches</code> (idx 34) needs a real r9999 cache flush at the handoff. Henry's FSBL makes it
+  a no-op (<code>stub_default</code>), and both kernels boot with that.</li>
 <li>Confirm no kernel-phase deref of <code>RestartBlock</code>/<code>PrivateVector</code> (so NULL/placeholder stays safe).</li>
 </ul>
 <hr />

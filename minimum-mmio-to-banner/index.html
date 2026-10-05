@@ -328,7 +328,7 @@
     
   
   
-    <span class="md-status md-status--draft (functional-sim validated, MAME-corroborated)"></span>
+    <span class="md-status md-status--draft (functional-sim validated, MAME-corroborated; Henry-RTL notes added 2026-10-04 against henry 209e6f6)"></span>
   
 
   
@@ -353,7 +353,7 @@
     
   
   
-    <span class="md-status md-status--draft (functional-sim validated, MAME-corroborated)"></span>
+    <span class="md-status md-status--draft (functional-sim validated, MAME-corroborated; Henry-RTL notes added 2026-10-04 against henry 209e6f6)"></span>
   
 
   
@@ -567,7 +567,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; Henry FSBL section checked 2026-10-04 against r9999/arcs/henry_arcs.S @ 5c89b70)"></span>
   
 
   
@@ -601,7 +601,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; Henry FSBL/console re-checked 2026-10-04 against henry 209e6f6 / r9999 5c89b70)"></span>
   
 
   
@@ -635,7 +635,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated; silicon-refined 2026-07 — see the hidden-L2 DMA section)"></span>
+    <span class="md-status md-status--draft (MAME-validated; silicon-refined 2026-07; RTL state re-checked 2026-10-04 against r9999 5c89b70)"></span>
   
 
   
@@ -687,6 +687,10 @@
   
     
     
+      
+        
+      
+        
       
         
       
@@ -769,7 +773,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -804,7 +808,42 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../peripherals/scc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SCC (Z85C30 console)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (silicon-validated; audited 2026-10-04 against henry main @209e6f6)"></span>
   
 
   
@@ -839,9 +878,37 @@
     
   
   
-    <span class="md-status md-status--draft (MAME + live-IRIX-trace validated)"></span>
+    <span class="md-status md-status--draft (MAME + live-IRIX-trace validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../peripherals/scsi_disk_theory_of_operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SCSI disk theory of operation
+  
+
+    
+  </span>
+  
   
 
       </a>
@@ -874,7 +941,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -944,7 +1011,7 @@
     
   
   
-    <span class="md-status md-status--draft"></span>
+    <span class="md-status md-status--draft (henry status audited 2026-10-04 against main @209e6f6)"></span>
   
 
   
@@ -1289,6 +1356,33 @@
   
 
     
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../fpga_stats/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FPGA build stats
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
   </ul>
 </nav>
                   </div>
@@ -1441,6 +1535,8 @@ per-block specs in <a href="../peripherals/mc/"><code>peripherals/</code></a>; e
 its own page.</p>
 <p>Legend: ✅ confirmed by a booting model · 🩹 must return a specific Indy constant the kernel branches on ·
 🗂 inert storage / write-absorb is enough.</p>
+<p><strong>Henry's RTL</strong> (<code>rtl/mc.sv</code>, <code>rtl/ioc.sv</code>, <code>rtl/hpc3.sv</code>) now implements all of this and more; the
+"Henry RTL" notes below flag where it differs from the minimal model.</p>
 </blockquote>
 <h2 id="what-the-banner-means">What "the banner" means<a class="headerlink" href="#what-the-banner-means" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>IRIX Release 6.5 IP22 Version 10070055 System V
@@ -1454,6 +1550,12 @@ wall (root-device mount). See <a href="../boot-and-console/">Boot sequence &amp;
 <p>All device MMIO lives in <strong>phys <code>0x1f000000</code>–<code>0x1fffffff</code></strong> (kseg1 <code>0xbf…</code>). Reads outside the blocks below
 return 0 (probed-empty); that is itself load-bearing (the kernel probes many empty GIO/PBUS slots and must
 read back 0).</p>
+<p><strong>Henry RTL:</strong> <code>henry_soc.sv:250-257</code> decodes only MC (<code>0x1fa00000–0x1fafffff</code>), HPC3
+(<code>0x1fb80000–0x1fbfffff</code>) and IOC2 (<code>0x1fbd9800–0x1fbd98ff</code>, carved out of HPC3). Anything else in the
+device range, including the graphics and GIO slot windows, goes to the AXI memory port. The M00 master maps
+it onto a 16 MB DRAM window that also holds the PROM, so those reads return DRAM contents (zero unless
+written), writes stick, and <strong>nothing bus-errors</strong> (the core ignores <code>mem_rsp_bad</code>; INT3 <code>buserr</code> is tied
+to 0). Inside HPC3, unmodeled registers read 0.</p>
 <table>
 <thead>
 <tr>
@@ -1534,7 +1636,7 @@ table offset and its <code>+4</code> alias.</p>
 <tr>
 <td><strong>serial EEPROM</strong> <code>0x1fa00034</code></td>
 <td>🩹 <strong>bit-banged</strong></td>
-<td>the PROM/kernel clock CS/CLK/DATA through this to read NVRAM (incl. the <code>eaddr</code>); a model must shift data out, not return a constant</td>
+<td>the PROM/kernel clock CS/CLK/DATA through this to read NVRAM (incl. the <code>eaddr</code>); a model must shift data out, not return a constant. <strong>Henry RTL:</strong> <code>mc.sv</code> returns a constant <code>0x10</code> (SDATAI high) at <code>+0x30</code>; the bit-banged NMC93CS56 the kernel reads the MAC from is modeled in HPC3 at <code>0x1fbb0008</code> (below)</td>
 </tr>
 <tr>
 <td><strong>RPSS counter</strong> <code>0x1fa01004</code></td>
@@ -1552,7 +1654,9 @@ table offset and its <code>+4</code> alias.</p>
 <p class="admonition-title">MEMCFG0 → memory size</p>
 <p><code>bank0 size = (MEMCFG0[28:24] + 1) × 4 MB</code>, <code>base = (MEMCFG0[23:16] &amp; 0xff) &lt;&lt; 22</code>. <code>0x23200000</code> →
 field <code>0x03</code> → <strong>16 MB</strong> @ <code>0x08000000</code>. The kernel reads this <strong>directly from the MC</strong>, not from ARCS
-<code>GetMemoryDescriptor</code>. (MAME <code>MAME_QUESTIONS.md</code> Q3/Q4.)</p>
+<code>GetMemoryDescriptor</code>. (MAME <code>MAME_QUESTIONS.md</code> Q3/Q4.) <strong>Henry:</strong> the <code>henry_arcs</code> FSBL writes
+<code>MEMCFG0 = 0x3f203f40</code> (two 128 MB banks) before entering the kernel, and IRIX runs with 256 MB. The
+16 MB value is MAME's machine, not a requirement.</p>
 </div>
 <hr />
 <h2 id="ioc2-system-id-0x1fbd9858">IOC2 — System ID (<code>0x1fbd9858</code>)<a class="headerlink" href="#ioc2-system-id-0x1fbd9858" title="Permanent link">&para;</a></h2>
@@ -1570,7 +1674,8 @@ driver (it does <em>not</em> route console through ARCS — <code>arcs_write</co
 model is sufficient:</p>
 <ul>
 <li><strong>Control/status read (RR0)</strong> → always return <code>TX_EMPTY | ALL_SENT</code> (<code>0x04 | 0x40</code>) so the "ready to
-  transmit?" poll always succeeds.</li>
+  transmit?" poll always succeeds. (Henry RTL clears TX_EMPTY while its console FIFO is full, for
+  backpressure; see <a href="../peripherals/scc/">SCC</a>.)</li>
 <li><strong>Data write</strong> → emit the byte to the host console (stdout).</li>
 <li><strong>Data read</strong> → 0 (no Rx char); <strong>control writes</strong> (WR pointer/config) → ignored.</li>
 </ul>
@@ -1601,6 +1706,16 @@ writes and read back sanely</strong>:</p>
 <td><code>gio_misc</code></td>
 </tr>
 <tr>
+<td><code>0x30008</code></td>
+<td><code>0x1fbb0008</code></td>
+<td>NMC93CS56 serial EEPROM (bit-banged; Henry returns MAC <code>08:00:69:12:34:56</code> from words 125–127)</td>
+</tr>
+<tr>
+<td><code>0x60000</code>…</td>
+<td><code>0x1fbe0000</code>…</td>
+<td>ds1386 RTC + bbRAM (Henry: fixed BCD time; station MAC in bbRAM at <code>0x604e8</code>)</td>
+</tr>
+<tr>
 <td><code>0x00000</code>–<code>0x0ffff</code></td>
 <td>…</td>
 <td>PBUS DMA channel registers (storage)</td>
@@ -1617,7 +1732,7 @@ writes and read back sanely</strong>:</p>
 </tr>
 </tbody>
 </table>
-<p>The <strong>WD33C93 SCSI</strong> engine lives at offset <code>0x40000</code> (phys <code>0x1fc0000</code>) — a write-absorbing stub gets you to
+<p>The <strong>WD33C93 SCSI</strong> engine lives at offset <code>0x40000</code> (phys <code>0x1fbc0000</code>) — a write-absorbing stub gets you to
 the banner, but <strong>real SCSI behavior is the next wall</strong> ("pbus configuration failed" / "Root device … not
 available"), which is <em>past</em> the banner. See <a href="../peripherals/hpc3/">hpc3.md</a>.</p>
 <hr />
@@ -1631,9 +1746,13 @@ misses these will still wall before the banner:</p>
   page-table refill takes a <strong>nested TLB miss inside the <code>0x80000000</code> refill handler</strong>; the <code>eret</code> must
   return to the <em>original</em> faulting instruction. Updating EPC mid-handler → eret resumes with <code>k0</code> clobbered
   → recursion → KPTEBASE panic. <strong>This was the last wall before the banner</strong> (interp_mips
-  <code>MAME_QUESTIONS.md</code> Q5 round-7) — the r9999 RTL must implement the same freeze.</li>
-<li><strong>PRId = <code>0x00002020</code> (R4600)</strong> and <strong>Config = <code>0x0002e4b3</code></strong> (16K I$/16K D$, 32-byte lines). <code>start</code>
-  branches on PRId's IMP field; Config drives <code>cachecolormask</code> (a wrong mask hangs <code>pagecoloralign</code>).</li>
+  <code>MAME_QUESTIONS.md</code> Q5 round-7). The r9999 RTL implements the same freeze: hardware writes EPC only
+  when <code>Status.EXL==0</code> (<code>exec.sv</code> <code>n_epc</code> mux, <code>core_wr_epc &amp; (r_sr_exl == 1'b0)</code>).</li>
+<li><strong>PRId and Config.</strong> The interp_mips run that first reached the banner used <strong>PRId = <code>0x00002020</code>
+  (R4600)</strong> and <strong>Config = <code>0x0002e4b3</code></strong> (16K I$/16K D$, 32-byte lines). <code>start</code> branches on PRId's IMP
+  field; Config drives <code>cachecolormask</code> (a wrong mask hangs <code>pagecoloralign</code>). <strong>Henry's RTL presents
+  PRId = <code>0x00000440</code> (R4400) and Config = <code>0x0002e4a3</code></strong>: the same cache sizes, but DB=0 advertises a
+  16-byte L1 line so IRIX's <code>dma_cache_inv</code> strides by r9999's real line size (<code>exec.sv</code> CP0 r16).</li>
 <li><strong>CP0 Count/Compare timer interrupt</strong> (IP[7]).</li>
 <li><strong>The sash→/unix handoff in RAM</strong>: ARCS SPB/romvec/env at phys <code>0x1000</code>, <strong>plus the <code>argc/argv/envp</code>
   arrays</strong> (<code>a0=argc, a1=argv, a2=envp</code> as kseg0 pointers). ⚠️ This <strong>corrects</strong> the older
@@ -1646,7 +1765,8 @@ misses these will still wall before the banner:</p>
 <ul>
 <li><strong>Newport graphics</strong> (REX3/VC2/XMAP9/RB2/RO1) — only for <code>console=g</code>; serial console skips it entirely.</li>
 <li><strong>GIO64 cards / VDMA / DMUX</strong> — probed-empty (read 0) is sufficient.</li>
-<li><strong>RTC (ds1386)</strong> — touched but not banner-critical.</li>
+<li><strong>RTC (ds1386)</strong> — touched but not banner-critical. (Henry models it anyway: <code>hpc3.sv</code> returns a fixed
+  BCD time so IRIX's <code>rtodc()</code> doesn't spin later.)</li>
 <li><strong>Working SCSI/DMA</strong> — first needed at root mount, after the banner.</li>
 </ul>
 <h2 id="sources-cross-refs">Sources &amp; cross-refs<a class="headerlink" href="#sources-cross-refs" title="Permanent link">&para;</a></h2>
