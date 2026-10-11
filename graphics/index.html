@@ -901,6 +901,8 @@
       
         
       
+        
+      
     
     
     
@@ -1137,6 +1139,41 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="irix-software/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How IRIX drives Newport (Xsgi, ng1, GL)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--reference (static reverse engineering of IRIX 6.5.22; nothing run on henry)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1337,6 +1374,9 @@
 <code>rtl/</code> or <code>ip_hdl/</code>, and Henry boots headless on the serial console. These pages are (a) a reference
 description of the SGI hardware, (b) Henry's implementation status (none), and (c) the future-work
 path for a Henry graphics console.</p>
+<p><strong>Software side:</strong> what IRIX's Xsgi, <code>ng1</code> kernel driver and GL libraries actually do to this
+hardware (store widths, polling, pixel DMA, context switch) is in
+<a href="irix-software/">How IRIX drives Newport</a>.</p>
 <p><strong>The Indy had two graphics options.</strong> This page covers <strong>XL / Newport</strong> (host geometry, raster-only).
 The other was <strong>Express / XZ</strong> — a hardware-geometry pipeline (SIMD Geometry Engines + a hyper-pipelined
 Raster Engine); see <a href="express-xz/">Express / XZ</a>. For a Henry graphics path, Newport is the far smaller

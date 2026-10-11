@@ -1,0 +1,2363 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A from-scratch SoC that impersonates the SGI Indy (IP22) well enough to boot IRIX, built around the r9999 MIPS core.">
+      
+      
+      
+      
+        <link rel="prev" href="../express-xz/">
+      
+      
+        <link rel="next" href="../../irix-boot-flow/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>How IRIX drives Newport (Xsgi, ng1 driver, GL) - Henry — the wannabe IP22 SoC</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="amber">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#how-irix-drives-newport-xsgi-the-ng1-kernel-driver-and-gl" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Henry — the wannabe IP22 SoC" class="md-header__button md-logo" aria-label="Henry — the wannabe IP22 SoC" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 4h12v1h3v2h-3v2h3v2h-3v2h3v2h-3v2h3v2h-3v1H6v-1H3v-2h3v-2H3v-2h3v-2H3V9h3V7H3V5h3zm5 11v3h1v-3zm2 0v3h1v-3zm2 0v3h1v-3z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Henry — the wannabe IP22 SoC
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              How IRIX drives Newport (Xsgi, ng1 driver, GL)
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="amber"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="teal" data-md-color-accent="amber"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Henry — the wannabe IP22 SoC" class="md-nav__button md-logo" aria-label="Henry — the wannabe IP22 SoC" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 4h12v1h3v2h-3v2h3v2h-3v2h3v2h-3v2h3v2h-3v1H6v-1H3v-2h3v-2H3v-2h3v-2H3V9h3V7H3V5h3zm5 11v3h1v-3zm2 0v3h1v-3zm2 0v3h1v-3z"/></svg>
+
+    </a>
+    Henry — the wannabe IP22 SoC
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../minimum-mmio-to-banner/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Minimum MMIO to boot banner
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (functional-sim validated, MAME-corroborated; Henry-RTL notes added 2026-10-04 against henry 209e6f6)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cpu-integration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CPU integration (r9999)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (MAME-validated)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../r9999-microarchitecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    r9999 microarchitecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../firmware-arcs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Firmware (ARCS shim)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (MAME-validated; Henry FSBL section checked 2026-10-04 against r9999/arcs/henry_arcs.S @ 5c89b70)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../boot-and-console/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Boot & console
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (MAME-validated; Henry FSBL/console re-checked 2026-10-04 against henry 209e6f6 / r9999 5c89b70)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../coherence-cache-tlb/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cache, coherence & TLB
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (MAME-validated; silicon-refined 2026-07; RTL state re-checked 2026-10-04 against r9999 5c89b70)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fpu-cop1/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FPU (COP1)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--implemented (MAME-validated workload)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Peripherals
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Peripherals
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../peripherals/mc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MC (memory controller)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../peripherals/ioc2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IOC2 (serial console)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../peripherals/scc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SCC (Z85C30 console)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (silicon-validated; audited 2026-10-04 against henry main @209e6f6)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../peripherals/hpc3/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    HPC3 (SCSI/enet/DMA, RTC)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (MAME + live-IRIX-trace validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../peripherals/scsi_disk_theory_of_operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SCSI disk theory of operation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../peripherals/gio64/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GIO64 (bus)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../peripherals/vdma/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VDMA (virtual DMA)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft / future-work (MAME-reference)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../peripherals/dmux1/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DMUX (data mux)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (henry status audited 2026-10-04 against main @209e6f6)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Graphics
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft / future-work"></span>
+  
+
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_11" id="__nav_11_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Graphics
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../rex3/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    REX3 (raster engine)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft / future-work"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../vc2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VC2 (video timing/cursor)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft / future-work"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../xmap9/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    XMAP9 (colormap)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft / future-work"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../rb2-ro1/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RB2 & RO1 (framebuffer/output)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft / future-work"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../express-xz/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Express / XZ (hardware geometry)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft / future-work"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How IRIX drives Newport (Xsgi, ng1, GL)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--reference (static reverse engineering of IRIX 6.5.22; nothing run on henry)"></span>
+  
+
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How IRIX drives Newport (Xsgi, ng1, GL)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--reference (static reverse engineering of IRIX 6.5.22; nothing run on henry)"></span>
+  
+
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#sources" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sources
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#1-who-touches-rex3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Who touches REX3
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-access-patterns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Access patterns
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. Access patterns">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#drawing-is-posted-stores-it-never-polls" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Drawing is posted stores; it never polls
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#per-primitive-access-density" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Per-primitive access density
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#store-widths-a-bridge-must-accept" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Store widths a bridge must accept
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-flow-control-the-fifo-full-interrupt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Flow control: the FIFO-full interrupt
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-pixel-dma-the-ng1dmaintr-hang" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Pixel DMA (the ng1dmaintr hang)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. Pixel DMA (the ng1dmaintr hang)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#which-calls-use-it-and-when" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Which calls use it, and when
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-kernel-does-ng1pixeldma-in-newport_dmao-then-mcdma-at-0x880cb7b4-in-unixclean" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the kernel does (Ng1PixelDma in newport_dma.o, then MCdma at 0x880cb7b4 in unix.clean)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-mc-graphics-dma-engine-behavioral-spec-for-a-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The MC graphics DMA engine (behavioral spec for a model)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-xwd-hung-under-qemu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why xwd hung under QEMU
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ways-around-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ways around it
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-graphics-context-switch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Graphics context switch
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-what-a-henry-implementation-must-provide" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. What a henry implementation must provide
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../irix-boot-flow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IRIX boot flow (annotated)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../methodology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Methodology (MAME oracle)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--stable"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fpga_stats/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FPGA build stats
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#sources" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sources
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#1-who-touches-rex3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Who touches REX3
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-access-patterns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Access patterns
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. Access patterns">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#drawing-is-posted-stores-it-never-polls" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Drawing is posted stores; it never polls
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#per-primitive-access-density" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Per-primitive access density
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#store-widths-a-bridge-must-accept" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Store widths a bridge must accept
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-flow-control-the-fifo-full-interrupt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Flow control: the FIFO-full interrupt
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-pixel-dma-the-ng1dmaintr-hang" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Pixel DMA (the ng1dmaintr hang)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. Pixel DMA (the ng1dmaintr hang)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#which-calls-use-it-and-when" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Which calls use it, and when
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-kernel-does-ng1pixeldma-in-newport_dmao-then-mcdma-at-0x880cb7b4-in-unixclean" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the kernel does (Ng1PixelDma in newport_dma.o, then MCdma at 0x880cb7b4 in unix.clean)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-mc-graphics-dma-engine-behavioral-spec-for-a-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The MC graphics DMA engine (behavioral spec for a model)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-xwd-hung-under-qemu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why xwd hung under QEMU
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ways-around-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ways around it
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-graphics-context-switch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Graphics context switch
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-what-a-henry-implementation-must-provide" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. What a henry implementation must provide
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="how-irix-drives-newport-xsgi-the-ng1-kernel-driver-and-gl">How IRIX drives Newport: Xsgi, the <code>ng1</code> kernel driver, and GL<a class="headerlink" href="#how-irix-drives-newport-xsgi-the-ng1-kernel-driver-and-gl" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p>Intro: this is the <strong>software</strong> side of the Newport pages. <a href="../rex3/">rex3.md</a> and its siblings describe
+the hardware; this page describes what IRIX 6.5.22 actually <em>does</em> to that hardware, from static reverse
+engineering of the shipped binaries. It is what a henry graphics path (or a QEMU/ISS model) has to satisfy.
+The henry design study that uses these numbers is <code>NEWPORT_FEASIBILITY.md</code> at the repo root.</p>
+<p><strong>Nothing here was run on henry.</strong> Facts marked <em>(inferred)</em> were not confirmed against a branch target or
+a running system.</p>
+</blockquote>
+<h2 id="sources">Sources<a class="headerlink" href="#sources" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Piece</th>
+<th>IRIX path</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>X server</td>
+<td><code>usr/gfx/arch/IP22NG1/Xsgi</code> (<code>Xsgi.hyper.rex3</code>)</td>
+<td>n32, REX3 DDX linked in statically, function names in dynsym</td>
+</tr>
+<tr>
+<td>XL X module</td>
+<td><code>usr/lib/X11/dyDDX/ng1.so</code></td>
+<td>Indigo2 XL (NEWPRESS) build</td>
+</tr>
+<tr>
+<td>Kernel driver</td>
+<td><code>usr/cpu/sysgen/IP22boot/ng1.a</code></td>
+<td><code>newport.o</code>, <code>newport_init.o</code>, <code>newport_retrace.o</code>, <code>newport_dma.o</code>, <code>corona_i2c.o</code>, <code>newport_tp.o</code>; unstripped, DWARF</td>
+</tr>
+<tr>
+<td>OpenGL</td>
+<td><code>usr/gfx/arch/IP22NG132/libGLcore.so</code></td>
+<td>n32, unstripped with debug info (<code>IP22NG1</code> = o32 MIPS-II build)</td>
+</tr>
+<tr>
+<td>IRIS GL</td>
+<td><code>usr/gfx/arch/IP22NG132/libgl.so</code></td>
+<td>n32, unstripped</td>
+</tr>
+<tr>
+<td>Header</td>
+<td><code>usr/include/sys/gfx.h</code></td>
+<td><code>GFX_*</code> ioctls</td>
+</tr>
+<tr>
+<td>Kernel</td>
+<td><code>unix.clean</code> (6.5.22f)</td>
+<td><code>MCdma</code> at <code>0x880cb7b4</code></td>
+</tr>
+</tbody>
+</table>
+<p>Extracted straight from the inst images (<code>/mnt/ssd/irixdist/m1/dist/*.sw</code>) with <code>/mnt/ssd/irixdist/x/idbx.py</code>,
+no loop mount. <strong>Everything is kept in <code>~/ip22-assets/newport_re/</code></strong>:
+- the binaries and their disassemblies (<code>*.dis</code>)
+- <code>xsgi.lab</code>: Xsgi disassembly labelled by function, and <code>fn.sh</code> to print one function from it
+- <code>ng1a/*.dis</code>: kernel driver disassembly, including <code>ng1a/pdma.txt</code> (the pixel-DMA path)
+- <code>mcdma.txt</code>: <code>MCdma</code> from <code>unix.clean</code></p>
+<h2 id="1-who-touches-rex3">1. Who touches REX3<a class="headerlink" href="#1-who-touches-rex3" title="Permanent link">&para;</a></h2>
+<p><strong>User space maps REX3 directly.</strong>
+- Xsgi opens <code>/dev/gfx</code> and attaches through the <code>GFX_*</code> ioctls (<code>GFX_ATTACH_BOARD</code> = 103, etc.) and the RRM
+  layer (<code>rrm*</code>).
+- <code>newportMapGfx</code> calls <code>v_mapsegment(..., 16 pages)</code>, mapping the REX3 window into the process.
+- From then on Xsgi, OpenGL and IRIS GL issue <strong>plain uncached loads and stores</strong> to REX3.</p>
+<p><strong>The kernel is only involved for:</strong>
+- FIFO-full flow control (section 3)
+- vertical retrace (buffer swaps, gamma, cursor, VC2/XMAP writes)
+- graphics context switches (section 5)
+- pixel DMA (section 4)</p>
+<h2 id="2-access-patterns">2. Access patterns<a class="headerlink" href="#2-access-patterns" title="Permanent link">&para;</a></h2>
+<h3 id="drawing-is-posted-stores-it-never-polls">Drawing is posted stores; it never polls<a class="headerlink" href="#drawing-is-posted-stores-it-never-polls" title="Permanent link">&para;</a></h3>
+<p>There is no FIFO-credit counting ("check every N writes") anywhere. Across all of Xsgi there are only <strong>120
+loads from STATUS/USTATUS</strong>, and they are only in:
+- init (<code>rex3InitHW</code> 48, <code>rex3Init</code> 12)
+- colormap/cursor DCB code (<code>rex3Store*Colors</code>, <code>rex3Install*Map</code>, <code>rex3DisplayCursor</code>)
+- <code>rex3ReadImage*</code></p>
+<p>The polls that do exist are a compiler-unrolled spin, <code>while (status &amp; bit);</code> unrolled six times:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>lw a4,4924(s0); andi a4,a4,0x8; beqz ...   (x6, then loop)
+</code></pre></div>
+- <code>0x8</code> = GFXBUSY, read via <strong>USTATUS</strong> (<code>0x133c</code>) from user code
+- <code>0x10</code> = BACKBUSY, read via <strong>STATUS</strong> (<code>0x1338</code>) from the kernel, always before a DCB access
+- user-level finish is <code>gl_finishasm</code> in libgl (<code>lw 4924; andi 0x8; bnez</code>)
+- in libGLcore, polls appear only in <code>__glNptRect</code>, copy/readpixels and accum setup</p>
+<blockquote>
+<p><strong>STATUS is read-to-clear, and the kernel reads it in ordinary polls,</strong> not just in the interrupt handler.
+A model must clear interrupt bits on any STATUS read.</p>
+</blockquote>
+<h3 id="per-primitive-access-density">Per-primitive access density<a class="headerlink" href="#per-primitive-access-density" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Primitive</th>
+<th>Setup stores</th>
+<th>Stores per item</th>
+<th>Reads</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Solid rect (<code>rex3DrawSolidRects</code>)</td>
+<td>4 (DRAWMODE1, DRAWMODE0=0x326, WRMASK, COLORI)</td>
+<td><strong>2 per rect</strong> (<code>sw 336</code> XYSTARTI, <code>sw 2388</code> XYENDI+GO)</td>
+<td>0</td>
+</tr>
+<tr>
+<td>Zero-width line (<code>rex3SolidZeroSeg</code>, <code>rex3LineSS</code>)</td>
+<td>—</td>
+<td>2 per segment</td>
+<td>0</td>
+</tr>
+<tr>
+<td>Text (P2C, 13-row font)</td>
+<td>—</td>
+<td>~2 + 13 per glyph pair, <strong>≈7–8 per character</strong></td>
+<td>0</td>
+</tr>
+<tr>
+<td>PutImage (PIO)</td>
+<td>DRAWMODE0/1, WRMASK, XYSTARTI/XYENDI</td>
+<td>1 <code>sw 2608</code> (HOSTRW0+GO) per 32-bit word</td>
+<td>0</td>
+</tr>
+<tr>
+<td>CopyArea (<code>rex3CopyRect</code>)</td>
+<td>XYSTARTI/XYENDI</td>
+<td><strong>1</strong> <code>sw 2324</code> (XYMOVE+GO); REX3 copies VRAM→VRAM internally</td>
+<td>0</td>
+</tr>
+<tr>
+<td>GL smooth triangle</td>
+<td>slopes, once per triangle</td>
+<td>~4–5 per scanline (3× <code>swc1</code> color, <code>sw 2392</code> XSTARTENDI+GO, YSTART on y-step)</td>
+<td>0</td>
+</tr>
+<tr>
+<td>GL line/point (n32)</td>
+<td>—</td>
+<td>2–4 <code>sd</code> per vertex</td>
+<td>0</td>
+</tr>
+<tr>
+<td>GetImage / ReadPixels (PIO)</td>
+<td>priming write + GFXBUSY spin</td>
+<td>—</td>
+<td><strong>1 uncached read per word</strong></td>
+</tr>
+<tr>
+<td>Context swap (kernel)</td>
+<td>—</td>
+<td>~50 writes</td>
+<td>~50 reads</td>
+</tr>
+</tbody>
+</table>
+<p>Notes:
+- <strong>Glyphs:</strong> one ZPATTERN+GO store (<code>sw 2068</code> = <code>0x814</code>) per glyph row; <code>rex3PolyGlyphBltP2C</code>/<code>P3C</code>/<code>P4C</code>/<code>P5C</code>
+  pack 2–5 glyphs side by side into one pattern word.
+- <strong>GetImage (PIO):</strong> DRAWMODE0=<code>0x45</code>, a dummy <code>0xdeadbeef</code> to HOSTRW0+GO to prime, spin on USTATUS GFXBUSY,
+  then each <code>lw 2608</code> returns one word and starts the next read. This is the one round-trip-bound path.
+- <strong>CopyArea</strong> is a cheap store that hides a large backend job (an xterm scroll is ~620K pixels of work).</p>
+<h3 id="store-widths-a-bridge-must-accept">Store widths a bridge must accept<a class="headerlink" href="#store-widths-a-bridge-must-accept" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Who</th>
+<th>Stores to REX3</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Xsgi</td>
+<td>32-bit <code>sw</code> only (no <code>sd</code>/<code>ld</code>); DCB accesses are narrow: <code>sh 578</code>, <code>sb</code>/<code>lbu 579</code> (DCBDATA0+2/+3), <code>sw</code> to DCBMODE (568)</td>
+</tr>
+<tr>
+<td>Kernel I²C/VC2</td>
+<td><code>lbu 579(rex3)</code></td>
+</tr>
+<tr>
+<td>n32 OpenGL (<code>libGLcore</code>)</td>
+<td><strong>64-bit <code>sd</code> on register pairs</strong>: <code>sd 312/320</code> (XSTARTF:YSTARTF, XENDF:YENDF), <code>sd 2360</code> (XYSTARTF pair + GO), <code>sd 512/520/528</code> (colour/slope pairs), <code>sd 2568/2584</code> (colour pairs + GO), <code>sd 2608</code> (HOSTRW0:1 + GO, two pixels per store, in <code>__glNptProcess*TexSpan_asm</code>)</td>
+</tr>
+<tr>
+<td>n32 OpenGL</td>
+<td><strong><code>swc1</code></strong> straight to colour registers (324 sites, e.g. <code>__glNptSmoothRGBSubTriangle</code>)</td>
+</tr>
+<tr>
+<td>n32 IRIS GL</td>
+<td><code>sd</code> in <code>__line_shade</code>, <code>_line2d</code>, <code>__pnt</code></td>
+</tr>
+<tr>
+<td>o32 (MIPS-II) builds</td>
+<td><code>sw</code> only</td>
+</tr>
+</tbody>
+</table>
+<p>So the path from the CPU to REX3 must handle <code>sw</code>, <code>sd</code>, <code>sh</code>, <code>sb</code>/<code>lbu</code>, and FP-unit stores (<code>swc1</code>).</p>
+<h2 id="3-flow-control-the-fifo-full-interrupt">3. Flow control: the FIFO-full interrupt<a class="headerlink" href="#3-flow-control-the-fifo-full-interrupt" title="Permanent link">&para;</a></h2>
+<ul>
+<li><code>initRex3</code> writes <code>rex3_config_default = 0x000230c2</code> to CONFIG: GIO64, BUSWIDTH=64, GFIFODEPTH=16, BFIFODEPTH=8.</li>
+<li><code>ng1_init</code> registers <code>ip24_newportInterrupt</code> (Indy) or <code>ip22_newportInterrupt</code> (Indigo2) with <code>setgiovector</code>.</li>
+<li>The handler reads STATUS (<code>0x1338</code>) and tests:</li>
+<li>VRINT <code>0x20</code> → <code>newportRetraceHandler</code></li>
+<li>VIDEOINT <code>0x40</code> → <code>ev1_interrupt</code></li>
+<li><code>0xc0000</code> BFIFO_INT | GFIFO_INT</li>
+<li>If INT2 local0 bit0 ("FIFO full") is pending and unmasked, it calls <strong><code>newportFIFO</code></strong>:</li>
+<li>mask the LIO bit, <code>flushbus</code></li>
+<li>if interrupted from user mode: <code>spl0</code>, <code>gfx_waitf_on</code></li>
+<li>spin on the <strong>LIO status byte</strong> (not REX3) with <code>us_delay(1)</code>, up to <code>0x1e8480</code> iterations (~2 s)</li>
+<li>on timeout: <code>cmn_err</code> + <code>ng1_error</code></li>
+<li>re-enable the mask</li>
+</ul>
+<p>So a writing process stalls inside the kernel ISR until the FIFO-full line drops; the line must deassert
+  level-sensitively as the FIFO drains.
+- <strong>The interrupt is optional in practice.</strong> <code>~/code/iris</code> (a Rust IRIX emulator, <code>src/rex3.rs</code>) uses a 64K-entry
+  software GFIFO and never raises FIFO-full, and still runs the IRIX GUI <em>(not run here)</em>. A model with a deep
+  queue that never overflows can omit it.</p>
+<h2 id="4-pixel-dma-the-ng1dmaintr-hang">4. Pixel DMA (the <code>ng1dmaintr</code> hang)<a class="headerlink" href="#4-pixel-dma-the-ng1dmaintr-hang" title="Permanent link">&para;</a></h2>
+<p>Large image transfers do <strong>not</strong> use PIO; they go through MC graphics DMA via a private ioctl.</p>
+<h3 id="which-calls-use-it-and-when">Which calls use it, and when<a class="headerlink" href="#which-calls-use-it-and-when" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Private gfx ioctl command 21002</strong> ("NG1_PIXELDMA" in Xsgi's error string). In the kernel, <code>newportPrivate</code>
+  copies in a 32-byte argument and calls <code>Ng1PixelDma</code>.</li>
+<li><strong>GetImage</strong> (<code>rex3ReadImage</code>, <code>rex3ReadImage12</code>, <code>rex3ReadImage24</code>): DMA when <code>width*height ≥ 7000</code> pixels
+  (<code>mult w,h; sltiu ...,7000</code>); PIO below.</li>
+<li><strong>PutImage</strong> (<code>rex3DrawImage</code>, <code>rex3DrawImage12</code>, <code>rex3DrawImage24</code>): DMA when <code>width*height ≥ 16384</code> pixels.</li>
+<li><strong>CopyArea and text never use DMA.</strong></li>
+<li>Large requests are split into chunks of <code>0x180000 / width</code> rows per ioctl; a 1280×1024 <code>xwd -root</code> is <strong>one</strong> ioctl.</li>
+<li><strong>On ioctl failure Xsgi prints an error and gives up</strong>; there is no PIO fallback.</li>
+<li>Before the ioctl, Xsgi programs REX3 itself from user space:</li>
+<li>read: DRAWMODE1, DRAWMODE0=<code>0x145</code>, XYSTARTI, XYENDI, then 0 to offset <code>0x30</code></li>
+<li>draw: DRAWMODE0=<code>0x46</code>, WRMASK, 0 to offset <code>0x120</code></li>
+<li><strong>Argument struct</strong> (filled on Xsgi's stack):</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Offset</th>
+<th>Field</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>+0</td>
+<td>width</td>
+</tr>
+<tr>
+<td>+4</td>
+<td>rows</td>
+</tr>
+<tr>
+<td>+8</td>
+<td>flags: bit0 = 1 draw, 0 read</td>
+</tr>
+<tr>
+<td>+12</td>
+<td>0</td>
+</tr>
+<tr>
+<td>+16</td>
+<td><code>0xa30</code> (register offset of HOSTRW0+GO)</td>
+</tr>
+<tr>
+<td>+20</td>
+<td>user buffer pointer</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>GL:</strong> <code>libGLcore</code> (n32) has four 21002 call sites in its read/draw/copypixels code near <code>__glNptPickCopyPixels</code>
+  (nearby compares 12289, 20480, 2048, 1025 rows; which one is the cutoff was not pinned down). IRIS GL <code>libgl</code> calls
+  it from <code>gl_pixeldma_read</code> / <code>gl_pixeldma_write</code> (strings "pixel dma read/write failed"), <em>(inferred)</em> reached
+  from <code>lrectread</code> / <code>lrectwrite</code>.</li>
+</ul>
+<h3 id="what-the-kernel-does-ng1pixeldma-in-newport_dmao-then-mcdma-at-0x880cb7b4-in-unixclean">What the kernel does (<code>Ng1PixelDma</code> in <code>newport_dma.o</code>, then <code>MCdma</code> at <code>0x880cb7b4</code> in <code>unix.clean</code>)<a class="headerlink" href="#what-the-kernel-does-ng1pixeldma-in-newport_dmao-then-mcdma-at-0x880cb7b4-in-unixclean" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>Validate:</strong> EINVAL if <code>width &gt; 0xffff</code>, <code>rows &gt; 1024</code>, or <code>width*rows &gt; 0x180000</code>.</li>
+<li><strong>Pin and map the user buffer:</strong> <code>userdma</code>, <code>vdma_set_tlb</code>, <code>kvpalloc</code>, <code>ng1stridemkudmada</code>. DMA_MEMADR gets
+   the <strong>user virtual address</strong>: the MC's DMA TLB does the translation.</li>
+<li><strong>GIO target</strong> = <code>kvtophys(rex3 + (arg[+16] &amp; 0xfff))</code> = <code>0x1f0f0a30</code> (HOSTRW0+GO).</li>
+<li><strong>Spin on REX3 STATUS GFXBUSY.</strong></li>
+<li><strong><code>MCdma</code> programs the MC</strong> (KSEG1 <code>0xbfa0xxxx</code>, big-endian low word):</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>MC offset</th>
+<th>Register (reading)</th>
+<th>Value written</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0x164</code></td>
+<td>DMA_CAUSE</td>
+<td>0 (clear)</td>
+</tr>
+<tr>
+<td><code>0x16c</code></td>
+<td>DMA_CTL</td>
+<td><code>|= 0x110</code> (interrupt on), or set <code>0x100</code> and clear <code>0x10</code> when polling</td>
+</tr>
+<tr>
+<td><code>0x2004</code></td>
+<td>DMA_MEMADR</td>
+<td>user virtual address</td>
+</tr>
+<tr>
+<td><code>0x2034</code></td>
+<td>DMA_MODE</td>
+<td><code>0x50</code> draw (memory→GIO), <code>0x52</code> read (GIO→memory); bit 1 = to-host, see the bit table below</td>
+</tr>
+<tr>
+<td><code>0x2014</code></td>
+<td>DMA_SIZE</td>
+<td><code>rows &lt;&lt; 16 \| bytes per line</code></td>
+</tr>
+<tr>
+<td><code>0x201c</code></td>
+<td>DMA_STRIDE</td>
+<td><code>zoom &lt;&lt; 16 \| stride</code></td>
+</tr>
+<tr>
+<td><code>0x202c</code></td>
+<td>DMA_GIO_ADRS</td>
+<td>GIO address; <strong>this write starts the transfer</strong></td>
+</tr>
+</tbody>
+</table>
+<ol>
+<li><strong>Wait for completion:</strong></li>
+<li>with <strong><code>ng1intrena</code> = 1</strong> (the default; the variable is at <code>0x882f6ba0</code>): <code>setlclvector(4, ng1_dma_intr)</code>,
+     arm <code>ng1dmatimer</code>, and <code>sv_wait</code> on <strong><code>ng1dmaintr</code></strong> (<code>0x882f7e08</code>)</li>
+<li>with <code>ng1intrena</code> = 0: <code>MCdma</code> clears the interrupt enable and waits synchronously (polls the DMA run bit)</li>
+<li>Strides <code>≥ 0x8000</code> take a separate <code>fakePICdma</code> path.</li>
+</ol>
+<h3 id="the-mc-graphics-dma-engine-behavioral-spec-for-a-model">The MC graphics DMA engine (behavioral spec for a model)<a class="headerlink" href="#the-mc-graphics-dma-engine-behavioral-spec-for-a-model" title="Permanent link">&para;</a></h3>
+<p>Sources, in order of authority:
+- <strong><code>mc.pdf</code></strong> (MC Chip Specification, <code>~/Desktop/indy_docs/</code>): the register map, and the statement that the
+  master does virtual DMA "using a TLB in MC and the UNIX page tables". It gives <strong>no bit fields</strong>: it defers to a
+  separate <em>Virtual DMA Programmer's Guide</em>, which we do not have.
+- <strong><code>ioc.pdf</code></strong>: interrupt wiring.
+- <strong>IRIX <code>vdma_set_tlb</code></strong> (<code>kern/io/vdma.c</code>, <code>0x880dab5c</code> in <code>unix.clean</code>): the TLB entry format, from
+  disassembly.
+- <strong>MAME</strong> <code>src/mame/sgi/mc.cpp</code> (<code>~/code/mame</code>, last touched 2023-07, <code>adc3349c1ce</code>): bit meanings
+  (<code>perform_dma</code>, <code>dma_translate</code>). It agrees with the IRIX code wherever the two can be compared.</p>
+<p><strong>Registers</strong> (physical <code>0x1fa0xxxx</code>; the 32-bit value is the low word, at <code>+4</code> from the doubleword address
+given in <code>mc.pdf</code>):</p>
+<table>
+<thead>
+<tr>
+<th>Register</th>
+<th>Address</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>DMA_GIO_MASK / DMA_GIO_SUB</td>
+<td><code>0x150</code> / <code>0x158</code></td>
+<td>GIO address translation; IRIX's pixel path does not use them, and MAME ignores them</td>
+</tr>
+<tr>
+<td>DMA_CAUSE</td>
+<td><code>0x160</code></td>
+<td>bit 3 = DMA done (MAME). Writing 0 clears it and drops the interrupt</td>
+</tr>
+<tr>
+<td>DMA_CTL</td>
+<td><code>0x168</code></td>
+<td>bit 4 = interrupt enable. IRIX writes <code>0x110</code>; bit 8 is not identified</td>
+</tr>
+<tr>
+<td>DMA_TLB_HI_n / DMA_TLB_LO_n, n = 0..3</td>
+<td><code>0x180 + 0x10*n</code> / <code>0x188 + 0x10*n</code></td>
+<td>4-entry DMA TLB, below</td>
+</tr>
+<tr>
+<td>DMA_MEMADR</td>
+<td><code>0x2000</code></td>
+<td>memory <strong>virtual</strong> address; <code>0x2008</code> also loads default parameters</td>
+</tr>
+<tr>
+<td>DMA_SIZE</td>
+<td><code>0x2010</code></td>
+<td><code>[31:16]</code> line count, <code>[15:0]</code> line width in bytes; also loads COUNT's byte count</td>
+</tr>
+<tr>
+<td>DMA_STRIDE</td>
+<td><code>0x2018</code></td>
+<td><code>[25:16]</code> line zoom, <code>[15:0]</code> <strong>signed</strong> stride, added to the address after each line</td>
+</tr>
+<tr>
+<td>DMA_GIO_ADR</td>
+<td><code>0x2020</code></td>
+<td>GIO address, no start</td>
+</tr>
+<tr>
+<td>DMA_GIO_ADRS</td>
+<td><code>0x2028</code></td>
+<td>GIO address <strong>and start</strong> (IRIX's path)</td>
+</tr>
+<tr>
+<td>DMA_MODE</td>
+<td><code>0x2030</code></td>
+<td>bit 1 TO_HOST (GIO→memory), bit 2 SYNC, bit 3 FILL, bit 4 DIR (1 = increment), bit 5 SNOOP; bit 6 (set in IRIX's <code>0x50</code>/<code>0x52</code>) is not identified</td>
+</tr>
+<tr>
+<td>DMA_COUNT</td>
+<td><code>0x2038</code></td>
+<td><code>[25:16]</code> zoom count, <code>[15:0]</code> byte count (working counters)</td>
+</tr>
+<tr>
+<td>DMA_STDMA</td>
+<td><code>0x2040</code></td>
+<td>write bit 0 = start</td>
+</tr>
+<tr>
+<td>DMA_RUN</td>
+<td><code>0x2048</code></td>
+<td>read-only: bit 6 = running, bit 3 = done</td>
+</tr>
+<tr>
+<td>DMA_MEMADRDS</td>
+<td><code>0x2070</code></td>
+<td>GIO address + default parameters + start</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Address translation (the "MMU"):</strong> two levels, reusing the process's own MIPS page table.
+- Each TLB entry maps one <strong>4 MB</strong> VA region, so 4 entries cover 16 MB of buffer.
+- <code>TLB_HI</code> = VA &amp; <code>0xffc00000</code>.
+- <code>TLB_LO</code> = (PA of a 4 KB page of PTEs &gt;&gt; 12) &lt;&lt; 6 | 2. Bit 1 is valid. That page holds the 1024 PTEs for the
+  region; IRIX points it at its own page table for the user VA.
+- To translate:
+  1. Match VA[31:22] against <code>TLB_HI</code>.
+  2. Read the PTE (32 bits) from <code>((TLB_LO &amp; 0x003fffc0) &lt;&lt; 6) + VA[21:12]*4</code>.
+  3. PA = ((PTE &amp; <code>0x03ffffc0</code>) &lt;&lt; 6) | VA[11:0]. This is the EntryLo PFN layout.
+- So <strong>the engine does one memory read per page crossed</strong>. A model has to do that read from memory as well.
+- <strong>Before loading the TLB, the kernel writes the PTE page back from its cache</strong> (<code>cache_operation</code>), because the
+  walk reads memory directly.
+- MAME returns PA 0 on a miss and does not check the valid bit. Real-hardware fault behaviour is unknown.</p>
+<p><strong>Transfer:</strong> for each line, <code>zoom</code> times, for <code>width</code> bytes:
+- <strong>Memory→GIO</strong> (IRIX draw, mode <code>0x50</code>): pack up to 8 bytes <strong>big-endian</strong> and do one 64-bit GIO write to
+  <code>GIO_ADR</code>. The address does not advance: <code>0x1f0f0a30</code> is REX3 HOSTRW0+GO, so one write is two 32-bit pixels.
+- <strong>GIO→memory</strong> (IRIX read, mode <code>0x52</code>): one 64-bit GIO read per 8 bytes, scattered big-endian into memory.
+- <strong>FILL</strong> writes the GIO address value itself into memory.
+- Address steps:
+  - between zoom passes over the same line, rewind by <code>width</code>;
+  - after each line, add the signed <code>stride</code>.</p>
+<p><strong>Completion:</strong>
+- set DMA_RUN bit 3 and clear bit 6;
+- if DMA_CTL bit 4 is set, set DMA_CAUSE bit 3 and raise the MC <code>int_dma_done</code> pin;
+- <code>int_dma_done</code> → IOC/INT3 <strong>Local0 status bit 4, "MC DMA Done"</strong> (<code>0x1fbd9880</code>, mask <code>0x1fbd9884</code> bit 4,
+  masked by default). That is IRIX's <code>setlclvector(4, ng1_dma_intr)</code>;
+- IRIX then clears DMA_CAUSE, which drops the line.</p>
+<p>For comparison, the other Newport interrupts on the IOC:
+- FIFO full = Local0 bit 0;
+- graphics (REX3) = Local0 bit 6;
+- vertical retrace = <strong>Local1 bit 7</strong>.</p>
+<h3 id="why-xwd-hung-under-qemu">Why <code>xwd</code> hung under QEMU<a class="headerlink" href="#why-xwd-hung-under-qemu" title="Permanent link">&para;</a></h3>
+<p>QEMU's IP22 model never raises the MC DMA-complete interrupt (Local0 bit 4), so Xsgi sleeps forever on
+<code>ng1dmaintr</code> the first time a GetImage reaches 7000 pixels. To fix it at the source, implement the engine above.
+Raising the interrupt alone only turns the hang into empty images. The pieces are the two-level TLB walk, a
+64-bit big-endian GIO access per 8 bytes to HOSTRW0+GO, and on completion DMA_RUN/DMA_CAUSE plus Local0 bit 4.
+MAME's <code>perform_dma</code> is a working reference (about 100 lines).</p>
+<h3 id="ways-around-it">Ways around it<a class="headerlink" href="#ways-around-it" title="Permanent link">&para;</a></h3>
+<ul>
+<li>There is <strong>no</strong> environment variable, Xsgi option, or mtune tunable.</li>
+<li><strong><code>ng1intrena = 0</code></strong> (patch <code>.sdata</code> in the kernel or poke kmem) removes the sleep only. The MC DMA engine
+  must still really move the data.</li>
+<li><strong>Force PIO in Xsgi:</strong> change the immediate of these six <code>sltiu</code> instructions to <code>0xffff</code>. <code>sltiu</code> sign-extends
+  it to <code>0xffffffff</code>, so the compare is always true and the PIO branch is always taken. File offset = VA − <code>0x10000000</code>.</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>VA of the <code>sltiu</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rex3ReadImage</code></td>
+<td><code>0x103f86e4</code></td>
+</tr>
+<tr>
+<td><code>rex3ReadImage24</code></td>
+<td><code>0x103114d0</code></td>
+</tr>
+<tr>
+<td><code>rex3ReadImage12</code></td>
+<td><code>0x1030fad8</code></td>
+</tr>
+<tr>
+<td><code>rex3DrawImage</code></td>
+<td><code>0x100b0910</code></td>
+</tr>
+<tr>
+<td><code>rex3DrawImage24</code></td>
+<td><code>0x102dd52c</code></td>
+</tr>
+<tr>
+<td><code>rex3DrawImage12</code></td>
+<td><code>0x102ddef4</code></td>
+</tr>
+</tbody>
+</table>
+<p>The branch sense was checked for the ReadImage routines; for DrawImage it is <em>(inferred)</em>, so confirm the
+  <code>bnez</code> target is the PIO path before patching. GL's DMA paths are separate and would need their own patch.
+- <strong>Making <code>Ng1PixelDma</code> return EINVAL</strong> avoids the hang, but the image contents come back empty.</p>
+<h2 id="5-graphics-context-switch">5. Graphics context switch<a class="headerlink" href="#5-graphics-context-switch" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Lazy.</strong> <code>newportPcxSwitch</code>, <code>Suspend</code> and <code>Resume</code> are stubs returning 0. When a different graphics process
+  touches the mapping it takes a page fault (<code>gfx_fault</code>; <code>newportInvalTLB</code> is the invalidate hook) and the kernel
+  runs <strong><code>newportPcxSwap</code></strong>:</li>
+<li>spin GFXBUSY</li>
+<li><strong>read back ~48 REX3 registers</strong>: <code>0x0–0x2c</code>, <code>0x100–0x134</code>, <code>0x200–0x220</code>, <code>0x230/0x234</code> (HOSTRW),
+     <code>0x1300–0x131c</code>, <code>0x1324</code>, <code>0x1328</code>, CONFIG <code>0x1330</code>, and DCBMODE after a BACKBUSY spin</li>
+<li>write the new context's ~48 registers</li>
+<li>spin again</li>
+<li>So a model must return <strong>coherent readback for all of those registers</strong>, not just status.</li>
+</ul>
+<h2 id="6-what-a-henry-implementation-must-provide">6. What a henry implementation must provide<a class="headerlink" href="#6-what-a-henry-implementation-must-provide" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Requirement</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Accept <code>sw</code>, <code>sd</code>, <code>sh</code>, <code>sb</code>/<code>lbu</code>, <code>swc1</code> to the REX3 window</td>
+<td>n32 GL uses <code>sd</code> and <code>swc1</code>; DCB is byte/halfword</td>
+</tr>
+<tr>
+<td>Deep posted-write path</td>
+<td>~99.9% of traffic is stores, 2–15 per primitive, no reads</td>
+</tr>
+<tr>
+<td>STATUS read-to-clear on every read; USTATUS non-destructive</td>
+<td>kernel polls STATUS outside the ISR</td>
+</tr>
+<tr>
+<td>GFXBUSY / BACKBUSY that really reflect pending work</td>
+<td>finish, ReadImage, DCB and init spin on them</td>
+</tr>
+<tr>
+<td>HOSTRW readback (PIO GetImage)</td>
+<td>one read per word, round-trip bound</td>
+</tr>
+<tr>
+<td>Readback of ~48 registers</td>
+<td>lazy context switch</td>
+</tr>
+<tr>
+<td><strong>MC graphics DMA</strong> (registers + TLB walk above) <strong>and its completion interrupt</strong> (IOC Local0 bit 4), or the Xsgi PIO patch</td>
+<td>Xsgi/GL GetImage ≥ 7000 px and PutImage ≥ 16384 px; no fallback</td>
+</tr>
+<tr>
+<td>Vertical-retrace interrupt (~60 Hz: IOC Local1 bit 7; the handler also checks REX3 STATUS VRINT <code>0x20</code>)</td>
+<td>buffer swaps, cursor, gamma run from <code>newportRetraceHandler</code></td>
+</tr>
+<tr>
+<td>FIFO-full interrupt</td>
+<td>optional if the queue never overflows</td>
+</tr>
+</tbody>
+</table>
+<p>The measured access rates (QEMU, icount-stamped) and the ARM-hybrid recommendation are in
+<code>NEWPORT_FEASIBILITY.md</code> and the project memory note on Newport feasibility.</p>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.top", "navigation.indexes", "navigation.tracking", "toc.follow", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
