@@ -1610,12 +1610,12 @@ else through to DRAM:</p>
 <tr>
 <td><code>enet_shim.sv</code></td>
 <td>Seeq 8003 + HPC3 ENET</td>
-<td>ARM-serviced through a host tap; the RTL ENET DMA engine (<code>enet_dma.sv</code>) is opt-in (<code>ENABLE_ENET_DMA</code>) and off by default</td>
+<td>register model; <code>enet_ring_dma.sv</code> walks the descriptor chains and the ARM moves frames through the staging rings (<a href="../arm-device-protocol/">protocol</a>)</td>
 </tr>
 <tr>
 <td><code>mem_arbiter.sv</code></td>
 <td>DRAM arbitration</td>
-<td>weighted round-robin, one request outstanding: CPU + the SoC DMA master ports (SCSI engine, opt-in ENET DMA, opt-in DRAM deep trace)</td>
+<td>weighted round-robin, one request outstanding: CPU + the SoC DMA master ports (SCSI engine, ENET ring engine, opt-in DRAM deep trace)</td>
 </tr>
 <tr>
 <td><code>ip_hdl/axi_is_the_worst_*.v</code></td>

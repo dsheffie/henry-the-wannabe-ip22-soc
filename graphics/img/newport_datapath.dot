@@ -1,0 +1,78 @@
+// Block diagram of the SGI Newport (XL) REX3 fragment datapath, in the style of
+// hw-rasterizer's datapath.dot.  Faithful to REX3 as modelled in interp_mips
+// sgi_newport.cc (a condensed MAME newport.cpp) and the SGI REX3/VC2/XMAP9 docs.
+// Regenerate the SVG (docs/graphics/img/):  dot -Tsvg newport_datapath.dot -o newport_datapath.svg
+digraph newport {
+  rankdir=LR;
+  graph [fontname="Helvetica", fontsize=11, nodesep=0.4, ranksep=0.75, splines=spline];
+  node  [fontname="Helvetica", fontsize=10, shape=box, style="rounded,filled", fillcolor="#eef3fb", color="#3b5b92"];
+  edge  [fontname="Helvetica", fontsize=9, color="#444444"];
+
+  // ---- host (no setup hardware: Xsgi / GL do it in software) ----
+  subgraph cluster_host {
+    label="host CPU  —  Xsgi / GL (ng1): span, line & block setup in software";
+    style="dashed,rounded"; color="#888888"; fontname="Helvetica"; fontsize=10;
+    setup [label="register writes over GIO\n(posted, through the GFIFO):\nXY start/end, slopes, color,\ndraw modes; write to +0x800 = GO", fillcolor="#fff4e0", color="#b07a30"];
+    hdp   [label="host data port\n(PIO or MC graphics DMA)", fillcolor="#fff4e0", color="#b07a30"];
+    { rank=same; setup; hdp; }
+  }
+
+  // ---- REX3 iterators (1 pixel / clock) ----
+  subgraph cluster_iter {
+    label="REX3 iterators  (1 pixel / clock)";
+    style="dashed,rounded"; color="#888888"; fontsize=10;
+    dec   [label="opcode decode\nspan / block / I-line /\nF-line / scr2scr / read"];
+    xy    [label="span / block stepper\nX counter, Y step, x_save reload\nstop-on-X/Y, ≤32 px per GO"];
+    bres  [label="Bresenham stepper\noctant table +\n4-bit subpixel setup"];
+    pat   [label="pattern shifter\n32-bit line-stipple / zpattern\n(opaque → back color)"];
+    cst   [label="color steppers\nR, G, B, A (Gouraud)\nslopes + clamp"];
+  }
+
+  // ---- per-pixel tests and color ----
+  clip  [label="clip\nscreenmask 0 (window-rel)\n+ window offset\n+ screenmasks 1–4", fillcolor="#e9f7e9", color="#3a7d3a"];
+  csel  [label="color select\nhost pixel / constant /\nGouraud RGB + 4×4 dither\n→ depth convert (4/8/12/24, CI/RGB)"];
+
+  // ---- read-modify-write backend ----
+  rd    [label="destination read\n(logic op / blend / scr2scr)"];
+  rop   [label="logic op (16 ROPs)\nor blend (src/dst factors,\nper-channel multiply)"];
+  wm    [label="plane enables\n(RGB/CI, overlay, popup, CID)\n+ write mask", fillcolor="#e9f7e9", color="#3a7d3a"];
+  fb    [label="VRAM framebuffer (RB2/RO1)\n1280×1024 × 8 or 24 planes\n+ overlay / popup / CID", shape=cylinder, style=filled, fillcolor="#f0e9f7", color="#6a4a8a"];
+
+  // ---- display (no rasterization; scan-out) ----
+  subgraph cluster_disp {
+    label="display  —  scan-out";
+    style="dashed,rounded"; color="#888888"; fontsize=10;
+    vc2   [label="VC2\nvideo timing tables\n+ cursor (32×32×2 / 64×64×1)"];
+    vram2 [label="VC2 SRAM\ntiming + cursor glyph", shape=cylinder, style=filled, fillcolor="#f0e9f7", color="#6a4a8a"];
+    xmap  [label="XMAP9\nper-pixel mode table (DID)\ncursor / overlay merge"];
+    cmap  [label="CMAP\ncolor-index palette", shape=cylinder, style=filled, fillcolor="#f0e9f7", color="#6a4a8a"];
+    dac   [label="RAMDAC (Bt445)\ngamma → video", fillcolor="#fff4e0", color="#b07a30"];
+    { rank=same; vc2; vram2; }
+  }
+
+  // ---- flow ----
+  setup -> dec;
+  dec   -> xy    [label="span / block"];
+  dec   -> bres  [label="lines"];
+  setup -> cst   [style=dashed, label="color + slopes"];
+  xy    -> clip  [label="x, y"];
+  bres  -> clip  [label="x, y"];
+  pat   -> clip  [label="draw / skip", style=dashed];
+  xy    -> pat   [style=dashed];
+  bres  -> pat   [style=dashed];
+  clip  -> csel  [label="pass"];
+  hdp   -> csel  [label="host pixels", style=dashed];
+  cst   -> csel  [label="RGBA (side-band)", style=dashed];
+  csel  -> rop   [label="src"];
+  clip  -> rd    [label="addr"];
+  fb    -> rd    [label="dst", constraint=false];
+  rd    -> rop   [label="dst"];
+  rop   -> wm;
+  wm    -> fb    [label="write"];
+  rd    -> hdp   [label="readback\n(pixel / DMA)", style=dashed, constraint=false];
+  fb    -> vc2   [label="scan-out"];
+  vram2 -> vc2;
+  vc2   -> xmap;
+  xmap  -> cmap  [dir=both, label="CI lookup"];
+  xmap  -> dac;
+}

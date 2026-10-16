@@ -1743,14 +1743,14 @@ hands every access in it to three register slaves at once. Their read data is OR
 <td>storage + constants</td>
 </tr>
 <tr>
-<td><code>rtl/scsi_shim.sv</code> (<code>ENABLE_SCSI_SHIM</code>, on)</td>
+<td><code>rtl/scsi_shim.sv</code></td>
 <td>HD0 channel <code>0x10000</code> cbp/nbdp, <code>0x11000</code> bc/ctrl; WD33C93 across <code>0x40000–0x47fff</code></td>
 <td>WD33C93A + HPC3 SCSI0 channel register model; disk served by the host</td>
 </tr>
 <tr>
-<td><code>rtl/enet_shim.sv</code> (<code>ENABLE_ENET_SHIM</code>, on)</td>
+<td><code>rtl/enet_shim.sv</code></td>
 <td>ENET RX <code>0x14000/0x15000</code>, TX <code>0x16000/0x17000</code>, reset/CLRIRQ <code>0x15014</code>/<code>0x17014</code>, CRBDP <code>0x18000</code>/<code>0x1a000</code>; Seeq 8003 <code>0x54000–0x5401f</code></td>
-<td>Seeq + HPC3 ENET channel register model; frames served by the host</td>
+<td>Seeq + HPC3 ENET channel register model; frames moved by <code>enet_ring_dma</code> + the ARM's staging rings</td>
 </tr>
 </tbody>
 </table>
@@ -1765,9 +1765,9 @@ the intstat split. Device accesses never bus-error: the response is always good 
   moves <strong>16-byte beats</strong>, not single bytes on DRQ. It needs <strong>16-byte-aligned</strong> descriptors and buffers.
   It stops on <code>EOX</code>, on a null <code>DP</code>, or after 255 descriptors (<code>rtl/scsi_dma.sv:160-168</code>). A zero-count
   descriptor is simply skipped (<code>scsi_dma.sv:120</code>). The SCSI-rx last-byte-stuck bug is <strong>not</strong> modelled.</li>
-<li><strong>ENET.</strong> This is a host-served tap. <code>enet_shim.sv</code> owns the Seeq/HPC3 registers. The ARM (<code>driver/enet_arm.h</code>)
-  or <code>henry_tb</code> walks the descriptor rings and moves the frames. The RTL <code>enet_dma</code> engine exists but is
-  <strong>opt-in</strong> (<code>ifndef ENABLE_ENET_DMA</code> ties it off, <code>henry_soc.sv:733</code>). By default it is out of the build.</li>
+<li><strong>ENET.</strong> <code>enet_shim.sv</code> owns the Seeq/HPC3 registers. <code>enet_ring_dma.sv</code> walks the guest descriptor
+  rings, writes back BC/CRBDP and raises the IRQ; the ARM (or <code>henry_tb</code>) only moves frames between the
+  staging slots and the tap. See <a href="../../arm-device-protocol/">the ARM ↔ device protocol</a>.</li>
 <li><strong>Interrupts.</strong> Only two HPC3-side sources are wired. WD33C93 INTRQ goes to IOC2 local0 bit1, and the ENET
   channel IRQ goes to local0 bit3 (<code>henry_soc.sv:1020</code>). Both reach CPU IP2. <code>dma_complete_int</code> (local1
   HPC-DMA), <code>bus_error_int</code>, and SCSI1 are not driven.</li>
@@ -2431,11 +2431,10 @@ WD33C93 generates its own interrupts, so the HPC3 <code>XIE</code> per-descripto
 </ul>
 <p><strong>AXI side</strong> (<code>axi_is_the_worst_v1_0_S00_AXI.v</code>):</p>
 <ul>
-<li>Reads: <code>0x39</code> TX doorbell, <code>0x3C</code> TX chain head, <code>0x3D</code> RX arm, <code>0x3E</code> RX ring head.</li>
-<li>Writes: <code>0x12</code> TX echo, <code>0x13</code> RX sequence, <code>0x14</code>/<code>0x15</code> RX/TX CRBDP.</li>
+<li>Reads (debug): <code>0x39</code> TX doorbell, <code>0x3C</code> TX chain head, <code>0x3D</code> RX arm, <code>0x3E</code> RX ring head.</li>
+<li>Writes: the staging-ring doorbells <code>0x18</code>–<code>0x1c</code> (<a href="../../arm-device-protocol/">protocol</a>).</li>
 </ul>
-<p>The RTL <code>enet_dma</code> engine (with its own RX/TX beat FIFOs) is compiled out unless <code>ENABLE_ENET_DMA</code> is defined
-(<code>henry_soc.sv:733</code>). In the default build the host writes and reads guest DRAM directly.</p>
+<p><code>enet_ring_dma</code> completes the chains itself; the ARM never reads or writes guest DRAM.</p>
 <h2 id="interrupts">Interrupts<a class="headerlink" href="#interrupts" title="Permanent link">&para;</a></h2>
 <p>HPC3 raises a small set of interrupt sources:</p>
 <ul>
@@ -2502,8 +2501,7 @@ drivers boot regardless.</p>
 <li>DMA/PIO config-register fields at 0x5c000/0x5d000 (PBUS access timing) — PROM writes them; treat as R/W
   storage until a real PBUS device cares.</li>
 <li>Ethernet <code>IPG</code>/<code>TXD</code>/<code>EOXP</code> semantics and the enet-rx byte-count write-back. In henry these are handled
-  by the host tap service. The opt-in <code>enet_dma</code> engine instead implements ROWN (bit 14) and ETXD (bit 15) in
-  <code>BC</code>.</li>
+  by <code>enet_ring_dma</code>, which implements ROWN (bit 14) and ETXD (bit 15) in <code>BC</code>.</li>
 <li>HAL2 audio, parallel port, floppy (PC8477) — out of scope for first boot.</li>
 </ul>
 <h2 id="sources">Sources<a class="headerlink" href="#sources" title="Permanent link">&para;</a></h2>
@@ -2515,7 +2513,7 @@ drivers boot regardless.</p>
   (0x40000/0x48000), bbRAM window 0x60000–0x7ffff, ds1386 byte-per-word ×4, EEPROM bit-bang, coherence finding.</li>
 <li>MAME IP22/Indy driver — golden reference for FIFO-port offsets, ds1386, WD33C93 and Seeq device models.</li>
 <li>henry RTL (ground truth for what is built): <code>rtl/hpc3.sv</code>, <code>rtl/scsi_shim.sv</code>, <code>rtl/scsi_dma.sv</code>,
-  <code>rtl/enet_shim.sv</code>, <code>rtl/enet_dma.sv</code> (opt-in), <code>rtl/henry_soc.sv</code>; AXI side
+  <code>rtl/enet_shim.sv</code>, <code>rtl/enet_ring_dma.sv</code>, <code>rtl/henry_soc.sv</code>; AXI side
   <code>ip_hdl/axi_is_the_worst_v1_0_S00_AXI.v</code>; host services <code>driver/scsi_arm.h</code>, <code>driver/enet_arm.h</code>.</li>
 <li><a href="../scsi_disk_theory_of_operation/">SCSI disk theory of operation</a>: the end-to-end SCSI path and the henry
   shim, engine and host split.</li>

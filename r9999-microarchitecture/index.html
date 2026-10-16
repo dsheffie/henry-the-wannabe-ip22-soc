@@ -1612,7 +1612,7 @@
 
 
 <h1 id="r9999-microarchitecture">r9999 microarchitecture<a class="headerlink" href="#r9999-microarchitecture" title="Permanent link">&para;</a></h1>
-<p><em>The CPU at the center of Henry. <code>r9999</code> is an </em><em>out-of-order, superscalar MIPS</em><em> core — its name is a wink at the </em><em>R10000</em><em> (<code>9999 = 10000 − 1</code>), and its shape is deliberately R10000-flavored: register renaming, a reorder buffer, out-of-order issue, separate integer/FP register files. But it implements the </em><em>MIPS III</em><em> ISA and presents itself as an </em><em>R4400</em><em> (so IRIX/Indy runs the right path), it decodes, renames and retires </em><em>2 instructions/cycle</em><em> instead of 4, and it's tuned to </em><em>fit and close timing on an FPGA</em><em>.</em></p>
+<p><em>The CPU at the center of Henry. <code>r9999</code> is an <strong>out-of-order, superscalar MIPS</strong> core — its name is a wink at the <strong>R10000</strong> (<code>9999 = 10000 − 1</code>), and its shape is deliberately R10000-flavored: register renaming, a reorder buffer, out-of-order issue, separate integer/FP register files. But it implements the <strong>MIPS III</strong> ISA and presents itself as an <strong>R4400</strong> (so IRIX/Indy runs the right path), it decodes, renames and retires <strong>2 instructions/cycle</strong> instead of 4, and it's tuned to <strong>fit and close timing on an FPGA</strong>.</em></p>
 <p>This page is the r9999 answer to the <strong>R10000 block diagram (Fig. 1-5)</strong> from the MIPS R10000 User's Manual — written in the spirit of <a href="https://www.maizure.org/projects/evolution_x86_context_switch_linux/">maizure.org's reverse-engineering writeups</a>. Every number below is from the RTL in the <a href="https://github.com/dsheffie/r9999"><code>r9999</code></a> submodule (canonical, non-<code>FORMAL</code> config, submodule @ <code>5c89b70</code>); <code>machine.vh</code> is the parameter header.</p>
 <h2 id="block-diagram">Block diagram<a class="headerlink" href="#block-diagram" title="Permanent link">&para;</a></h2>
 <pre class="mermaid"><code>flowchart TD
@@ -1892,7 +1892,7 @@
 <p><strong>TLB cacheability:</strong> on the D-side the matched entry's <code>C</code> attribute decides cacheability of a mapped access (<code>C==3</code> cached, anything else uncached), and uncached-by-TLB loads are held until non-speculative (see the LSU paragraph above).</p>
 <p><strong>Open TLB gaps:</strong> the I-side ignores the TLB <code>C</code> attribute (instruction fetch is always cached) and has no out-of-range-PFN Address Error yet (<code>l1i.sv</code>: <code>cache_attr()</code>/<code>out_of_range()</code> left unconnected; the D-side has both).</p>
 <hr />
-<p><em>All structural facts above are from the r9999 RTL (<code>*.sv</code>) and <code>machine.vh</code>, canonical (non-<code>FORMAL</code>) configuration. The <a href="../irix-boot-flow/">IRIX boot flow</a> page covers what this core </em>runs<em>; this page covers what it </em>is<em>.</em></p>
+<p><em>All structural facts above are from the r9999 RTL (<code>*.sv</code>) and <code>machine.vh</code>, canonical (non-<code>FORMAL</code>) configuration. The <a href="../irix-boot-flow/">IRIX boot flow</a> page covers what this core <em>runs</em>; this page covers what it <em>is</em>.</em></p>
 
 
 

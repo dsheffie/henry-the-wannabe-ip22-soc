@@ -1,0 +1,1886 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A from-scratch SoC that impersonates the SGI Indy (IP22) well enough to boot IRIX, built around the r9999 MIPS core.">
+      
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>ARM ↔ device protocol (staging rings) - Henry — the wannabe IP22 SoC</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="amber">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#arm-device-protocol-staging-rings" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Henry — the wannabe IP22 SoC" class="md-header__button md-logo" aria-label="Henry — the wannabe IP22 SoC" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 4h12v1h3v2h-3v2h3v2h-3v2h3v2h-3v2h3v2h-3v1H6v-1H3v-2h3v-2H3v-2h3v-2H3V9h3V7H3V5h3zm5 11v3h1v-3zm2 0v3h1v-3zm2 0v3h1v-3z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Henry — the wannabe IP22 SoC
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              ARM ↔ device protocol (staging rings)
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="amber"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="teal" data-md-color-accent="amber"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Henry — the wannabe IP22 SoC" class="md-nav__button md-logo" aria-label="Henry — the wannabe IP22 SoC" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 4h12v1h3v2h-3v2h3v2h-3v2h3v2h-3v2h3v2h-3v1H6v-1H3v-2h3v-2H3v-2h3v-2H3V9h3V7H3V5h3zm5 11v3h1v-3zm2 0v3h1v-3zm2 0v3h1v-3z"/></svg>
+
+    </a>
+    Henry — the wannabe IP22 SoC
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../minimum-mmio-to-banner/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Minimum MMIO to boot banner
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (functional-sim validated, MAME-corroborated; Henry-RTL notes added 2026-10-04 against henry 209e6f6)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cpu-integration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CPU integration (r9999)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (MAME-validated)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../r9999-microarchitecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    r9999 microarchitecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../firmware-arcs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Firmware (ARCS shim)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (MAME-validated; Henry FSBL section checked 2026-10-04 against r9999/arcs/henry_arcs.S @ 5c89b70)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../boot-and-console/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Boot & console
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (MAME-validated; Henry FSBL/console re-checked 2026-10-04 against henry 209e6f6 / r9999 5c89b70)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../coherence-cache-tlb/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cache, coherence & TLB
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (MAME-validated; silicon-refined 2026-07; RTL state re-checked 2026-10-04 against r9999 5c89b70)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../fpu-cop1/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FPU (COP1)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--implemented (MAME-validated workload)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Peripherals
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Peripherals
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../peripherals/mc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MC (memory controller)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../peripherals/ioc2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IOC2 (serial console)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../peripherals/scc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SCC (Z85C30 console)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (silicon-validated; audited 2026-10-04 against henry main @209e6f6)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../peripherals/hpc3/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    HPC3 (SCSI/enet/DMA, RTC)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (MAME + live-IRIX-trace validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../peripherals/scsi_disk_theory_of_operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SCSI disk theory of operation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../peripherals/gio64/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GIO64 (bus)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../peripherals/vdma/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VDMA (virtual DMA)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft / future-work (MAME-reference)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../peripherals/dmux1/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DMUX (data mux)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (henry status audited 2026-10-04 against main @209e6f6)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../graphics/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Graphics
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft / future-work"></span>
+  
+
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_11" id="__nav_11_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Graphics
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../graphics/rex3/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    REX3 (raster engine)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft / future-work"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../graphics/vc2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VC2 (video timing/cursor)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft / future-work"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../graphics/xmap9/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    XMAP9 (colormap)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft / future-work"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../graphics/rb2-ro1/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RB2 & RO1 (framebuffer/output)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft / future-work"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../graphics/express-xz/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Express / XZ (hardware geometry)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft / future-work"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../graphics/irix-software/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How IRIX drives Newport (Xsgi, ng1, GL)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--reference (static reverse engineering of IRIX 6.5.22; nothing run on henry)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../irix-boot-flow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IRIX boot flow (annotated)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../methodology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Methodology (MAME oracle)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--stable"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../fpga_stats/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FPGA build stats
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#why" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#invariants" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Invariants
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#block-diagram" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Block diagram
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#staging-memory-map-window-offset-device-pa" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Staging memory map (window offset == device PA)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ring-mechanics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ring mechanics
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#enet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ENET
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ENET">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tx-guest-wire" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TX (guest → wire)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rx-wire-guest" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RX (wire → guest)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scsi" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SCSI
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#moved-from-arm-to-rtl" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Moved from ARM to RTL
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deleted" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deleted
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#verification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verification
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phasing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phasing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#open-questions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Open questions
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="arm-device-protocol-staging-rings">ARM ↔ device protocol (staging rings)<a class="headerlink" href="#arm-device-protocol-staging-rings" title="Permanent link">&para;</a></h1>
+<p>Status: IMPLEMENTED, and the only device path (2026-10-14). Replaces the host-served /
+beat-FIFO protocol for ENET and SCSI now that device DMA is snooped. The rings are not
+build options: henry_soc always instantiates <code>enet_ring_dma</code> and <code>scsi_stage</code>, and the
+RTL revision (AXI-Lite read <code>0x3F</code>) is <code>0x20261014</code> so a driver can refuse an older bit.</p>
+<h2 id="why">Why<a class="headerlink" href="#why" title="Permanent link">&para;</a></h2>
+<p>The device engines (<code>scsi_dma</code>, <code>enet_dma</code>) already reach guest memory through
+<code>dma_snoop_shim</code>, so their accesses are coherent with the L1/L2 by construction. The
+problems were all in the split between the engines and the ARM:</p>
+<table>
+<thead>
+<tr>
+<th>Today</th>
+<th>What it cost (2026-10-13 silicon)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The ARM reads guest descriptors from DRAM (SCSI read sizing, ENET packet boundaries, TX CRBDP)</td>
+<td>appended-chain overrun of the reap bound; SCSI sizing is not snoop-coherent</td>
+</tr>
+<tr>
+<td>Data crosses as 16 B beats over AXI-Lite (~5 register ops per beat), 16-deep FIFOs</td>
+<td>slow TX service (ring fills, IRIX drops: <code>Oerrs</code>); FIFO overflow; &gt;16 KB / &gt;64 KB chain truncation</td>
+</tr>
+<tr>
+<td>One engine FSM serves RX and TX and blocks on the ARM in both directions</td>
+<td>RX/TX deadlock</td>
+</tr>
+<tr>
+<td>Guest-visible state split between engine (BC write-back) and ARM (CRBDP, completion echo)</td>
+<td>stale-BC write-back clobbering IRIX's EOX clear; wrong reap bounds</td>
+</tr>
+<tr>
+<td>Pulse → sticky bits, shared read-to-clear status, 14-bit lengths</td>
+<td>assorted workarounds</td>
+</tr>
+</tbody>
+</table>
+<h2 id="invariants">Invariants<a class="headerlink" href="#invariants" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>After boot the ARM never reads or writes guest memory.</strong> Guest memory is touched
+   only by the r9999 core and by device engines through <code>dma_snoop_shim</code>, so coherence
+   is snoop-only. No <code>EXTFLUSH</code>, no host-served paths. (Boot-time image loading,
+   before the core runs, is the only exception.)</li>
+<li><strong>Engines own everything the guest can observe.</strong> That covers the descriptor walk
+   (including EOXP packet splitting), BC write-back, CRBDP, ACTIVE/IRQ and SCSI status
+   delivery. The ARM owns only the media: the tap and the disk image.</li>
+<li><strong>The ARM and the engines exchange data only through staging memory</strong>, using
+   producer/consumer rings, and never wait on each other mid-transfer. An engine starts
+   a packet or block only when the staging slot it needs is available.</li>
+</ol>
+<h2 id="block-diagram">Block diagram<a class="headerlink" href="#block-diagram" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>+------------------------- Zynq PS (A53) --------------------------+
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>|  mips-axi:   ENET servicer (tap0)      SCSI servicer (disk.img)   |
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>+-------+-------------------------------------------+---------------+
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>        | AXI-Lite: ring indices                    | uncached mmap
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>        |                                           v
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>        |                  +------------------ PS DDR, 496 MB window --+
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>        |                  | guest RAM 256 MB | PROM 16 MB | STAGING   |
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>        |                  | (guest PAs)      |            | 16 MB     |
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>        |                  +--------^---------+------------+----^------+
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>        |                           | M00_AXI (all PL DRAM traffic) |
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>+-------v---------------------------+-------------------------------+-------+
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>| PL                                |                               |       |
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>|   +---------------+      +--------+-------------------------------+--+    |
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>|   | S00_AXI regs  |      |                mem_arbiter                |    |
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>|   | prod/cons idx |      +---^----------------^-------------------^--+    |
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>|   +-------+-------+          |                |                   |       |
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>|           |            +----+-----+     +----+-----+       +-----+-----+ |
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>|           |            | snoop    |     | snoop    |       | r9999     | |
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>|           |            | shim     |     | shim     |       | core+L1+L2| |
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>|           |            | SCSI     |     | ENET     |       +-----^-----+ |
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>|           |            +----^-----+     +--^----^--+             |       |
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>|           |                 |   guest side |    |   snoop port --+       |
+<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>|           v                 |              |    |   (both shims)        |
+<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>|   +---------------+   +-----+-----+  +-----+-+ +-+-------+               |
+<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>|   | scsi_shim     |---| scsi_dma  |  |enet_tx| |enet_rx  |---enet_shim   |
+<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>|   | enet_shim     |   +-----------+  +-------+ +---------+  (CRBDP, IRQ) |
+<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a>|   +---------------+     staging side: PA 0x1E000000+, passes the shim    |
+<a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a>|                         unsnooped (the core never caches that range)     |
+<a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a>+---------------------------------------------------------------------------+
+</code></pre></div>
+<p>Data path in one line per direction:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>ENET TX : guest chain --snoop--&gt; enet_tx --&gt; TX slot --(index)--&gt; ARM --&gt; tap0
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>ENET RX : tap0 --&gt; ARM --&gt; RX slot --(index)--&gt; enet_rx --snoop--&gt; guest ring
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>SCSI W  : guest chain --snoop--&gt; scsi_dma --&gt; buffer --(cmd entry)--&gt; ARM --&gt; disk
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>SCSI R  : disk --&gt; ARM --&gt; buffer --(rsp entry)--&gt; scsi_dma --snoop--&gt; guest chain
+</code></pre></div>
+<p>Each engine has two kinds of access, both through <code>mem_arbiter</code>. <strong>Guest side</strong>
+accesses go through its <code>dma_snoop_shim</code>: PRE-WBINV, then the access, then POST-WBINV
+for writes. <strong>Host side</strong> accesses target staging PAs, which the shim passes straight
+through. That is safe because the core can never cache PA 0x1e000000–0x1effffff: it is
+reserved GIO space on IP22 and IRIX never maps it.</p>
+<p><strong>Placement.</strong> The kmod reserves <code>REGION_SZ = 496 MB</code>, so window offsets end at
+0x1effffff. <code>M00_AXI</code> folds guest RAM (PA 0x08000000–0x17ffffff) to offsets
+0–0x0fffffff, and PA 0x1f000000+ to 0x10000000+. Every other PA, including the reserved
+GIO space 0x18000000–0x1effffff, maps one-to-one. Staging takes the top 16 MB. The
+retired DRAM deep trace (<code>ENABLE_DRAM_TRACE</code>, off by default and no longer needed) used
+this whole region as its ring, so it must never be enabled together with the rings.</p>
+<h2 id="staging-memory-map-window-offset-device-pa">Staging memory map (window offset == device PA)<a class="headerlink" href="#staging-memory-map-window-offset-device-pa" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Offset</th>
+<th>Size</th>
+<th>Contents</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0x1e000000</code></td>
+<td>64 B</td>
+<td>control block: magic and version (ARM-written)</td>
+</tr>
+<tr>
+<td><code>0x1e000040</code></td>
+<td>16 B</td>
+<td>PL-owned indices: <code>tx_prod</code>, <code>rx_cons</code>, <code>rx_drops</code>, reserved</td>
+</tr>
+<tr>
+<td><code>0x1e000050</code></td>
+<td>16 B</td>
+<td>PL-owned SCSI index: <code>scsi_cq_prod</code>, reserved</td>
+</tr>
+<tr>
+<td><code>0x1e001000</code></td>
+<td>4 KB</td>
+<td>ENET TX completion ring: 256 × 16 B</td>
+</tr>
+<tr>
+<td><code>0x1e002000</code></td>
+<td>4 KB</td>
+<td>ENET RX submit ring: 256 × 16 B</td>
+</tr>
+<tr>
+<td><code>0x1e003000</code></td>
+<td>1 KB</td>
+<td>SCSI completion ring (PL→ARM): 64 × 16 B <code>{bytes, chain head, flags, req_seq}</code></td>
+</tr>
+<tr>
+<td><code>0x1e100000</code></td>
+<td>512 KB</td>
+<td>ENET TX slots: 256 × 2 KB (slot <em>i</em> belongs to TX ring entry <em>i</em>)</td>
+</tr>
+<tr>
+<td><code>0x1e180000</code></td>
+<td>512 KB</td>
+<td>ENET RX slots: 256 × 2 KB (slot <em>i</em> belongs to RX ring entry <em>i</em>)</td>
+</tr>
+<tr>
+<td><code>0x1e800000</code></td>
+<td>4 MB</td>
+<td>SCSI READ data (ARM→device), restaged per chain</td>
+</tr>
+<tr>
+<td><code>0x1ec00000</code></td>
+<td>4 MB</td>
+<td>SCSI WRITE data (device→ARM), regathered per chain</td>
+</tr>
+</tbody>
+</table>
+<p>Entries are little-endian 32-bit words, the ARM's native order. Engines byte-swap only
+guest-side descriptor words, as they already do.</p>
+<h2 id="ring-mechanics">Ring mechanics<a class="headerlink" href="#ring-mechanics" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Each ring has a <strong>producer index</strong> and a <strong>consumer index</strong>, both free-running 32-bit
+  counters. Entry = <code>index % N</code>. Full when <code>prod - cons == N</code>, empty when equal.</li>
+<li><strong>ARM-owned indices are doorbells.</strong> They are write-only S00_AXI registers, and the
+  write carries the new index value:</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Write reg</th>
+<th>Index</th>
+<th>Ring</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0x18</code> (<code>slv_reg24</code>)</td>
+<td><code>tx_cons</code></td>
+<td>ENET TX completions consumed</td>
+</tr>
+<tr>
+<td><code>0x19</code> (<code>slv_reg25</code>)</td>
+<td><code>rx_prod</code></td>
+<td>ENET RX frames submitted</td>
+</tr>
+<tr>
+<td><code>0x1a</code> (<code>slv_reg26</code>)</td>
+<td><code>scsi_cq_cons</code></td>
+<td>SCSI completions consumed</td>
+</tr>
+<tr>
+<td><code>0x1b</code> (<code>slv_reg27</code>)</td>
+<td><code>scsi_rd_beats</code></td>
+<td>beats staged for the next SCSI READ chain</td>
+</tr>
+<tr>
+<td><code>0x1c</code> (<code>slv_reg28</code>)</td>
+<td><code>scsi_rd_seq</code></td>
+<td>which command those beats belong to (written after <code>0x1b</code>)</td>
+</tr>
+</tbody>
+</table>
+<p>These write slots have no RTL consumer and the driver never writes them today. The
+  read side of each address keeps its current debug value.
+- <strong>PL-owned indices live in staging memory</strong>, in the control block. The engines write
+  <code>tx_prod</code>, <code>rx_cons</code>, the RX drop count and <code>scsi_cq_prod</code> there after the payload. The ARM polls them with uncached loads, so no read-mux entries are needed.
+  This is the NVMe/virtio arrangement: the device writes completions to memory, the
+  host rings doorbells.
+- <strong>Ordering rule: payload, then entry, then index.</strong>
+  - ARM: write the slot and the entry (uncached), <code>dsb st</code>, then the doorbell.
+  - PL: each engine has one outstanding DRAM request, and the next request issues only
+    after the previous response. Index stores therefore follow the payload stores they
+    cover.
+- No valid bits and no read-to-clear status. Counters only increase, so a missed poll
+  loses nothing.</p>
+<h2 id="enet">ENET<a class="headerlink" href="#enet" title="Permanent link">&para;</a></h2>
+<h3 id="tx-guest-wire">TX (guest → wire)<a class="headerlink" href="#tx-guest-wire" title="Permanent link">&para;</a></h3>
+<ol>
+<li>The guest writes the TX chain and sets <code>ctrl = ACTIVE</code>. <code>enet_shim</code> kicks
+   <code>enet_tx_dma</code>.</li>
+<li>The engine walks the chain through the snoop shim. For each <strong>packet</strong> (descriptors
+   up to and including EOXP):</li>
+<li>Wait for a free TX slot (<code>prod - cons &lt; 256</code>). This is the only stall, and it is
+      on the ARM's consumer index, never mid-packet.</li>
+<li>Gather the packet into the slot, in byte order, from any BP offset (the existing
+      packer).</li>
+<li>Write BC back with <strong>byte 6 only</strong> (ETXD). Never touch the EOX/EOXP/XIE byte, so
+      IRIX's concurrent "clear EOX on the old tail" survives.</li>
+<li>Write the completion entry <code>{len, guest_desc_of_first, flags}</code>, then bump <code>tx_prod</code>.</li>
+<li>Update the shim's <strong>live TX CRBDP</strong> to the next descriptor.</li>
+<li>At EOX, or a null link, or 255 descriptors, the engine tells <code>enet_shim</code> the chain is
+   done. The shim clears ACTIVE and raises the TX IRQ itself, with <strong>no ARM echo</strong>.</li>
+<li>ARM: while <code>tx_cons != tx_prod</code>, write slot data to <code>tap0</code>, then <code>tx_cons++</code>. A full
+   tap queue drops the frame (as real Ethernet would) and still frees the slot.</li>
+</ol>
+<p>TX throughput no longer depends on ARM latency, except through the 256-packet slot
+pool. IRIX's ring drains at engine speed.</p>
+<h3 id="rx-wire-guest">RX (wire → guest)<a class="headerlink" href="#rx-wire-guest" title="Permanent link">&para;</a></h3>
+<ol>
+<li>ARM: for each tap frame passing the address filter, wait for a free RX entry, write
+   <code>[2 pad][frame][status]</code> into the slot, write the entry <code>{len}</code>, <code>dsb st</code>, then
+   <code>rx_prod++</code>.</li>
+<li><code>enet_rx_dma</code>, while <code>rx_cons != rx_prod</code> <strong>and</strong> the guest RX ring is armed:</li>
+<li>Read the guest descriptor through the snoop shim. If ROWN=0 (ring full), drop the
+      frame: <code>rx_cons++</code> and increment the drop counter, as real HPC3 does.</li>
+<li>Otherwise copy the slot to BP, at any offset, masked to <code>[BP, BP+len)</code>.</li>
+<li>Write BC back with <strong>bytes 6–7 only</strong> (ROWN clear, residual count).</li>
+<li>Update the live RX CRBDP, raise the RX IRQ through the shim, then <code>rx_cons++</code>.</li>
+<li>RX and TX are <strong>separate engines</strong>. Neither waits on the other or on the ARM
+   mid-frame. They share only the arbiter and the ENET snoop shim; a 2-master
+   front-end, or one shim per engine, is an implementation detail.</li>
+</ol>
+<h2 id="scsi">SCSI<a class="headerlink" href="#scsi" title="Permanent link">&para;</a></h2>
+<p>The WD33C93/HPC3 register model stays in <code>scsi_shim</code>, and so does the per-command
+<strong>mailbox</strong> (CDB, nbdp and direction read over AXI-Lite; status and residual written
+back). It runs once per command and never touches guest memory, so turning it into a
+ring buys nothing. What changes is the data path and the chain bookkeeping.
+<code>rtl/scsi_stage.sv</code> sits beside <code>scsi_dma</code> and serves its 16 B disk-beat port from
+staging instead of AXI-Lite FIFOs. <code>scsi_dma</code> gains only two ports: <code>disk_wr_full</code>
+(WRITE backpressure) and <code>xfer_bytes</code> (bytes this chain moved).</p>
+<p>Each SELECT-AND-TRANSFER (a new command or a resume) is one <em>chain</em> with its own
+<code>req_seq</code> from the shim. The <code>req_seq</code> pairs everything exactly:</p>
+<ol>
+<li><strong>READ (disk → mem).</strong> The ARM stages the request's remaining bytes (up to 4 MB) at
+   <code>0x1e800000</code>, rings <code>scsi_rd_beats</code>, then <code>scsi_rd_seq = req_seq</code>. <code>scsi_stage</code>
+   accepts the count only when that seq matches the chain it is running. Leftovers
+   from an older command can never feed a new chain, whether the doorbell lands
+   before or after <code>go</code>. <code>scsi_dma</code> takes what the chain needs. <strong>The ARM never sizes
+   the chain.</strong></li>
+<li><strong>WRITE (mem → disk).</strong> <code>scsi_dma</code> gathers the chain through the snoop shim.
+   <code>scsi_stage</code> stores the beats at <code>0x1ec00000</code>; a full 2-beat buffer back-pressures
+   the engine.</li>
+<li><strong>Completion.</strong> Every chain posts one entry <code>{bytes, chain head, flags, req_seq}</code>
+   and bumps <code>scsi_cq_prod</code>. The flags are:</li>
+<li><code>done</code>;</li>
+<li><code>starved</code>: a READ chain wanted more than was staged, i.e. a short transfer. The
+     ARM posts the status, and the shim then cancels the engine.</li>
+<li><code>aborted</code>: the shim cancelled first.</li>
+</ol>
+<p>WRITE completions post only after the last beat has reached staging.
+4. <strong>The ARM</strong> waits for the entry whose seq is its request's, skipping others. A
+   no-data command can still run the engine, and nobody waits for that entry. The
+   ARM then sets <code>moved = bytes</code>, and for a WRITE copies <code>bytes</code> from staging and
+   writes the disk. Pause/resume (<code>g_pos</code>) and status are exactly as before.</p>
+<p>A read-ahead still in flight when a new chain starts is dropped by a chain tag. The
+protocol makes that timing impossible, because the next <code>go</code> needs the ARM's status,
+and that waits for the completion. The tag is defensive and has its own unit test.</p>
+<h2 id="moved-from-arm-to-rtl">Moved from ARM to RTL<a class="headerlink" href="#moved-from-arm-to-rtl" title="Permanent link">&para;</a></h2>
+<ul>
+<li>ENET: the EOXP split; live TX and RX CRBDP; ACTIVE/IRQ on completion; BC write-back
+  byte masks (TX byte 6, RX bytes 6–7); RX drop on ROWN=0.</li>
+<li>SCSI: chain sizing (the ARM's <code>scsi_chain_bytes</code>), the per-chain byte count, and WRITE
+  data capture (the ARM's <code>scsi_move</code> from guest DRAM).</li>
+</ul>
+<h2 id="deleted">Deleted<a class="headerlink" href="#deleted" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Beat FIFOs (<code>scsi_beat_fifo</code> instances for ENET RX/TX and SCSI data) and their AXI-Lite
+  data registers: writes <code>0x20–0x23</code> and <code>0x2a–0x2f</code>; reads <code>0x02</code>, <code>0x05</code>, <code>0x06</code> and
+  <code>0x20–0x23</code> now return 0, and bit 0 of <code>0x24</code>/<code>0x25</code> reads 0 (the ext-flush fields in
+  their upper bits are unchanged).</li>
+<li>The ARM completion handshake for ENET: <code>tx_rsp_seq</code>, <code>rx_rsp_seq</code>, <code>rx_crbdp</code> and
+  <code>tx_crbdp</code> registers (<code>0x12–0x15</code>).</li>
+<li>Driver: <code>EXTFLUSH</code>, <code>ENETFLUSH</code>, <code>XFPAGES</code>, the host-served ENET/SCSI paths
+  (<code>enet_service.h</code> walkers, <code>scsi_move</code> into guest memory), <code>scsi_chain_bytes</code>, the
+  <code>scsi_idle</code> hook, and the ARM guest-DRAM accessors (<code>scsi_arm_mem</code>, <code>enet_arm_mem</code>).</li>
+</ul>
+<h2 id="verification">Verification<a class="headerlink" href="#verification" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>Per-engine unit tests</strong>, extending <code>sim/enet_dma_test</code>. The DRAM model writes to
+   the 16 B-aligned line and has guard bytes. Cases:</li>
+<li>every BP offset;</li>
+<li>multi-packet chains, and chains above 64 KB;</li>
+<li><strong>the guest clearing EOX mid-walk</strong>, which must survive the BC write-back;</li>
+<li>ring full and ring empty;</li>
+<li>RX drop on ROWN=0;</li>
+<li>SCSI partial transfer and resume.</li>
+<li><strong>One servicer for both sim and silicon.</strong> Rewrite <code>henry_tb</code>'s device service
+   against the ring protocol, using the <strong>same servicer source</strong> as the ARM driver
+   (header-only, with a <code>Driver</code>-like register interface and a memory pointer). The
+   testbench then exercises the exact protocol code the board runs. Today it runs
+   different code, and that hid every one of the 2026-10-13 bugs.</li>
+<li><strong>Silicon:</strong> the 24-round IRIX soak (telnet bulk plus the <code>disk3.py</code> raw-read and
+   write worker). Pass means: 0 <code>Oerrs</code>, 0 SCSI mismatches, <code>xflush_hw = 0</code>, and no
+   ARM access to the guest window, asserted by unmapping it in the driver after boot.</li>
+</ol>
+<h2 id="phasing">Phasing<a class="headerlink" href="#phasing" title="Permanent link">&para;</a></h2>
+<ol>
+<li>Staging control block, ring index registers, and the ARM servicer skeleton (driver +
+   tb shared header).</li>
+<li>ENET TX engine + ENET RX engine on rings; delete the ENET beat FIFOs and ARM echo.</li>
+<li>SCSI on rings; delete the SCSI beat FIFO and <code>scsi_chain_bytes</code>.</li>
+<li>Delete all host-served/flush code paths; unmap the guest window after boot.</li>
+<li>64K/64K L1 configuration on top (the original step 5).</li>
+</ol>
+<h2 id="open-questions">Open questions<a class="headerlink" href="#open-questions" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Device DRAM traffic doubles: every device byte now crosses the arbiter twice (guest
+  side + staging side). Only DEVICE traffic doubles -- core traffic is unchanged, and the
+  device share is small (the soak's ENET+SCSI load is a few MB/s against a core that
+  misses to DRAM continuously). Expect at most a small rise in core DRAM latency while
+  devices are busy; confirm with <code>memlat</code> under a disk+net load. Per device byte, DRAM
+  is touched 3x (engine guest side, engine staging side, ARM staging side) versus 1x
+  for today's beat-FIFO engine path, where the ARM half crosses AXI-Lite instead of
+  DRAM. Of those, 2 go through the PL arbiter that the core shares; the ARM's access
+  goes through the PS DDR controller directly.</li>
+<li>Whether to give each ENET engine its own snoop shim, or put a 2-master front-end on
+  the existing one. The shared snoop port already arbitrates between shims.</li>
+<li>Whether a PL→PS interrupt is worth it later to replace polling. It is not needed for
+  correctness.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "navigation.indexes", "navigation.tracking", "toc.follow", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

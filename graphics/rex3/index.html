@@ -1521,6 +1521,12 @@ graphics subsystem. It is the successor to REX1 and, like REX1, has <strong>no g
 engine</strong> — the host CPU's FPU does the geometry, and Z-buffering is done in software
 in host memory. REX3's job begins when the host writes primitive coordinates and
 mode bits into its registers; REX3 turns those into screen pixels. (p.5)</p>
+<p><img alt="Newport REX3 fragment datapath" src="../img/newport_datapath.svg" /></p>
+<p><em>The per-pixel datapath: host setup → REX3 iterators (span/block, Bresenham, pattern,
+Gouraud) → clip → color select → destination read → logic op / blend → plane enables
+and write mask → VRAM → VC2 / XMAP9 / CMAP / RAMDAC scan-out. Source:
+<code>img/newport_datapath.dot</code>, drawn from the interp_mips model (a condensed MAME
+<code>newport.cpp</code>); regenerate with <code>dot -Tsvg newport_datapath.dot -o newport_datapath.svg</code>.</em></p>
 <p><strong>The Newport display pipeline</strong> (rendering → scanout), Figure 1, p.6–8:</p>
 <pre class="mermaid"><code>flowchart LR
     HOST([GIO64 host]) --&gt; REX3["&lt;b&gt;REX3&lt;/b&gt;&lt;br/&gt;raster engine"]
