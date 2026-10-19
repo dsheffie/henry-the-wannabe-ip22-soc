@@ -11,7 +11,7 @@
       
       
       
-        <link rel="prev" href="../peripherals/dmux1/">
+        <link rel="prev" href="../newport-on-henry/">
       
       
         <link rel="next" href="rex3/">
@@ -499,6 +499,60 @@
   
   
     <li class="md-nav__item">
+      <a href="../arm-device-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ARM ↔ device protocol (staging rings)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bus-errors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bus errors
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../fpu-cop1/" class="md-nav__link">
         
   
@@ -564,10 +618,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_12" >
         
           
-          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="">
+          <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="">
             
   
   
@@ -585,8 +639,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_10">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_12">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -620,7 +674,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-18 against branch dma-engine)"></span>
   
 
   
@@ -788,7 +842,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-18 against branch dma-engine)"></span>
   
 
   
@@ -823,7 +877,7 @@
     
   
   
-    <span class="md-status md-status--draft / future-work (MAME-reference)"></span>
+    <span class="md-status md-status--implemented for memory -> GIO (dma_engine CH_V), 2026-10-18"></span>
   
 
   
@@ -888,6 +942,8 @@
     
       
         
+      
+        
           
         
       
@@ -916,7 +972,7 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13" checked>
         
           
           <div class="md-nav__link md-nav__container">
@@ -937,7 +993,7 @@
     
   
   
-    <span class="md-status md-status--draft / future-work"></span>
+    <span class="md-status md-status--implemented (ARM-served model), 2026-10-18"></span>
   
 
   
@@ -945,14 +1001,14 @@
             </a>
             
               
-              <label class="md-nav__link md-nav__link--active" for="__nav_11" id="__nav_11_label" tabindex="">
+              <label class="md-nav__link md-nav__link--active" for="__nav_13" id="__nav_13_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_11">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_13">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -961,6 +1017,34 @@
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../newport-on-henry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Newport on henry (working, screenshots)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
             
@@ -1163,7 +1247,7 @@
     
   
   
-    <span class="md-status md-status--reference (static reverse engineering of IRIX 6.5.22; nothing run on henry)"></span>
+    <span class="md-status md-status--reference (static reverse engineering of IRIX 6.5.22) + what henry observed on silicon (section 7)"></span>
   
 
   
@@ -1370,10 +1454,14 @@
 <h1 id="newport-graphics-board-overview">Newport graphics board (overview)<a class="headerlink" href="#newport-graphics-board-overview" title="Permanent link">&para;</a></h1>
 <blockquote>
 <p>Intro: the Indy "XL" graphics board on GIO64 slot 0 (phys <code>0x1f000000</code>; REX3 registers at
-<code>0x1f0f0000</code>). <strong>Henry does not implement any of it</strong> — there is no REX3/VC2/XMAP9/RB2/RO1 logic in
-<code>rtl/</code> or <code>ip_hdl/</code>, and Henry boots headless on the serial console. These pages are (a) a reference
-description of the SGI hardware, (b) Henry's implementation status (none), and (c) the future-work
-path for a Henry graphics console.</p>
+<code>0x1f0f0000</code>). <strong>Henry runs it on silicon</strong> as an ARM-served device: the PL captures every
+REX3 access into a ring and the Zynq ARM runs a software model of the board, and IRIX reaches
+the 4Dwm desktop. See <strong><a href="../newport-on-henry/">Newport on henry</a></strong> for the design,
+screenshots and known issues. The pages in this section describe the SGI hardware.</p>
+</blockquote>
+<p><img alt="4Dwm desktop on henry silicon" src="img/newport/silicon-desktop-doom.png" />
+<em>IRIX 6.5 4Dwm on henry (Ultra96-v2), Newport served by the ARM; Doom in a window.</em></p>
+<blockquote>
 <p><strong>Software side:</strong> what IRIX's Xsgi, <code>ng1</code> kernel driver and GL libraries actually do to this
 hardware (store widths, polling, pixel DMA, context switch) is in
 <a href="irix-software/">How IRIX drives Newport</a>.</p>
@@ -1468,53 +1556,30 @@ reading <code>0xDEADBEEF</code>), then for a product-ID word, and finally treats
 </table>
 <p>(CMAP is a colormap SRAM and the RAMDAC is an off-the-shelf part; neither has its own page here.)</p>
 <h2 id="henry-relevance">Henry relevance<a class="headerlink" href="#henry-relevance" title="Permanent link">&para;</a></h2>
-<p><strong>Implementation status (current RTL): nothing.</strong> No Newport chip is modeled — a grep of <code>rtl/</code> and
-<code>ip_hdl/</code> for rex3/newport/vc2/xmap finds only address-map comments. Henry boots IRIX and Linux headless
-on the SCC serial console; nothing on this page is on the boot path. (Today's IRIX desktop is X11
-forwarded over Ethernet / VNC, not a Henry framebuffer.)</p>
-<p>What the graphics aperture actually does today: <code>henry_soc.sv</code> decodes only MC (<code>0x1fa…</code>), HPC3
-(<code>0x1fb8…</code>–<code>0x1fbf…</code>) and IOC2; every other physical address, including <code>0x1f000000–0x1f3fffff</code>, falls
-through to the external AXI memory port. In SGI mode <code>axi_is_the_worst_v1_0_M00_AXI.v</code> remaps
-<code>0x1f000000–0x1fffffff</code> onto a 16 MB DRAM window (the same window that backs the boot-PROM image at
-<code>0x1fc00000</code>), so <strong>a load or store to the Newport aperture hits ordinary DRAM — it does not bus-error.</strong>
-(An out-of-range address returns <code>0xA5A5A5A5</code> with <code>mem_rsp_bad</code>, but the r9999 core ignores
-<code>mem_rsp_bad</code>, and the IOC2 <code>buserr</code> input is tied to 0.) A graphics probe therefore sees whatever that
-DRAM holds rather than an empty-slot bus error. Graphics interrupts (IOC2 Local1 VRETRACE etc.) are tied
-to 0, and the MC graphics-DMA registers (<code>0x2000</code>+) are not implemented.</p>
-<p><strong>Feasibility (study only, 2026-10-02; <code>NEWPORT_FEASIBILITY.md</code> at the repo root, not part of the
-published docs).</strong> The study recorded IRIX 6.5's Newport access stream under QEMU and compared three
-designs:</p>
-<ul>
-<li><strong>Every access serviced by the Zynq ARM: not feasible</strong> — 3–10× short on throughput even with a
-  dedicated spinning A53, ~1000× short with today's polling loop.</li>
-<li><strong>Hybrid: feasible.</strong> IRIX's stream is ~99.9% posted writes, so the PL can log writes into a DDR ring
-  and answer STATUS/CONFIG/DCB-status reads from shadow registers, while an ARM thread runs a software
-  REX3 (a port of MAME's) and does scanout. Estimated PL cost ~1–2K LUT.</li>
-<li><strong>REX3 rasterizer in PL: does not fit</strong> Henry's current LUT budget.</li>
-<li><strong>Required by any design:</strong> MC graphics DMA (Xsgi/GL use it for large Get/PutImage with no PIO
-  fallback) and a vertical-retrace interrupt.</li>
-</ul>
-<p>None of this is built; the measured rates are from QEMU traces, and the r9999 per-store cost was an
-estimate, not a measurement.</p>
-<p><strong>Generic scope of a Henry Newport</strong> (independent of where the drawing runs):</p>
+<p><strong>Implementation: an ARM-served model, working on silicon.</strong> No Newport chip is built in the PL.
+<code>rtl/gio_window.sv</code> turns every access to the REX3 window (<code>0x1f0f0000–0x1f0f1fff</code>) into a
+record in a DDR capture ring, and holds loads until the ARM answers. On the Zynq ARM, the driver
+runs <code>sgi_newport</code> (a condensed MAME <code>newport.cpp</code>, shared with
+<a href="https://github.com/dsheffie/indysim">indysim</a>) and shows the framebuffer on an X display viewed
+over VNC. The MC's graphics DMA (VDMA, memory → GIO) is a channel of henry's DMA engine and
+feeds the same ring. The vertical-retrace interrupt is an ARM-driven INT3 <code>local1</code> level.
+Details: <a href="../newport-on-henry/">Newport on henry</a>.</p>
+<p>Why this split: the 2026-10-02 feasibility study (<code>NEWPORT_FEASIBILITY.md</code>, QEMU traces of
+IRIX 6.5) found IRIX's stream is ~99.9% posted writes. Serving every access on the ARM was
+3–10× too slow, a REX3 rasterizer in the PL did not fit henry's LUT budget, and the hybrid (PL
+logs writes, ARM draws) was feasible. Any design needed MC graphics DMA and a retrace interrupt;
+henry has both.</p>
+<p>What the generic Newport work turned out to be (in the order it was needed):</p>
 <ol>
-<li>Decode the REX3 register window (<code>0x1f0f0000–0x1f0f1fff</code>) and make the driver's probe succeed (e.g.
-   a readable <code>USER_STATUS</code> at <code>0x1f0f133c</code>) → verify: the OS reports a Newport in slot 0.</li>
-<li>Implement REX3's host-visible register file and the <code>HOSTRW</code> pixel path over a framebuffer in real
-   RAM → verify: the IRIX/PROM graphics init writes registers and clears the screen without faulting.</li>
-<li>Implement the <strong>rendering command set</strong> (lines/spans/blocks via the Bresenham iterators, the DDA
-   color iterators, dither/blend/LogicOp, fast-clear, screen-to-screen copy). <strong>This is the bulk of the
-   work</strong> — it is most of the 149-page REX3 spec → verify: a known IRIX 2D workload draws correctly.</li>
-<li>The scanout hardware (VC2 timing, RO1/XMAP9/CMAP/RAMDAC) need not be rebuilt as chips — scanout can
-   read the framebuffer RAM directly — but the driver still programs VC2/XMAP9/CMAP/RAMDAC over the DCB,
-   so their register state (and correct DCB read replies) must exist, and a CI framebuffer must be
-   displayed through the CMAP/XMAP9 mode state to look right.</li>
-<li><strong>MC graphics DMA</strong> and a <strong>vertical-retrace interrupt</strong> (VC2 VINTR → IOC2) — the feasibility study
-   found IRIX depends on both (see above); neither exists in Henry today.</li>
+<li>The probe: a readable REX3 window → <code>hinv</code> reports "Graphics board: Indy 8-bit" (or 24-bit).</li>
+<li>The REX3 register file, the DCB devices (VC2, XMAP9, CMAP, RAMDAC) with correct readback, and
+   the drawing command set (spans, lines, blocks, host data). This comes from MAME's model.
+   Two bugs that MAME has, CID match in <code>CLIPMODE</code> and per-plane write masks, showed up only once
+   a real desktop ran (see <a href="../newport-on-henry/#two-model-bugs-found-on-silicon">Newport on henry</a>).</li>
+<li>Scanout is not rebuilt as chips: the ARM reads the framebuffer directly and applies the
+   CMAP/XMAP9 mode state.</li>
+<li>MC VDMA and the retrace interrupt.</li>
 </ol>
-<p>The big-ticket item is step 3: REX3 is where essentially all the drawing complexity lives, because
-Newport deliberately pushes geometry and Z onto the host and keeps everything downstream as
-fixed-function scanout.</p>
 <h2 id="sources">Sources<a class="headerlink" href="#sources" title="Permanent link">&para;</a></h2>
 <ul>
 <li>REX3 Specification, Rev 1.0 (SGI, Aug 1993) — <code>sgi/docs/indy_docs/newport/rex3.pdf</code> (§1.4 Newport
@@ -1527,8 +1592,8 @@ fixed-function scanout.</p>
 <li>Linux <code>arch/mips/sgi-ip22/ip22-gio.c</code> (v6.12) — <code>ip22_check_gio()</code>: HQ2 <code>MYSTERY</code> / Newport <code>USTATUS</code>
   probe offsets.</li>
 <li>MAME <code>src/devices/bus/gio64/newport.cpp</code> — REX3 window <code>0xf0000–0xf1fff</code> within the slot.</li>
-<li>Henry RTL (implementation status): <code>rtl/henry_soc.sv</code> (device decode, <code>buserr(3'd0)</code>, Local1 sources
-  tied 0), <code>ip_hdl/axi_is_the_worst_v1_0_M00_AXI.v</code> (SGI-mode <code>0x1f…</code> → DRAM remap).</li>
+<li>Henry RTL: <code>rtl/gio_window.sv</code> (the ARM-served window), <code>rtl/dma_engine.sv</code> (VDMA channel),
+  <code>rtl/mc.sv</code> (DMA TLB/CTL registers), <code>rtl/henry_soc.sv</code> (decode, INT3 wiring).</li>
 <li><code>NEWPORT_FEASIBILITY.md</code> (repo root, 2026-10-02 study; not published) — IRIX access-stream
   measurements and the ARM/hybrid/PL comparison.</li>
 </ul>

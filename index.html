@@ -595,6 +595,60 @@
   
   
     <li class="md-nav__item">
+      <a href="arm-device-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ARM ↔ device protocol (staging rings)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="bus-errors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bus errors
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="fpu-cop1/" class="md-nav__link">
         
   
@@ -660,10 +714,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_12" >
         
           
-          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="">
+          <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="">
             
   
   
@@ -681,8 +735,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_10">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_12">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -716,7 +770,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-18 against branch dma-engine)"></span>
   
 
   
@@ -884,7 +938,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-18 against branch dma-engine)"></span>
   
 
   
@@ -919,7 +973,7 @@
     
   
   
-    <span class="md-status md-status--draft / future-work (MAME-reference)"></span>
+    <span class="md-status md-status--implemented for memory -> GIO (dma_engine CH_V), 2026-10-18"></span>
   
 
   
@@ -982,6 +1036,8 @@
     
       
         
+      
+        
           
         
       
@@ -1010,7 +1066,7 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -1031,7 +1087,7 @@
     
   
   
-    <span class="md-status md-status--draft / future-work"></span>
+    <span class="md-status md-status--implemented (ARM-served model), 2026-10-18"></span>
   
 
   
@@ -1039,14 +1095,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_11" id="__nav_11_label" tabindex="">
+              <label class="md-nav__link " for="__nav_13" id="__nav_13_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_11">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_13">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1055,6 +1111,34 @@
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="newport-on-henry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Newport on henry (working, screenshots)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
             
@@ -1257,7 +1341,7 @@
     
   
   
-    <span class="md-status md-status--reference (static reverse engineering of IRIX 6.5.22; nothing run on henry)"></span>
+    <span class="md-status md-status--reference (static reverse engineering of IRIX 6.5.22) + what henry observed on silicon (section 7)"></span>
   
 
   
@@ -1470,7 +1554,7 @@ vectors. Tags: ✅ = confirmed in MAME, ⚠️ = a correction to an earlier reve
     CPU --&gt;|"sysad — 64-bit, big-endian"| MC["&lt;b&gt;MC&lt;/b&gt; — memory controller&lt;br/&gt;&lt;small&gt;RAM banks · GIO64 arbiter · (V)DMA&lt;/small&gt;"]
     MC --&gt; RAM[("Main RAM&lt;br/&gt;0x08000000+")]
     MC --&gt;|"GIO64 bus&lt;br/&gt;0x1f000000–0x1f9fffff"| GIO{{GIO64}}
-    GIO --&gt; GFX["graphics — slot 0&lt;br/&gt;&lt;small&gt;not implemented on Henry&lt;/small&gt;"]
+    GIO --&gt; GFX["Newport graphics — slot 0&lt;br/&gt;&lt;small&gt;REX3 window served by the Zynq ARM&lt;/small&gt;"]
     GIO --&gt; EXP["exp slot 0 / 1&lt;br/&gt;&lt;small&gt;IP22: bus-error when empty · Henry: DRAM-backed&lt;/small&gt;"]
     MC --&gt;|local I/O bus| LIO{{local I/O}}
     LIO --&gt; HPC3["&lt;b&gt;HPC3&lt;/b&gt;&lt;br/&gt;&lt;small&gt;SCSI×2 · Ethernet · PBUS DMA&lt;br/&gt;ds1386 RTC/NVRAM · EEPROM&lt;/small&gt;"]
@@ -1509,7 +1593,7 @@ vectors. Tags: ✅ = confirmed in MAME, ⚠️ = a correction to an earlier reve
 <td><code>0x1f000000–0x1f9fffff</code></td>
 <td>10 MB</td>
 <td><strong>GIO64 bus</strong></td>
-<td>graphics @<code>0x1f000000</code>; exp slots @<code>0x1f400000</code>/<code>0x1f600000</code>. IP22 bus-errors empty slots; <strong>Henry has no GIO64 decode and no graphics</strong> — the whole <code>0x1f000000–0x1fffffff</code> window that isn't MC/HPC3/IOC2 is remapped onto a 16 MB shared-DRAM window (<code>ip_hdl/axi_is_the_worst_v1_0_M00_AXI.v</code>)</td>
+<td>graphics @<code>0x1f000000</code>; exp slots @<code>0x1f400000</code>/<code>0x1f600000</code>. <strong>Henry:</strong> the REX3 window <code>0x1f0f0000–0x1f0f1fff</code> is an ARM-served Newport (<a href="newport-on-henry/">Newport on henry</a>); the rest of GIO space is empty and, with <code>CPUCTRL1.ABORT_EN</code>, a load takes a precise data bus error (<a href="bus-errors/">Bus errors</a>)</td>
 </tr>
 <tr>
 <td><code>0x1fa00000–0x1faffff</code></td>
@@ -1537,9 +1621,10 @@ vectors. Tags: ✅ = confirmed in MAME, ⚠️ = a correction to an earlier reve
 </tr>
 </tbody>
 </table>
-<p>(See <a href="peripherals/mc/">Memory &amp; address map</a> for the MC/MEMCFG detail.) On Henry, nothing in this map raises a
-<strong>bus error</strong>: <code>henry_soc.sv</code> decodes only MC, HPC3 and IOC2, the IOC2/INT3 bus-error input is tied to 0, and the
-core ignores the AXI master's <code>mem_rsp_bad</code>. See <a href="architecture/#how-henry-realizes-it-rtl-fpga">Architecture</a>.</p>
+<p>(See <a href="peripherals/mc/">Memory &amp; address map</a> for the MC/MEMCFG detail.) Empty GIO space raises a <strong>bus error</strong> as
+on IP22: the MC decides it, latches <code>GIO_ERROR_ADDR/STAT</code>, and returns the error with the response; r9999 takes a
+precise data bus error (cause 7) on a load, and a posted store raises the MC bus-error interrupt. See
+<a href="bus-errors/">Bus errors</a>.</p>
 <h2 id="where-to-start">Where to start<a class="headerlink" href="#where-to-start" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -1582,28 +1667,50 @@ core ignores the AXI master's <code>mem_rsp_bad</code>. See <a href="architectur
 <td><a href="irix-boot-flow/">IRIX boot flow</a></td>
 </tr>
 <tr>
+<td>see the graphics desktop and how it works</td>
+<td><a href="newport-on-henry/">Newport on henry</a></td>
+</tr>
+<tr>
+<td>understand the ARM ↔ device protocol</td>
+<td><a href="arm-device-protocol/">ARM device protocol</a></td>
+</tr>
+<tr>
 <td>reproduce/extend the findings</td>
 <td><a href="methodology/">Methodology</a></td>
 </tr>
 </tbody>
 </table>
 <h2 id="status">Status<a class="headerlink" href="#status" title="Permanent link">&para;</a></h2>
-<p><em>As of 2026-10-04 (henry <code>main</code> @ <code>209e6f6</code>, r9999 submodule @ <code>5c89b70</code>; deployed bitstream md5 <code>f66c6d49dfb1</code>).</em></p>
+<p><em>As of 2026-10-18 (henry branch <code>dma-engine</code>; bitstreams built from r9999 <code>91129f9</code>; RTL revision <code>0x20261018</code>).</em></p>
 <p>Henry <strong>boots IRIX 6.5.22 on real FPGA silicon</strong> (Ultra96-v2, Zynq UltraScale+ ZU3EG, 100 MHz): PROM/ARCS →
-IRIX kernel → SCSI disk → multi-user IRIX userspace. On silicon IRIX runs SPEC CINT95 (<code>-Ofast</code> builds), talks to
-the network (<code>telnet</code> into the guest), and runs X11 clients (4Dwm) against an X/VNC server on the Zynq ARM side;
-IP22 Linux boots as well. Henry has no Newport graphics hardware — X11 goes over the
-network, and the system console is the Z8530 serial port.</p>
-<p>Implemented SoC RTL (<code>rtl/</code>): <strong>MC</strong>, <strong>HPC3</strong>, <strong>IOC2</strong> with the <strong>Z8530 SCC</strong> console (Tx and Rx) and the
-i8254, the <strong>INT3</strong> interrupt mux (<code>int3.sv</code>), the <strong>ds1386 RTC/NVRAM</strong> (in <code>hpc3.sv</code>), an <strong>ARM/PS-serviced SCSI disk</strong>
-(<code>scsi_shim.sv</code>: the driver polls the doorbell and walks the HPC3 <code>{BP,BC,DP}</code> descriptor chain in shared DRAM,
-depositing disk data straight into guest buffers), and <strong>Seeq 8003 + HPC3 ENET</strong> (<code>enet_shim.sv</code>, likewise
-serviced by the ARM through a host tap). Because the ARM does the DMA, cache coherence for DMA is maintained by
-ARM-requested whole-cache and per-page flushes injected into the core (see <a href="architecture/">Architecture</a>).
-The Verilator co-simulation harness (<code>sim/</code>, <code>henry_tb</code>, with an ISS lock-step checker) is the pre-silicon
-vehicle. FPGA resource/timing history is on the <a href="fpga_stats/">FPGA stats</a> page.</p>
+IRIX kernel → SCSI disk → multi-user userspace, and now <strong>to the 4Dwm desktop on Newport graphics</strong>, with PS/2
+keyboard and mouse. IP22 Linux boots as well.</p>
+<p><img alt="IRIX 4Dwm on henry silicon" src="graphics/img/newport/silicon-desktop-doom.png" />
+<em>IRIX 4Dwm on henry silicon: the Newport board is a model on the Zynq ARM, fed by the PL. Doom is running in a
+window.</em></p>
+<ul>
+<li><strong>Graphics:</strong> an ARM-served Newport (XL8 or XL24). The PL captures REX3 accesses into a ring
+  (<code>gio_window.sv</code>), the ARM runs the board model, and MC VDMA (memory → GIO) is a channel of the DMA
+  engine. See <a href="newport-on-henry/">Newport on henry</a>.</li>
+<li><strong>Devices:</strong> SCSI disk and Ethernet go through one DMA engine (<code>dma_engine.sv</code>) with a coherent snoop
+  path and ARM staging rings, so the ARM never touches guest memory and no ARM cache flushes are needed
+  (<a href="arm-device-protocol/">ARM device protocol</a>). IRIX networking (telnet, X11 over TCP) works. The staging-ring
+  design passed a 24-round IRIX network/disk soak on silicon (bitstream <code>0e7de40d</code>, 2026-10-15: 1.5 GB, 0 panics).</li>
+<li><strong>Bus errors:</strong> empty GIO space raises precise data bus errors (<a href="bus-errors/">Bus errors</a>).</li>
+<li><strong>Performance:</strong> Dhrystone 2.1 under IRIX (MIPSpro <code>-Ofast -mips3</code>) at 100 MHz: <strong>158.1 VAX MIPS</strong> on
+  the default big core with Newport (ROB 16, LSU 8, 128 KB L2; <code>7d953110</code>), <strong>169.6</strong> on the ROB 32 / LSU 12 /
+  512 KB L2 build (<code>0e7de40d</code>, no Newport). The Indy R4400 at 175 MHz is listed at 125.4 and the R5000 at 150 MHz at 183.6
+  (<a href="http://www.sgistuff.net/funstuff/benchmarks/index.html">sgistuff</a>). FPGA resource and timing history is on the
+  <a href="fpga_stats/">FPGA stats</a> page.</li>
+</ul>
+<p>Implemented SoC RTL (<code>rtl/</code>): <strong>MC</strong> (including the DMA TLB/VDMA registers and bus-error status), <strong>HPC3</strong>,
+<strong>IOC2</strong> with the <strong>Z8530 SCC</strong> console (Tx and Rx), the i8254 and the ARM-served 8042, the <strong>INT3</strong> interrupt
+mux (<code>int3.sv</code>), the <strong>ds1386 RTC/NVRAM</strong>, the <strong>DMA engine</strong> (SCSI, ENET TX/RX, VDMA), the SCSI and ENET
+shims, and the <strong>GIO window</strong> that serves Newport. The Verilator co-simulation harness (<code>sim/</code>, <code>henry_tb</code>, with
+an ISS lock-step checker) is the pre-silicon vehicle, and <a href="https://github.com/dsheffie/indysim">indysim</a> is the
+Indy reference model.</p>
 <p>The peripheral specs (MC, IOC2, HPC3, GIO64, VDMA) and the cross-cutting docs are drafted from the SGI IP22
-chip documents + MAME validation. Newport graphics and audio (HAL2) are documented but <strong>not</strong> implemented.
+chip documents + MAME validation. Audio (HAL2) is documented but <strong>not</strong> implemented.
 The detailed working notes live in the <a href="https://github.com/dsheffie/r9999"><code>r9999/</code></a> submodule
 (<code>IRIX_CPU_REQUIREMENTS.md</code>, <code>IRIX_KERNEL_GAPS.md</code>, <code>IP22_CHIP_REGISTERS.md</code>, <code>MAME_QUESTIONS.md</code>).</p>
 

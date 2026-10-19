@@ -11,6 +11,10 @@
       
       
       
+        <link rel="prev" href="../coherence-cache-tlb/">
+      
+      
+        <link rel="next" href="../bus-errors/">
       
       
         
@@ -492,6 +496,267 @@
       
   
   
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ARM ↔ device protocol (staging rings)
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ARM ↔ device protocol (staging rings)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#why" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#invariants" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Invariants
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#block-diagram" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Block diagram
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#staging-memory-map-window-offset-device-pa" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Staging memory map (window offset == device PA)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ring-mechanics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ring mechanics
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#enet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ENET
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ENET">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tx-guest-wire" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TX (guest → wire)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rx-wire-guest" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RX (wire → guest)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scsi" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SCSI
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#moved-from-arm-to-rtl" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Moved from ARM to RTL
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deleted" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deleted
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#verification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verification
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phasing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phasing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#open-questions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Open questions
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bus-errors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bus errors
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
   
   
     <li class="md-nav__item">
@@ -560,10 +825,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_12" >
         
           
-          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="">
+          <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="">
             
   
   
@@ -581,8 +846,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_10">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_12">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -616,7 +881,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-18 against branch dma-engine)"></span>
   
 
   
@@ -784,7 +1049,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-18 against branch dma-engine)"></span>
   
 
   
@@ -819,7 +1084,7 @@
     
   
   
-    <span class="md-status md-status--draft / future-work (MAME-reference)"></span>
+    <span class="md-status md-status--implemented for memory -> GIO (dma_engine CH_V), 2026-10-18"></span>
   
 
   
@@ -882,6 +1147,8 @@
     
       
         
+      
+        
           
         
       
@@ -910,7 +1177,7 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -931,7 +1198,7 @@
     
   
   
-    <span class="md-status md-status--draft / future-work"></span>
+    <span class="md-status md-status--implemented (ARM-served model), 2026-10-18"></span>
   
 
   
@@ -939,14 +1206,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_11" id="__nav_11_label" tabindex="">
+              <label class="md-nav__link " for="__nav_13" id="__nav_13_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_11">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_13">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -955,6 +1222,34 @@
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../newport-on-henry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Newport on henry (working, screenshots)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
             
@@ -1157,7 +1452,7 @@
     
   
   
-    <span class="md-status md-status--reference (static reverse engineering of IRIX 6.5.22; nothing run on henry)"></span>
+    <span class="md-status md-status--reference (static reverse engineering of IRIX 6.5.22) + what henry observed on silicon (section 7)"></span>
   
 
   

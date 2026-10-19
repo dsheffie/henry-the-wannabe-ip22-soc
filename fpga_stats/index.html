@@ -497,6 +497,60 @@
   
   
     <li class="md-nav__item">
+      <a href="../arm-device-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ARM ↔ device protocol (staging rings)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bus-errors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bus errors
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../fpu-cop1/" class="md-nav__link">
         
   
@@ -562,10 +616,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_12" >
         
           
-          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="">
+          <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="">
             
   
   
@@ -583,8 +637,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_10">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_12">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -618,7 +672,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-18 against branch dma-engine)"></span>
   
 
   
@@ -786,7 +840,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-18 against branch dma-engine)"></span>
   
 
   
@@ -821,7 +875,7 @@
     
   
   
-    <span class="md-status md-status--draft / future-work (MAME-reference)"></span>
+    <span class="md-status md-status--implemented for memory -> GIO (dma_engine CH_V), 2026-10-18"></span>
   
 
   
@@ -884,6 +938,8 @@
     
       
         
+      
+        
           
         
       
@@ -912,7 +968,7 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -933,7 +989,7 @@
     
   
   
-    <span class="md-status md-status--draft / future-work"></span>
+    <span class="md-status md-status--implemented (ARM-served model), 2026-10-18"></span>
   
 
   
@@ -941,14 +997,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_11" id="__nav_11_label" tabindex="">
+              <label class="md-nav__link " for="__nav_13" id="__nav_13_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_11">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_13">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -957,6 +1013,34 @@
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../newport-on-henry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Newport on henry (working, screenshots)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
             
@@ -1159,7 +1243,7 @@
     
   
   
-    <span class="md-status md-status--reference (static reverse engineering of IRIX 6.5.22; nothing run on henry)"></span>
+    <span class="md-status md-status--reference (static reverse engineering of IRIX 6.5.22) + what henry observed on silicon (section 7)"></span>
   
 
   
@@ -1305,10 +1389,21 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#2026-10-04-r9999-5c89b70-l1d-flushes-start-only-from-a-drained-l1d-current-deployed-bit" class="md-nav__link">
+  <a href="#2026-10-14-10-18-device-rings-newport-vdma-big-core" class="md-nav__link">
     <span class="md-ellipsis">
       
-        2026-10-04 -- r9999 5c89b70 (L1D flushes start only from a drained L1D) -- CURRENT deployed bit
+        2026-10-14 .. 10-18 -- device rings, Newport, VDMA, big core
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2026-10-04-r9999-5c89b70-l1d-flushes-start-only-from-a-drained-l1d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2026-10-04 -- r9999 5c89b70 (L1D flushes start only from a drained L1D)
       
     </span>
   </a>
@@ -1433,10 +1528,21 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#2026-10-04-r9999-5c89b70-l1d-flushes-start-only-from-a-drained-l1d-current-deployed-bit" class="md-nav__link">
+  <a href="#2026-10-14-10-18-device-rings-newport-vdma-big-core" class="md-nav__link">
     <span class="md-ellipsis">
       
-        2026-10-04 -- r9999 5c89b70 (L1D flushes start only from a drained L1D) -- CURRENT deployed bit
+        2026-10-14 .. 10-18 -- device rings, Newport, VDMA, big core
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2026-10-04-r9999-5c89b70-l1d-flushes-start-only-from-a-drained-l1d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2026-10-04 -- r9999 5c89b70 (L1D flushes start only from a drained L1D)
       
     </span>
   </a>
@@ -1554,7 +1660,67 @@ In most of the June–July 2026 builds logged below the WNS path was the <strong
 the CAM off the fetch path; since the memory-system rework (non-blocking L1D + LSU) the worst path
 sits in the <strong>L1D port-2 pipeline</strong>. Newest block first. Reports for each deployed bitstream are
 snapshotted next to it in <code>~/fpga/ultra96v2-henry/bit_&lt;r9999 sha&gt;/</code>.</p>
-<h2 id="2026-10-04-r9999-5c89b70-l1d-flushes-start-only-from-a-drained-l1d-current-deployed-bit">2026-10-04 -- r9999 5c89b70 (L1D flushes start only from a drained L1D) -- CURRENT deployed bit<a class="headerlink" href="#2026-10-04-r9999-5c89b70-l1d-flushes-start-only-from-a-drained-l1d-current-deployed-bit" title="Permanent link">&para;</a></h2>
+<h2 id="2026-10-14-10-18-device-rings-newport-vdma-big-core">2026-10-14 .. 10-18 -- device rings, Newport, VDMA, big core<a class="headerlink" href="#2026-10-14-10-18-device-rings-newport-vdma-big-core" title="Permanent link">&para;</a></h2>
+<p>Summary rows from the bitstream manifest (Vivado post-route WNS @ 100 MHz and CLB LUTs; full reports are
+kept next to each bitstream). All built with <code>ENABLE_DEBUG_WATCHPOINT</code>.</p>
+<table>
+<thead>
+<tr>
+<th>date</th>
+<th>bitstream (md5)</th>
+<th>config</th>
+<th>WNS</th>
+<th>CLB LUTs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>10-14</td>
+<td><code>0e7de40d</code></td>
+<td>ROB 32, LSU 12, HILO 8, L2 512 KB, L1D 16 KB / L1I 32 KB; ENET+SCSI staging rings (no Newport). Passed a 24-round IRIX soak; Dhrystone 169.6 VAX MIPS</td>
+<td>+0.074</td>
+<td>63085</td>
+</tr>
+<tr>
+<td>10-16</td>
+<td><code>d8ad3041</code></td>
+<td>TINY_CORE; first <code>gio_window</code> + ARM-served Newport (RTL rev <code>0x20261016</code>)</td>
+<td>+0.102</td>
+<td>56663</td>
+</tr>
+<tr>
+<td>10-17</td>
+<td><code>959051bd</code></td>
+<td>TINY_CORE; DMA engine + VDMA channel (TLB_LO fix) + usage counters</td>
+<td>+0.261</td>
+<td>54949</td>
+</tr>
+<tr>
+<td>10-17</td>
+<td><code>974ea88e</code></td>
+<td>TINY_CORE; + ring BEGIN/END markers (RTL rev <code>0x20261018</code>)</td>
+<td>+0.048</td>
+<td>54906</td>
+</tr>
+<tr>
+<td>10-18</td>
+<td><code>7d953110</code></td>
+<td>big core (sched 8, LSU 8, L1D 16 KB, L1I 32 KB, L2 128 KB, ROB 16, skid on) + DMA engine + VDMA + markers. Runs the Newport desktop and Doom; Dhrystone 158.1 VAX MIPS</td>
+<td>+0.145</td>
+<td>57609</td>
+</tr>
+<tr>
+<td>10-18</td>
+<td><code>d60ca46f</code></td>
+<td>as <code>7d953110</code> with L2 256 KB (105.5 BRAM tiles)</td>
+<td>+0.051</td>
+<td>57753</td>
+</tr>
+</tbody>
+</table>
+<p>A ROB 32 + LSU 12 + 256 KB L2 variant of the Newport/DMA-engine design routed at <strong>−2.061 ns</strong> (88.7% LUTs)
+and is not usable at 100 MHz on the ZU3EG.</p>
+<h2 id="2026-10-04-r9999-5c89b70-l1d-flushes-start-only-from-a-drained-l1d">2026-10-04 -- r9999 5c89b70 (L1D flushes start only from a drained L1D)<a class="headerlink" href="#2026-10-04-r9999-5c89b70-l1d-flushes-start-only-from-a-drained-l1d" title="Permanent link">&para;</a></h2>
 <p>Henry <code>main</code> @ <code>209e6f6</code>; bitstream md5 <code>f66c6d49dfb1…</code>; <code>impl_11</code>; built with
 <code>ENABLE_DEBUG_WATCHPOINT</code> on (the <code>gen_mipscore.sh</code> default). Core config: 16 KB L1I + 16 KB L1D,
 128 KB L2, ROB 16, micro-ITLB 2, L1D skid buffer <strong>off</strong>, RDCHK checker removed, unified int/FP divider

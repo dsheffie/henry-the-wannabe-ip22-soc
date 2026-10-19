@@ -499,6 +499,60 @@
   
   
     <li class="md-nav__item">
+      <a href="../../arm-device-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ARM ↔ device protocol (staging rings)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../bus-errors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bus errors
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../fpu-cop1/" class="md-nav__link">
         
   
@@ -564,10 +618,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_12" >
         
           
-          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="">
+          <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="">
             
   
   
@@ -585,8 +639,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_10">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_12">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -620,7 +674,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-18 against branch dma-engine)"></span>
   
 
   
@@ -788,7 +842,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-18 against branch dma-engine)"></span>
   
 
   
@@ -823,7 +877,7 @@
     
   
   
-    <span class="md-status md-status--draft / future-work (MAME-reference)"></span>
+    <span class="md-status md-status--implemented for memory -> GIO (dma_engine CH_V), 2026-10-18"></span>
   
 
   
@@ -888,6 +942,8 @@
     
       
         
+      
+        
           
         
       
@@ -916,7 +972,7 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13" checked>
         
           
           <div class="md-nav__link md-nav__container">
@@ -937,7 +993,7 @@
     
   
   
-    <span class="md-status md-status--draft / future-work"></span>
+    <span class="md-status md-status--implemented (ARM-served model), 2026-10-18"></span>
   
 
   
@@ -945,14 +1001,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_11" id="__nav_11_label" tabindex="">
+              <label class="md-nav__link " for="__nav_13" id="__nav_13_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_11">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_13">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -961,6 +1017,34 @@
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../newport-on-henry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Newport on henry (working, screenshots)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
             
@@ -1283,7 +1367,7 @@
     
   
   
-    <span class="md-status md-status--reference (static reverse engineering of IRIX 6.5.22; nothing run on henry)"></span>
+    <span class="md-status md-status--reference (static reverse engineering of IRIX 6.5.22) + what henry observed on silicon (section 7)"></span>
   
 
   
@@ -1505,12 +1589,11 @@ slave in the slot at <code>0x1f000000</code> with its registers at <code>0x1f0f0
 REX3 rasterizes them and writes pixels into the VRAM framebuffer through the RB2s.
 It is also the master of the Display Control Bus (DCB) that programs the rest of
 the Newport display chain (VC2, XMAP9, CMAP, RAMDAC).</p>
-<p><strong>Not implemented in Henry.</strong> There is no REX3 logic in <code>rtl/</code> or <code>ip_hdl/</code>; accesses to
-this window fall through to plain DRAM (see <a href="#henry-relevance-implementation-scope">Henry relevance</a>).
-This document is reference + future-work for a Henry graphics console: it
-captures the architecture, programming model, and register-group map well enough
-to (a) understand the part and (b) scope what a Henry REX3 would entail, without
-exhaustively transcribing all 149 spec pages.</p>
+<p><strong>On Henry, REX3 is software on the Zynq ARM.</strong> The PL captures every access to this window
+into a ring (<code>rtl/gio_window.sv</code>) and the ARM runs a model of the chip; IRIX reaches the 4Dwm
+desktop on silicon. See <a href="../../newport-on-henry/">Newport on henry</a> and
+<a href="#henry-relevance-implementation-scope">Henry relevance</a>. This page captures the architecture,
+programming model and register-group map without transcribing all 149 spec pages.</p>
 </blockquote>
 <p>Part: REX3, SGI 099-9005-001, LSI L1A9040, 0.6µm CMOS gate array, 304 MQUAD,
 ~149K gates incl. 5.7Kb dual-port RAM. (rex3.pdf p.5)</p>
@@ -1829,12 +1912,22 @@ writes them back. Caveat: <code>SLOPERED</code> must be converted s2c→sign-mag
 the GO bit during save/restore.</p>
 <hr />
 <h2 id="henry-relevance-implementation-scope">Henry relevance / implementation scope<a class="headerlink" href="#henry-relevance-implementation-scope" title="Permanent link">&para;</a></h2>
-<p><strong>Henry today: not implemented.</strong> No REX3 logic exists in <code>rtl/</code> or <code>ip_hdl/</code>. Henry's
-device decode (<code>henry_soc.sv</code>) claims only MC/HPC3/IOC2, so accesses to <code>0x1f0f0000</code>
-fall through to the external memory port, which in SGI mode remaps <code>0x1f000000–0x1fffffff</code>
-onto a DRAM window — they read/write ordinary DRAM and do <strong>not</strong> bus-error. Nothing here is
-boot-critical: Henry boots IRIX/Linux on the serial console.</p>
-<p><strong>Future Henry graphics console:</strong> implementing REX3 is essentially the <em>whole</em>
+<p><strong>Henry today: an ARM-served software REX3, working on silicon (2026-10-18).</strong> The
+recommended design below was built: <code>rtl/gio_window.sv</code> logs every REX3 store into a DDR
+ring and holds loads until the ARM answers. All reads go to the ARM (no PL shadow registers yet),
+and a full ring stalls the CPU. Layers 2–3 run as <code>sgi_newport</code>, a condensed MAME <code>newport.cpp</code>
+with span kernels, on an A53. MC graphics DMA and the retrace interrupt exist. Two drawing
+rules missing from the MAME model mattered for a real desktop and are now modeled:</p>
+<ul>
+<li><strong>CID match</strong> (<code>CLIPMODE[12:9]</code>): Xsgi tags the root window's visible region with CID 1 in the
+  auxiliary planes and draws the wallpaper with CID match, so windows stay on top. The test has
+  to be applied wherever clipping is, including the fast span kernel.</li>
+<li><strong>Per-plane write masks</strong>: pop-up-plane writes replicate across byte lanes and must not reach
+  the overlay byte (CID <code>0x33</code>, PUP <code>0xcc</code>, OLAY <code>0xffff00</code>).</li>
+</ul>
+<p>See <a href="../../newport-on-henry/">Newport on henry</a> for the design and screenshots. The layering
+below is kept as the reference scoping of the chip.</p>
+<p><strong>Scoping REX3 (reference):</strong> implementing REX3 is essentially the <em>whole</em>
 graphics-console effort, in three layers of decreasing tractability:</p>
 <ol>
 <li><strong>GIO64 register face (most tractable).</strong> A slave decoding the <code>0x1F0F0000</code>
@@ -1865,7 +1958,7 @@ console: clear, scroll, blit glyphs) → (3) lines/shading/blend only if a real 
 stack is targeted. Subpixel anti-aliased lines and the full DDA shader are the
 least-essential, highest-effort parts.</p>
 <p><strong>Where the drawing could run (feasibility study, 2026-10-02, <code>NEWPORT_FEASIBILITY.md</code>
-at the repo root — study only, nothing built).</strong> A REX3 rasterizer in PL (layer 2
+at the repo root; this is the design henry built).</strong> A REX3 rasterizer in PL (layer 2
 above) was judged <strong>not to fit</strong> Henry's current LUT budget (rough CI8 subset estimate
 10–20K LUT). The study's recommended design keeps only layer 1 in PL — a DDR <strong>write
 ring</strong> for every REX3 store (IRIX's measured stream is ~99.9% posted writes), shadow

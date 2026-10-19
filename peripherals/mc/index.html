@@ -499,6 +499,60 @@
   
   
     <li class="md-nav__item">
+      <a href="../../arm-device-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ARM ↔ device protocol (staging rings)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../bus-errors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bus errors
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../fpu-cop1/" class="md-nav__link">
         
   
@@ -566,10 +620,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_12" checked>
         
           
-          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="">
+          <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="">
             
   
   
@@ -587,8 +641,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_10">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_12">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -631,7 +685,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-18 against branch dma-engine)"></span>
   
 
   
@@ -656,7 +710,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-18 against branch dma-engine)"></span>
   
 
   
@@ -954,7 +1008,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-18 against branch dma-engine)"></span>
   
 
   
@@ -989,7 +1043,7 @@
     
   
   
-    <span class="md-status md-status--draft / future-work (MAME-reference)"></span>
+    <span class="md-status md-status--implemented for memory -> GIO (dma_engine CH_V), 2026-10-18"></span>
   
 
   
@@ -1052,6 +1106,8 @@
     
       
         
+      
+        
           
         
       
@@ -1080,7 +1136,7 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -1101,7 +1157,7 @@
     
   
   
-    <span class="md-status md-status--draft / future-work"></span>
+    <span class="md-status md-status--implemented (ARM-served model), 2026-10-18"></span>
   
 
   
@@ -1109,14 +1165,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_11" id="__nav_11_label" tabindex="">
+              <label class="md-nav__link " for="__nav_13" id="__nav_13_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_11">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_13">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1125,6 +1181,34 @@
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../newport-on-henry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Newport on henry (working, screenshots)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
             
@@ -1327,7 +1411,7 @@
     
   
   
-    <span class="md-status md-status--reference (static reverse engineering of IRIX 6.5.22; nothing run on henry)"></span>
+    <span class="md-status md-status--reference (static reverse engineering of IRIX 6.5.22) + what henry observed on silicon (section 7)"></span>
   
 
   
@@ -1655,8 +1739,33 @@ byte-enables of a word). The core byte-swaps device word loads, so values are st
 <td>free-running core-clock counter ÷ 10 = <strong>100 ns ticks at the 100 MHz core clock</strong></td>
 </tr>
 <tr>
+<td><code>0x08/0x0c</code> bit 4 of the stored word (BE bit 28)</td>
+<td>CPUCTRL1.ABORT_EN</td>
+<td>enables GIO time-outs: with it, an access to empty GIO space is an error (<a href="../../bus-errors/">Bus errors</a>); the ARCS shim sets it</td>
+</tr>
+<tr>
+<td><code>0xe0</code>–<code>0xfc</code></td>
+<td>CPU/GIO_ERROR_ADDR, CPU/GIO_ERROR_STAT</td>
+<td>latched on an empty-GIO access (<code>GIO_ERROR_STAT.TIME</code>); write clears; any status bit set drives the MC bus-error line to INT3</td>
+</tr>
+<tr>
+<td><code>0x160/0x164</code>, <code>0x168/0x16c</code></td>
+<td>DMA_CAUSE, DMA_CTL</td>
+<td>VDMA completion cause; <code>DMA_CTL</code> bit 4 (BE bit 28) enables the completion interrupt (INT3 Local0 bit 4)</td>
+</tr>
+<tr>
+<td><code>0x180</code>–<code>0x1bc</code></td>
+<td>DMA_TLB_{HI,LO}_{0..3}</td>
+<td>R/W; the PTE page is <code>TLB_LO[25:6]</code> (<a href="../vdma/">VDMA</a>)</td>
+</tr>
+<tr>
+<td><code>0x2000</code>–<code>0x204c</code></td>
+<td>DMA_MEMADR, SIZE, STRIDE, GIO_ADR, MODE, COUNT, RUN</td>
+<td>the VDMA descriptor; a start runs <code>dma_engine</code> channel <code>CH_V</code>; <code>MEMADR</code>/<code>COUNT</code> hold the final values; <code>DMA_RUN</code> bit 6 = running</td>
+</tr>
+<tr>
 <td>everything else</td>
-<td>CTRLD, REF_CTR, watchdog, error regs, semaphores, locks, DMA/VDMA, DMA µTLB</td>
+<td>CTRLD, REF_CTR, watchdog, semaphores, locks</td>
 <td><strong>read 0, writes ignored</strong></td>
 </tr>
 </tbody>
@@ -2131,7 +2240,7 @@ see the top of this page):
 <p>The list below is the original MAME-derived plan. What henry actually ships is the table at the top of this
 page:</p>
 <ul>
-<li>REF_CTR, CTRLD and the error registers read 0.</li>
+<li>REF_CTR and CTRLD read 0. The error registers latch empty-GIO accesses (<a href="../../bus-errors/">Bus errors</a>).</li>
 <li>CPUCTRL0 has no side effects.</li>
 <li>MEMCFG is not used to route DRAM.</li>
 </ul>
@@ -2148,7 +2257,7 @@ page:</p>
    decoded window. → verify: ARCS memory descriptors + kernel sizing see the right amount of RAM.</li>
 <li><strong>CPU_MEMACC / GIO_MEMACC</strong> (<code>0xd0</code>,<code>0xd8</code>) — store/return opaque timing words. → verify: writeback then
    readback matches.</li>
-<li><strong>Error regs</strong> (<code>0xe0</code>–<code>0xf8</code>) — read 0, write-to-clear. → verify: no spurious bus-error handling.</li>
+<li><strong>Error regs</strong> (<code>0xe0</code>–<code>0xf8</code>) — latch empty-GIO accesses (with <code>ABORT_EN</code>), write-to-clear. → verify: <code>tests/buserr</code> (cause 7 + <code>GIO_ERROR_ADDR</code>/<code>STAT</code>).</li>
 </ol>
 <h2 id="golden-vectors-from-mame">Golden vectors (from MAME)<a class="headerlink" href="#golden-vectors-from-mame" title="Permanent link">&para;</a></h2>
 <p>Concrete block test vectors (use as DV checks):</p>

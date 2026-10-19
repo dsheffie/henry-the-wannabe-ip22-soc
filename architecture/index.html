@@ -630,6 +630,60 @@
   
   
     <li class="md-nav__item">
+      <a href="../arm-device-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ARM ↔ device protocol (staging rings)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bus-errors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bus errors
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../fpu-cop1/" class="md-nav__link">
         
   
@@ -695,10 +749,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_12" >
         
           
-          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="">
+          <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="">
             
   
   
@@ -716,8 +770,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_10">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_12">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -751,7 +805,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-18 against branch dma-engine)"></span>
   
 
   
@@ -919,7 +973,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-18 against branch dma-engine)"></span>
   
 
   
@@ -954,7 +1008,7 @@
     
   
   
-    <span class="md-status md-status--draft / future-work (MAME-reference)"></span>
+    <span class="md-status md-status--implemented for memory -> GIO (dma_engine CH_V), 2026-10-18"></span>
   
 
   
@@ -1017,6 +1071,8 @@
     
       
         
+      
+        
           
         
       
@@ -1045,7 +1101,7 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -1066,7 +1122,7 @@
     
   
   
-    <span class="md-status md-status--draft / future-work"></span>
+    <span class="md-status md-status--implemented (ARM-served model), 2026-10-18"></span>
   
 
   
@@ -1074,14 +1130,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_11" id="__nav_11_label" tabindex="">
+              <label class="md-nav__link " for="__nav_13" id="__nav_13_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_11">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_13">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1090,6 +1146,34 @@
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../newport-on-henry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Newport on henry (working, screenshots)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
             
@@ -1292,7 +1376,7 @@
     
   
   
-    <span class="md-status md-status--reference (static reverse engineering of IRIX 6.5.22; nothing run on henry)"></span>
+    <span class="md-status md-status--reference (static reverse engineering of IRIX 6.5.22) + what henry observed on silicon (section 7)"></span>
   
 
   
@@ -1554,12 +1638,12 @@ system that boots IRIX. This page is the system-level view; each block has its o
 </tr>
 <tr>
 <td><strong>GIO64</strong></td>
-<td>The expansion/graphics bus (16 × 4 MB slots). Henry has no GIO64 decode and no graphics; the slot space is DRAM-backed (see below).</td>
-<td><a href="../peripherals/gio64/">GIO64</a></td>
+<td>The expansion/graphics bus (16 × 4 MB slots). On Henry the REX3 window is an ARM-served Newport; the rest of the slot space is empty and bus-errors.</td>
+<td><a href="../peripherals/gio64/">GIO64</a>, <a href="../newport-on-henry/">Newport on henry</a></td>
 </tr>
 <tr>
 <td><strong>VDMA</strong></td>
-<td>The MC's virtual-DMA graphics master (future-work; its own page-table walker).</td>
+<td>The MC's virtual-DMA graphics master (its own page-table walker). Henry implements memory → GIO as a DMA-engine channel.</td>
 <td><a href="../peripherals/vdma/">VDMA</a></td>
 </tr>
 <tr>
@@ -1605,7 +1689,7 @@ else through to DRAM:</p>
 <tr>
 <td><code>scsi_shim.sv</code></td>
 <td>WD33C93 + HPC3 SCSI channel</td>
-<td>the <strong>ARM (Zynq PS) services the disk</strong>: it walks the <code>{BP,BC,DP}</code> chain in shared DRAM and moves the data itself</td>
+<td>register model; the DMA engine walks the <code>{BP,BC,DP}</code> chain and the ARM serves the disk image through the staging rings (<a href="../arm-device-protocol/">protocol</a>)</td>
 </tr>
 <tr>
 <td><code>enet_shim.sv</code></td>
@@ -1613,9 +1697,19 @@ else through to DRAM:</p>
 <td>register model; <code>enet_ring_dma.sv</code> walks the descriptor chains and the ARM moves frames through the staging rings (<a href="../arm-device-protocol/">protocol</a>)</td>
 </tr>
 <tr>
+<td><code>dma_engine.sv</code></td>
+<td>the SoC's one DMA engine</td>
+<td>channels SCSI, ENET TX, ENET RX and MC VDMA (<code>CH_V</code>), behind one <code>dma_snoop_shim</code> so guest-memory accesses are coherent with the L1/L2</td>
+</tr>
+<tr>
+<td><code>gio_window.sv</code></td>
+<td>ARM-served GIO window</td>
+<td>REX3 @ <code>0x1f0f0000</code> and the IOC2 8042: accesses (and VDMA data) become records in a staging-region ring that the ARM's device models consume (<a href="../newport-on-henry/">Newport on henry</a>)</td>
+</tr>
+<tr>
 <td><code>mem_arbiter.sv</code></td>
 <td>DRAM arbitration</td>
-<td>weighted round-robin, one request outstanding: CPU + the SoC DMA master ports (SCSI engine, ENET ring engine, opt-in DRAM deep trace)</td>
+<td>weighted round-robin, one request outstanding: CPU + the SoC DMA master ports (DMA engine, GIO window ring)</td>
 </tr>
 <tr>
 <td><code>ip_hdl/axi_is_the_worst_*.v</code></td>
@@ -1625,9 +1719,10 @@ else through to DRAM:</p>
 </tbody>
 </table>
 <p>The IP22 512 KB <strong>System Memory Alias</strong> (physical <code>0x0–0x7ffff</code> → <code>0x08000000</code>) is applied in <code>henry_soc.sv</code>
-to CPU accesses before arbitration. There is <strong>no GIO64 decode</strong> in the RTL: accesses in <code>0x1f000000–0x1fffffff</code> that are not
-MC/HPC3/IOC2 fall through to the AXI master, which maps that 16 MB window into shared DRAM. The boot-PROM range
-is therefore DRAM-backed too: the host (<code>henry_tb</code> in sim, the ARM driver on the FPGA) loads the ARCS first-stage
+to CPU accesses before arbitration. In <code>0x1f000000–0x1fffffff</code>, the REX3 window and the 8042 go to <code>gio_window</code>, and
+the rest of GIO space is decided "empty" by the MC (a bus error with <code>CPUCTRL1.ABORT_EN</code>, see
+<a href="../bus-errors/">Bus errors</a>). Other addresses fall through to the AXI master, which maps a 16 MB window into shared
+DRAM. The boot-PROM range is DRAM-backed this way: the host (<code>henry_tb</code> in sim, the ARM driver on the FPGA) loads the ARCS first-stage
 image (<code>henry_arcs.bin</code>) there and starts the core at the reset vector <code>0xbfc00000</code>.</p>
 <h2 id="buses-topology">Buses &amp; topology<a class="headerlink" href="#buses-topology" title="Permanent link">&para;</a></h2>
 <ul>
@@ -1637,9 +1732,9 @@ image (<code>henry_arcs.bin</code>) there and starts the core at the reset vecto
 <li><strong>GIO64</strong> (<code>0x1f000000–0x1f9fffff</code>) — the expansion/graphics bus, mastered by the CPU (through the MC
   arbiter), by graphics, and by long-burst DMA. Sixteen 4 MB slots; IP22 wires only graphics + two expansion
   slots, and an access to an unpopulated slot returns a <strong>bus error</strong> — which is exactly how IRIX's GIO probe
-  decides "no device." (On Henry this is <em>not</em> modeled — see above: GIO space is backed by DRAM, the core ignores
-  the AXI master's <code>mem_rsp_bad</code>, and INT3's bus-error input is tied to 0. Newport graphics is not
-  implemented; see the <a href="../graphics/">graphics pages</a>.)</li>
+  decides "no device." Henry models this: the MC returns the error with the response and r9999 takes a
+  precise data bus error (<a href="../bus-errors/">Bus errors</a>). Slot 0 holds an ARM-served Newport
+  (<a href="../newport-on-henry/">Newport on henry</a>).</li>
 <li><strong>Local I/O</strong> (<code>0x1fb80000+</code>) — HPC3 + IOC2 + the boot PROM. HPC3 bridges GIO64 to the peripherals and the
   PBUS (where the RTC/NVRAM, EEPROM, audio, and parallel live).</li>
 </ul>
@@ -1660,7 +1755,11 @@ addresses</strong> (no IOMMU). Combined with r9999's <strong>incoherent L1i</str
 software cache management: the IRIX <code>cache</code> instruction is <strong>not</strong> a NOP, and r9999 must honor specific
 ops (I-cache invalidate for code coherence; D-cache invalidate-<em>without</em>-writeback for DMA-in). This is the
 single most important cross-block contract — see <a href="../coherence-cache-tlb/">Cache, coherence &amp; TLB</a>.</p>
-<p><strong>How Henry keeps DMA coherent.</strong> On Henry the SCSI and Ethernet "DMA" is done by the <strong>ARM</strong> writing and
+<p><strong>How Henry keeps DMA coherent (current).</strong> All device DMA (SCSI, Ethernet, VDMA) goes through <code>dma_engine.sv</code>,
+whose guest-memory accesses pass a <code>dma_snoop_shim</code> (write back + invalidate the line in the core's caches, then
+access DRAM). The ARM exchanges data with the engine through staging rings and never touches guest memory after
+boot, so no flushes are needed (<a href="../arm-device-protocol/">ARM device protocol</a>).</p>
+<p><strong>Earlier (flush-based) builds.</strong> Before the snooped engine, the SCSI and Ethernet "DMA" was done by the <strong>ARM</strong> writing and
 reading guest buffers in the shared DRAM, below the r9999 caches. IRIX's own <code>cache</code> ops are honored (see
 <a href="../cpu-integration/">CPU integration</a>),
 but they are not sufficient on their own, so the ARM driver also asks the core to flush around each transfer:</p>
@@ -1679,9 +1778,10 @@ inert</strong> (<code>ENABLE_DMA_SNOOP</code>; the core ties its L2 snoop port o
 <p>Peripheral interrupt sources (HPC3 DMA-done/error, GIO64 device lines, the 8254 timers) aggregate in the
 <strong>INT3</strong> controller inside IOC2, which drives five <code>CPU_INT_N</code> lines into r9999's CP0 <code>Cause.IP[6:2]</code>. The CPU's
 own periodic tick is the on-chip <strong>CP0 Count/Compare</strong> timer, not a peripheral. See <a href="../peripherals/ioc2/">IOC2</a>.
-In Henry (<code>int3.sv</code>, wired in <code>henry_soc.sv</code>) the live sources are SCSI0 (Local0 bit 1) and ENET (Local0 bit 3)
-→ IP2, the SCC Rx/Tx (Serial DUART mappable bit 5 → IP2 via the map mask), and i8254 counter 0 (Timer0 → IP4);
-Timer1, Local1 and the bus-error input are tied off.</p>
+In Henry (<code>int3.sv</code>, wired in <code>henry_soc.sv</code>) the live sources are SCSI0 (Local0 bit 1), ENET (Local0 bit 3) and
+MC DMA completion (Local0 bit 4) → IP2; the ARM-driven Local1 lines (bit 7 = Newport VRETRACE) → IP3; the SCC
+Rx/Tx (Serial DUART mappable bit 5) and the ARM-served 8042 (mappable bit 4) via the map mask; i8254 counter 0
+(Timer0 → IP4); and the MC bus-error line. Timer1 is tied off.</p>
 <h2 id="buildverify-strategy">Build/verify strategy<a class="headerlink" href="#buildverify-strategy" title="Permanent link">&para;</a></h2>
 <p>The spec is the contract; <strong>MAME is the oracle</strong> for the platform, and the in-sim ISS lock-step checker
 (<code>henry_tb</code>) is the oracle for the CPU. Each block is implemented against its register spec and the
