@@ -1797,7 +1797,7 @@ gets bit 27 set, so phys <code>0x0–0x7ffff</code> lands on <code>0x08000000–
   data bus error, via <code>henry_soc.sv:1258</code> and the r9999 L2's <code>UNCACHE_LOAD</code> path); cached fills just get the
   poison.</li>
 </ul>
-<p>The ARM-side <code>scsi_fpga_map</code> in <code>driver/scsi_arm.h</code> must stay in sync with this fold.</p>
+<p>The board driver's copies of this fold (<code>cimg_fpga_map</code> in <code>ultra96v2_driver/axi.cc</code>, used for checkpoint resume) must stay in sync with it.</p>
 <h2 id="role-in-henry">Role in Henry<a class="headerlink" href="#role-in-henry" title="Permanent link">&para;</a></h2>
 <p>The MC is the system's spine: the R4000-class core (r9999) talks to DRAM through it, and the boot PROM / ARCS
 shim / IRIX kernel poke its control registers to size memory, calibrate clocks (via the RPSS and refresh

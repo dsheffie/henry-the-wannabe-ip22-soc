@@ -2501,8 +2501,8 @@ moves it between the staging rings and the media:</p>
 <li><strong>In simulation</strong> it is <code>henry_tb</code>. The staging-ring code, <code>sim/ring_service.h</code>, is the same source the
   board driver uses.</li>
 </ul>
-<p>The host holds the disk image and the tap device. (<code>driver/scsi_arm.h</code>/<code>driver/enet_arm.h</code> in this repo are
-from the older host-served protocol, in which the ARM read and wrote guest memory.)</p>
+<p>The host holds the disk image and the tap device. The board driver is the <code>ultra96v2_driver</code> submodule
+(<code>ring_service.h</code>, <code>scsi_service.h</code>, <code>enet_service.h</code>).</p>
 <h3 id="ethernet-in-henry-enet_shimsv">Ethernet in henry (<code>enet_shim.sv</code>)<a class="headerlink" href="#ethernet-in-henry-enet_shimsv" title="Permanent link">&para;</a></h3>
 <p><strong>Registers</strong> (all offsets from <code>0x1fb80000</code>):</p>
 <ul>
