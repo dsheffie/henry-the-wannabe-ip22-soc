@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
     
     
       
@@ -29,10 +29,10 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
       
       
 
@@ -319,7 +319,7 @@
     
   
   
-    <span class="md-status md-status--draft (functional-sim validated, MAME-corroborated; Henry-RTL notes added 2026-10-04 against henry 209e6f6)"></span>
+    <span class="md-status md-status--draft (functional-sim validated, MAME-corroborated; Henry-RTL notes re-checked 2026-10-27 against henry eea6ecb)"></span>
   
 
   
@@ -414,7 +414,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated; Henry FSBL section checked 2026-10-04 against r9999/arcs/henry_arcs.S @ 5c89b70)"></span>
+    <span class="md-status md-status--draft (MAME-validated; Henry FSBL section checked 2026-10-27 against r9999/arcs/henry_arcs.S + henry_fw.c @ 788c412)"></span>
   
 
   
@@ -448,7 +448,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated; Henry FSBL/console re-checked 2026-10-04 against henry 209e6f6 / r9999 5c89b70)"></span>
+    <span class="md-status md-status--draft (MAME-validated; Henry FSBL/console re-checked 2026-10-27 against henry eea6ecb / r9999 788c412)"></span>
   
 
   
@@ -482,7 +482,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated; silicon-refined 2026-07; RTL state re-checked 2026-10-04 against r9999 5c89b70)"></span>
+    <span class="md-status md-status--draft (MAME-validated; silicon-refined 2026-07; RTL state re-checked 2026-10-27 against henry eea6ecb / r9999 788c412)"></span>
   
 
   
@@ -674,7 +674,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-18 against branch dma-engine)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-27 against main eea6ecb)"></span>
   
 
   
@@ -709,7 +709,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-27 against main @eea6ecb)"></span>
   
 
   
@@ -744,7 +744,7 @@
     
   
   
-    <span class="md-status md-status--draft (silicon-validated; audited 2026-10-04 against henry main @209e6f6)"></span>
+    <span class="md-status md-status--draft (silicon-validated; audited 2026-10-27 against henry main @eea6ecb)"></span>
   
 
   
@@ -779,7 +779,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME + live-IRIX-trace validated; henry RTL status audited 2026-10-04 against main @209e6f6)"></span>
+    <span class="md-status md-status--draft (MAME + live-IRIX-trace validated; henry RTL status audited 2026-10-27 against main eea6ecb)"></span>
   
 
   
@@ -842,7 +842,7 @@
     
   
   
-    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-18 against branch dma-engine)"></span>
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-27 against henry main eea6ecb)"></span>
   
 
   
@@ -912,7 +912,7 @@
     
   
   
-    <span class="md-status md-status--draft (henry status audited 2026-10-04 against main @209e6f6)"></span>
+    <span class="md-status md-status--draft (henry status audited 2026-10-27 against main @eea6ecb)"></span>
   
 
   
@@ -1070,7 +1070,7 @@
     
   
   
-    <span class="md-status md-status--draft / future-work"></span>
+    <span class="md-status md-status--reference; implemented as an ARM-served software model (2026-10-18)"></span>
   
 
   
@@ -1105,7 +1105,7 @@
     
   
   
-    <span class="md-status md-status--draft / future-work"></span>
+    <span class="md-status md-status--reference; implemented as part of the ARM-side Newport model (2026-10-18)"></span>
   
 
   
@@ -1140,7 +1140,7 @@
     
   
   
-    <span class="md-status md-status--draft / future-work"></span>
+    <span class="md-status md-status--reference; implemented in the ARM-side Newport model (2026-10-18)"></span>
   
 
   
@@ -1175,7 +1175,7 @@
     
   
   
-    <span class="md-status md-status--draft / future-work"></span>
+    <span class="md-status md-status--reference; RB2 semantics implemented in the ARM-side Newport model (2026-10-18)"></span>
   
 
   
@@ -1210,7 +1210,7 @@
     
   
   
-    <span class="md-status md-status--draft / future-work"></span>
+    <span class="md-status md-status--reference only (not implemented)"></span>
   
 
   
@@ -1728,12 +1728,16 @@ ambiguity), so the C++ SCC hook is the reliable headless serial sink. Getting se
    <a href="../coherence-cache-tlb/">Cache, coherence &amp; TLB</a>.</li>
 <li><strong>HPC3 SCSI + WD33C93</strong> → read the root disk. See <a href="../peripherals/hpc3/">HPC3</a>.</li>
 <li>Empty GIO64 slots / no graphics → IRIX skips graphics cleanly. On a real Indy an empty slot
-   bus-errors. <strong>Henry raises no bus errors here:</strong> <code>henry_soc.sv:250-257</code> decodes only MC, HPC3 and
-   IOC2. Every other address, including the graphics (<code>0x1f000000–0x1f3fffff</code>) and GIO slot windows,
-   goes to the AXI memory port. The M00 master maps all of <code>0x1f000000–0x1fffffff</code> onto a 16 MB DRAM
-   window (the same one that holds the PROM at <code>0x1fc00000</code>), so those probes read DRAM (zero unless
-   something wrote there). The core ignores <code>mem_rsp_bad</code>, and INT3's <code>buserr</code> input is tied to 0
-   (<code>henry_soc.sv:1022</code>). See <a href="../peripherals/gio64/">GIO64</a>.</li>
+   bus-errors, and Henry now does the same (2026-10, stage S1 of <a href="../bus-errors/">Bus errors</a>):
+   <code>henry_soc.sv</code> decodes empty GIO space (<code>0x1f000000–0x1f9fffff</code> minus the Newport window, plus
+   HPC3 chip 1) as <code>w_is_gio_empty</code>. With <code>CPUCTRL1.ABORT_EN</code> set, an uncached load there completes
+   with <code>bad</code> set and the core takes a precise Data Bus Error (r9999 <code>c83cd5f</code>); a store is
+   absorbed. Either way the MC latches <code>GIO_ERROR_ADDR/STAT</code> and raises INT3 <code>buserr[1]</code>. The
+   Newport REX3 window (<code>0x1f0f0000–0x1f0f1fff</code>) is served by the ARM through <code>gio_window</code>, so
+   IRIX finds a graphics board (<a href="../newport-on-henry/">Newport on henry</a>); a <code>DISABLE_NEWPORT</code>
+   build leaves it undecoded, the probe bus-errors, and IRIX comes up on the serial console.
+   Cached accesses to non-existent memory and instruction bus errors are not done yet. See
+   <a href="../peripherals/gio64/">GIO64</a>.</li>
 </ol>
 <h2 id="chasing-a-bug-on-silicon-hw-watchpoint-the-iss-diff">Chasing a bug on silicon — HW watchpoint + the ISS diff<a class="headerlink" href="#chasing-a-bug-on-silicon-hw-watchpoint-the-iss-diff" title="Permanent link">&para;</a></h2>
 <p>MAME-as-oracle only helps when the bug reproduces in MAME. When it only shows up <strong>on the FPGA</strong> — a
@@ -1746,7 +1750,7 @@ default) that latches a "hit" flop and folds it into <code>w_step_ok</code>, so 
 reset</strong> — the register file and DRAM stay coherent at the moment of interest. Because the trap
 PC/addr/value are ports, moving the breakpoint does not need a re-synth. Arm with control-register bit 17
 (<code>bp_enable</code>); bit 19 (<code>bp_fault_only</code>) switches to fault-only mode; <code>fault_clear</code> (bit 18) re-arms.</p>
-<p>The trap has been reworked since the <code>bad istack</code> hunt below (<code>core.sv:940-1008</code>, current form):</p>
+<p>The trap has been reworked since the <code>bad istack</code> hunt below (<code>core.sv:963-1037</code>, current form):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1">// PC breakpoint: freeze after retiring bp_pc, or (bp_fault_only) on a FAULT at bp_pc.</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="kt">wire</span><span class="w"> </span><span class="n">w_bp_match</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">bp_enable</span><span class="w"> </span><span class="o">&amp;</span>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="p">(</span><span class="n">bp_fault_only</span>
@@ -1762,7 +1766,8 @@ PC/addr/value are ports, moving the breakpoint does not need a re-synth. Arm wit
 <a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="kt">wire</span><span class="w"> </span><span class="n">w_step_ok</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">r_single_step</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">r_bp_hit</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">r_wp_hit</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">r_fault_hit</span><span class="p">)</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="n">t_step_edge</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="mh">1</span><span class="mb">'b1</span><span class="p">;</span>
 </code></pre></div>
 <ul>
-<li><strong>Timing trap:</strong> compare the <em>flopped</em> retire outputs (<code>retire_reg_data/ptr/valid</code>), <strong>not</strong> the
+<li><strong>Timing trap (from the original sp watchpoint; the current <code>bp_pc</code> match above does compare
+  the ROB head PC):</strong> compare the <em>flopped</em> retire outputs (<code>retire_reg_data/ptr/valid</code>), <strong>not</strong> the
   combinational ROB head — the ROB-head read is already the near-critical retire path, and a 32-bit masked
   compare hung off it cost <strong>WNS −3.6 ns</strong>. Registering it (flop→logic→flop) closes timing at the price of
   the freeze landing ~1–2 instructions late (disassemble the window). Adding a probe <em>moves the critical
@@ -1773,9 +1778,9 @@ coherent: <code>read32(7)</code>=last PC, <code>read32(0xb)</code>=CP0 EPC, <cod
 <code>write32(14,i); read32(0xe)</code> (a shadow register file rebuilt from the retire stream).
 - <strong>Gotcha that cost a synth (fixed):</strong> the henry AXI wrapper once dropped <code>retire_reg_valid</code> end-to-end,
   so every GPR read returned 0. It is wired now: <code>henry_soc.sv</code> exports <code>retire_reg_valid</code>, and the wrapper
-  feeds <code>w_reg_val0/1</code> into the S00_AXI shadow (<code>ip_hdl/axi_is_the_worst_v1_0.v:446-449, 704</code>).</p>
+  feeds <code>w_reg_val0/1</code> into the S00_AXI shadow (<code>ip_hdl/axi_is_the_worst_v1_0.v:445-450, 718-723</code>).</p>
 <p><strong>3. Read guest DRAM (<code>devmem</code>).</strong> The driver mmaps guest RAM at host phys <code>0x5ff00000</code>. The M00 AXI
-master folds guest physical addresses (<code>ip_hdl/axi_is_the_worst_v1_0_M00_AXI.v:366-383</code>, mirrored by
+master folds guest physical addresses (<code>ip_hdl/axi_is_the_worst_v1_0_M00_AXI.v:524-540</code>, mirrored by
 <code>fpga_map</code> in <code>sim/henry_tb.cpp</code>): guest <code>0x08000000–0x17ffffff</code> → offset <code>pa[27:0]</code> (so <code>host = 0x5ff00000
 + guest_pa</code> for <code>0x08000000–0x0fffffff</code>, and the upper 128 MB folds down to offset 0), and the device/PROM
 window <code>0x1f000000–0x1fffffff</code> → offset <code>0x10000000 + pa[23:0]</code> (the PROM at guest <code>0x1fc00000</code> lands at
@@ -1809,7 +1814,9 @@ margin for the probe on a 94%-LUT-full die: shrinking the <strong>ALU matrix sch
 (<code>LG_INT_SCHED_ENTRIES 3→2</code>) — the O(N²) wakeup/select is <em>on the critical path</em>, so it's a real WNS lever
 (not an area win; the FPU dominates the LUTs) — <strong>but that downsize proved buggy (mis-issue → replay) and was
 reverted, so the live config stays 8 entries (<code>LG_INT_SCHED_ENTRIES=3</code>)</strong>; and <strong>L2 1024→8 lines</strong> (a BRAM
-knob, no LUT/correctness impact; the L2 is not inclusive of the L1D, so shrinking is safe). Today the L2
+knob, no LUT/correctness impact; at the time the L2 was not inclusive of the L1D, so shrinking was
+safe). The L2 has since become inclusive of the L1D (r9999 <code>1079cf5..ff34709</code>): a small L2 is still
+correct, but every eviction of a line the L1D may hold now costs a back-invalidate probe. Today the L2
 default is 128 KB (<code>LG_L2_NUM_SETS=13</code>), and any cache size can be overridden from the build line
 (<code>SV2V_DEFINES="LG_L2_NUM_SETS=8" ./gen_mipscore.sh</code>; see <code>machine.vh</code>).</p>
 <h2 id="verification-tooling-today-2026-10">Verification tooling today (2026-10)<a class="headerlink" href="#verification-tooling-today-2026-10" title="Permanent link">&para;</a></h2>
@@ -1857,13 +1864,13 @@ the <code>r9999</code> submodule unless noted.</p>
 </tr>
 <tr>
 <td><strong>Formal (yosys SAT/BMC)</strong></td>
-<td>Decode, register-file write-bank, L1D forwarding/response, and retire properties.</td>
+<td>Decode (no valid destination of <code>$0</code>, no hidden physreg-0 write), free-list bank allocation, physreg 0 reads as 0 (BMC + induction), L1D store→load forwarding and response integrity, and the mispredict/delay-slot retire protocol.</td>
 <td><code>r9999/formal/run_*_formal.sh</code></td>
 </tr>
 <tr>
 <td><strong>Murphi models</strong></td>
-<td>Protocol models for the cache/DMA paths, incl. the XPG page walk (<code>r9999_pagewalk.m</code>, cited by <code>l1d.sv</code>).</td>
-<td><code>~/code/murphi</code> (outside these repos)</td>
+<td>Explicit-state (CMurphi) proofs of the cache protocol: the non-inclusive baseline (<code>r9999_main.m</code>), the inclusive L2 with back-invalidate probes, presence bits and DMA snoop (<code>r9999_incl.m</code>, generated by <code>gen/make_incl.py</code>), the VA-indexed L1D with <code>pd</code>/<code>pidx</code> alias tracking (<code>r9999_va.m</code>), a non-blocking L2 (<code>r9999_nb.m</code>), DMA coherence options and the XPG page walk (<code>r9999_dma.m</code>, <code>r9999_pagewalk.m</code>). Every model carries <code>BUG_*</code> negative controls that must fail.</td>
+<td><code>r9999/formal/murphi/</code> (<code>run_*.sh</code>, see its <code>README.md</code>); CMurphi itself is not vendored</td>
 </tr>
 </tbody>
 </table>
@@ -1955,10 +1962,10 @@ useful here: where CYAN and MAME agree, Henry's spec is on solid ground.</p>
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "navigation.indexes", "navigation.tracking", "toc.follow", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "navigation.indexes", "navigation.tracking", "toc.follow", "content.code.copy"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      <script src="../assets/javascripts/bundle.c21346df.min.js"></script>
       
     
   </body>
