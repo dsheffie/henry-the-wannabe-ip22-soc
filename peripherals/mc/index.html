@@ -397,6 +397,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../../r9999-lineage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    r9999 lineage (MIPS -> RISC-V -> MIPS)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../firmware-arcs/" class="md-nav__link">
         
   
@@ -620,10 +647,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_12" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13" checked>
         
           
-          <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="">
+          <label class="md-nav__link" for="__nav_13" id="__nav_13_label" tabindex="">
             
   
   
@@ -641,8 +668,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_12">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_13">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1136,7 +1163,7 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_14" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -1165,14 +1192,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_13" id="__nav_13_label" tabindex="">
+              <label class="md-nav__link " for="__nav_14" id="__nav_14_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_13">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_14_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_14">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1793,9 +1820,14 @@ gets bit 27 set, so phys <code>0x0–0x7ffff</code> lands on <code>0x08000000–
   decode it, so it is plain DRAM the ARM fills (<code>henry_soc.sv:253-258</code>).</li>
 <li>Anything else → identity.</li>
 <li>A result above the runtime <code>addrmask</code> is rejected: writes are dropped, and reads return the poison
-  <code>0xA5A5…</code> with the response's <code>bad</code> flag set. Only an <strong>uncached</strong> CPU load acts on that flag (it takes a
-  data bus error, via <code>henry_soc.sv:1258</code> and the r9999 L2's <code>UNCACHE_LOAD</code> path); cached fills just get the
-  poison.</li>
+  <code>0xA5A5…</code> with the response's <code>bad</code> flag set. CPU accesses no longer get that far: <code>henry_soc</code> decodes the
+  reserved PAs <code>0x18000000–0x1effffff</code> and <code>0x30000000</code>+ as no memory before the AXI port (<code>w_is_nomap</code>), so
+  an uncached load takes a data bus error, an uncached store is absorbed, and the MC latches <code>CPU_ERROR_ADDR</code>
+  and <code>CPU_ERROR_STAT.ADDR</code>, as an Indy's MC does for an address that maps to no bank. Cached traffic to
+  those PAs reads zeros or is dropped with no error: r9999 issues cached fills for wrong-path loads, and a
+  latched error and its interrupt can't be squashed (64-bit Linux panicked in the keyboard probe until the
+  core's <code>mem_req_uncached</code> qualified the decode). Without that decode, the
+  <code>0x18000000–0x1effffff</code> range would fold straight onto the ARM's staging rings.</li>
 </ul>
 <p>The board driver's copies of this fold (<code>cimg_fpga_map</code> in <code>ultra96v2_driver/axi.cc</code>, used for checkpoint resume) must stay in sync with it.</p>
 <h2 id="role-in-henry">Role in Henry<a class="headerlink" href="#role-in-henry" title="Permanent link">&para;</a></h2>
@@ -2242,8 +2274,8 @@ see the top of this page):
 <li><strong>Endian bit (CPUCTRL0.LITTLE, bit18):</strong> 0 = big-endian, 1 = little. Normally loaded from the EEROM at reset;
   the BIG/LITTLE MC pin must match the R4000's mode or the machine won't run. Henry is <strong>big-endian</strong> ⇒ LITTLE=0.</li>
 <li><strong>Error registers (<code>0xe0</code>–<code>0xf8</code>):</strong> CPU/GIO error address + status capture on parity/bus errors; status reg is
-  read to inspect, <strong>written (any value) to clear</strong>. Henry latches only empty-GIO time-outs (<code>GIO_ERROR_*</code>);
-  <code>CPU_ERROR_*</code> always reads 0.</li>
+  read to inspect, <strong>written (any value) to clear</strong>. Henry latches empty-GIO time-outs (<code>GIO_ERROR_*</code>) and uncached CPU
+  accesses to reserved PAs (<code>CPU_ERROR_ADDR</code>, <code>CPU_ERROR_STAT.ADDR</code> bit 10); there is no parity checking.</li>
 <li><strong>Locks / semaphores:</strong> LOCK_MEMORY, EISA_LOCK reset unlocked; the 16 SEMAPHORE_n and SYS_SEMAPHORE are R/W
   storage for Henry (no real multi-master arbitration needed on a uniprocessor headless build).</li>
 </ul>

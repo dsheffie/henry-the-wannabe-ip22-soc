@@ -397,6 +397,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../r9999-lineage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    r9999 lineage (MIPS -> RISC-V -> MIPS)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../firmware-arcs/" class="md-nav__link">
         
   
@@ -709,10 +736,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_12" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13" >
         
           
-          <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="">
+          <label class="md-nav__link" for="__nav_13" id="__nav_13_label" tabindex="">
             
   
   
@@ -730,8 +757,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_12">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_13">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1061,7 +1088,7 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_14" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -1090,14 +1117,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_13" id="__nav_13_label" tabindex="">
+              <label class="md-nav__link " for="__nav_14" id="__nav_14_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_13">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_14_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_14">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1617,7 +1644,9 @@ load-issue path: it rides the slow response paths.</p>
 <h2 id="stages">Stages<a class="headerlink" href="#stages" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>S1 (done):</strong> uncached loads/stores to empty GIO space. Enough for Linux's
-  Newport probe and IRIX's GIO probes.</li>
+  Newport probe and IRIX's GIO probes. Also done: uncached loads/stores to the
+  reserved PAs <code>0x18000000–0x1effffff</code> and <code>0x30000000</code>+ (<code>CPU_ERROR_STAT.ADDR</code>,
+  not gated by <code>ABORT_EN</code>).</li>
 <li><strong>S2:</strong> cached accesses to addresses with no memory bank (<code>CPU_ERROR_STAT.ADDR</code>):
   the L2 and L1D must not install the line; the requester gets DBE.</li>
 <li><strong>S3:</strong> instruction fetch → IBE.</li>
@@ -1635,6 +1664,11 @@ load-issue path: it rides the slow response paths.</p>
 <li>IRIX 5.3's <code>wbadaddr</code> write probes, replayed in its boot order with IE + IM6 live:
   posted store, uncached-load flush, then <code>mfc0 Cause</code> for IP6 (case 6, henry
   <code>5579805</code>; needs r9999's ordered Cause read, <code>788c412</code>).</li>
+<li>a reserved PA (<code>0xb8000000</code> → PA <code>0x18000000</code>) with <code>ABORT_EN</code> off: cause 7 at the
+  load, <code>CPU_ERROR_ADDR</code> = <code>0x18000000</code>, <code>CPU_ERROR_STAT.ADDR</code> set; a store to
+  <code>0xbe800010</code> (where the ARM's staging ring sits) raises no exception, latches
+  <code>CPU_ERROR_ADDR</code> = <code>0x1e800010</code> and holds the MC bus-error interrupt until cleared
+  (cases 7-8; they fail on RTL without the reserved-PA decode).</li>
 <li>the test had to FAIL on the pre-S1 RTL.</li>
 </ul>
 

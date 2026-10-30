@@ -1,0 +1,2348 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A from-scratch SoC that impersonates the SGI Indy (IP22) well enough to boot IRIX, built around the r9999 MIPS core.">
+      
+      
+      
+      
+        <link rel="prev" href="../r9999-microarchitecture/">
+      
+      
+        <link rel="next" href="../firmware-arcs/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+    
+    
+      
+        <title>r9999 lineage (MIPS -> RISC-V -> MIPS) - Henry — the wannabe IP22 SoC</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="amber">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#r9999-lineage-mips-risc-v-mips" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Henry — the wannabe IP22 SoC" class="md-header__button md-logo" aria-label="Henry — the wannabe IP22 SoC" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 4h12v1h3v2h-3v2h3v2h-3v2h3v2h-3v2h3v2h-3v1H6v-1H3v-2h3v-2H3v-2h3v-2H3V9h3V7H3V5h3zm5 11v3h1v-3zm2 0v3h1v-3zm2 0v3h1v-3z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Henry — the wannabe IP22 SoC
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              r9999 lineage (MIPS -> RISC-V -> MIPS)
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="amber"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="teal" data-md-color-accent="amber"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Henry — the wannabe IP22 SoC" class="md-nav__button md-logo" aria-label="Henry — the wannabe IP22 SoC" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 4h12v1h3v2h-3v2h3v2h-3v2h3v2h-3v2h3v2h-3v1H6v-1H3v-2h3v-2H3v-2h3v-2H3V9h3V7H3V5h3zm5 11v3h1v-3zm2 0v3h1v-3zm2 0v3h1v-3z"/></svg>
+
+    </a>
+    Henry — the wannabe IP22 SoC
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../minimum-mmio-to-banner/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Minimum MMIO to boot banner
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (functional-sim validated, MAME-corroborated; Henry-RTL notes re-checked 2026-10-27 against henry eea6ecb)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cpu-integration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CPU integration (r9999)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (MAME-validated)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../r9999-microarchitecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    r9999 microarchitecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    r9999 lineage (MIPS -> RISC-V -> MIPS)
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    r9999 lineage (MIPS -> RISC-V -> MIPS)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#one-root-three-repositories" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One root, three repositories
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#era-1-mips-origins-20212023" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Era 1: MIPS origins (2021–2023)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#era-2-rv32-july-2023-february-2024" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Era 2: RV32 (July 2023 – February 2024)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#era-3-rv64-and-the-microarchitecture-work-20242026" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Era 3: RV64 and the microarchitecture work (2024–2026)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#era-4-back-to-mips-as-r9999-2026" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Era 4: back to MIPS as r9999 (2026)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Era 4: back to MIPS as r9999 (2026)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-delay-slots-long-tail" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The delay slot's long tail
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#henry-june-2026-onward" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Henry (June 2026 onward)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-flows-between-rv64core-and-r9999-today" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What flows between rv64core and r9999 today
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../firmware-arcs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Firmware (ARCS shim)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (MAME-validated; Henry FSBL section checked 2026-10-27 against r9999/arcs/henry_arcs.S + henry_fw.c @ 788c412)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../boot-and-console/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Boot & console
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (MAME-validated; Henry FSBL/console re-checked 2026-10-27 against henry eea6ecb / r9999 788c412)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../coherence-cache-tlb/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cache, coherence & TLB
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (MAME-validated; silicon-refined 2026-07; RTL state re-checked 2026-10-27 against henry eea6ecb / r9999 788c412)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../arm-device-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ARM ↔ device protocol (staging rings)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bus-errors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bus errors
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../fpu-cop1/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FPU (COP1)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--implemented (MAME-validated workload)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13" >
+        
+          
+          <label class="md-nav__link" for="__nav_13" id="__nav_13_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Peripherals
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_13">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Peripherals
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../peripherals/mc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MC (memory controller)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-27 against main eea6ecb)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../peripherals/ioc2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IOC2 (serial console)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-27 against main @eea6ecb)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../peripherals/scc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SCC (Z85C30 console)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (silicon-validated; audited 2026-10-27 against henry main @eea6ecb)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../peripherals/hpc3/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    HPC3 (SCSI/enet/DMA, RTC)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (MAME + live-IRIX-trace validated; henry RTL status audited 2026-10-27 against main eea6ecb)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../peripherals/scsi_disk_theory_of_operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SCSI disk theory of operation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../peripherals/gio64/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GIO64 (bus)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (MAME-validated; henry RTL status audited 2026-10-27 against henry main eea6ecb)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../peripherals/vdma/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VDMA (virtual DMA)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--implemented for memory -> GIO (dma_engine CH_V), 2026-10-18"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../peripherals/dmux1/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DMUX (data mux)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--draft (henry status audited 2026-10-27 against main @eea6ecb)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_14" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../graphics/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Graphics
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--implemented (ARM-served model), 2026-10-18"></span>
+  
+
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_14" id="__nav_14_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_14_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_14">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Graphics
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../newport-on-henry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Newport on henry (working, screenshots)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../graphics/rex3/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    REX3 (raster engine)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--reference; implemented as an ARM-served software model (2026-10-18)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../graphics/vc2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VC2 (video timing/cursor)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--reference; implemented as part of the ARM-side Newport model (2026-10-18)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../graphics/xmap9/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    XMAP9 (colormap)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--reference; implemented in the ARM-side Newport model (2026-10-18)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../graphics/rb2-ro1/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RB2 & RO1 (framebuffer/output)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--reference; RB2 semantics implemented in the ARM-side Newport model (2026-10-18)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../graphics/express-xz/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Express / XZ (hardware geometry)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--reference only (not implemented)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../graphics/irix-software/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How IRIX drives Newport (Xsgi, ng1, GL)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--reference (static reverse engineering of IRIX 6.5.22) + what henry observed on silicon (section 7)"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../irix-boot-flow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IRIX boot flow (annotated)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../methodology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Methodology (MAME oracle)
+  
+
+    
+  </span>
+  
+  
+    
+  
+  
+    <span class="md-status md-status--stable"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../fpga_stats/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FPGA build stats
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#one-root-three-repositories" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One root, three repositories
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#era-1-mips-origins-20212023" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Era 1: MIPS origins (2021–2023)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#era-2-rv32-july-2023-february-2024" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Era 2: RV32 (July 2023 – February 2024)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#era-3-rv64-and-the-microarchitecture-work-20242026" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Era 3: RV64 and the microarchitecture work (2024–2026)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#era-4-back-to-mips-as-r9999-2026" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Era 4: back to MIPS as r9999 (2026)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Era 4: back to MIPS as r9999 (2026)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-delay-slots-long-tail" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The delay slot's long tail
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#henry-june-2026-onward" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Henry (June 2026 onward)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-flows-between-rv64core-and-r9999-today" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What flows between rv64core and r9999 today
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="r9999-lineage-mips-risc-v-mips">r9999 lineage: MIPS → RISC-V → MIPS<a class="headerlink" href="#r9999-lineage-mips-risc-v-mips" title="Permanent link">&para;</a></h1>
+<p><em>r9999 did not start as a fresh MIPS design for Henry. The core began as a MIPS out-of-order design, was turned into a 32-bit RISC-V core, grew into the 64-bit <a href="https://github.com/dsheffie/rv64core"><code>rv64core</code></a> (where most of the microarchitecture work happened), and was then picked up again as a MIPS core. This page traces that path from git history. Every milestone cites a commit hash and its author date.</em></p>
+<h2 id="one-root-three-repositories">One root, three repositories<a class="headerlink" href="#one-root-three-repositories" title="Permanent link">&para;</a></h2>
+<p><a href="https://github.com/dsheffie/mipscore"><code>mipscore</code></a>, <a href="https://github.com/dsheffie/rv64core"><code>rv64core</code></a> and <a href="https://github.com/dsheffie/r9999"><code>r9999</code></a> all share the same root commit, <strong><code>8401410</code> "initial import for github" (2021-12-06)</strong>. They are one history that split into two lines in July 2023:</p>
+<ul>
+<li><strong><code>6584132</code> (2023-07-13, "remove references to state64")</strong> is the last commit common to both lines.</li>
+<li>The <strong>RISC-V line</strong> starts nine days later with <code>dd22a9f</code> (2023-07-22). It was developed on mipscore's <code>rv32</code> branch and continues as <code>rv64core</code> <code>main</code>.</li>
+<li>The <strong>MIPS line</strong> got one more commit, <code>9cc6e40</code> (2023-07-16), then sat untouched until <strong><code>e46467d</code> (2026-04-25)</strong>. That line became r9999. mipscore's <code>new-origin</code> remote points at the r9999 GitHub repo, and the README was renamed from <code>mipscore</code> to <code>r9999</code> in <code>5da40e1</code> (2026-05-31).</li>
+</ul>
+<p>So r9999 is <strong>not a fork of rv64core</strong>. It is the MIPS sibling that stopped in 2023. Mechanisms built in rv64core since then were <strong>hand-backported</strong>: re-implemented in r9999 from the rv64core source, not inherited through git.</p>
+<pre class="mermaid"><code>flowchart LR
+    ROOT["8401410 · 2021-12-06&lt;br/&gt;&lt;b&gt;mipscore&lt;/b&gt; import&lt;br/&gt;MIPS OoO core + FPU + TLB"]
+    SS["2022&lt;br/&gt;superscalar, OoO int scheduler"]
+    STRIP["early 2023&lt;br/&gt;stripped to 32-bit MIPS II&lt;br/&gt;no TLB, no FPU · L2 · age matrix"]
+    FORK(("6584132&lt;br/&gt;2023-07-13"))
+    RV32["dd22a9f · 2023-07-22&lt;br/&gt;&lt;b&gt;RV32&lt;/b&gt; decode_riscv.sv"]
+    RV64["d466b3f · 2024-02-10&lt;br/&gt;&lt;b&gt;RV64&lt;/b&gt; · rv64core"]
+    LNX["2024–2025&lt;br/&gt;Linux, MMU, nu_l1d, L2,&lt;br/&gt;clustered RF, banked ROB"]
+    SLEEP["9cc6e40 · 2023-07-16&lt;br/&gt;MIPS line goes quiet"]
+    WAKE["e46467d · 2026-04-25&lt;br/&gt;MIPS line revived"]
+    R9["2026-05-31&lt;br/&gt;renamed &lt;b&gt;r9999&lt;/b&gt;&lt;br/&gt;MIPS III, R4400"]
+    HENRY["2026-06-14&lt;br/&gt;&lt;b&gt;henry&lt;/b&gt; SoC&lt;br/&gt;r9999 as submodule"]
+    ROOT --&gt; SS --&gt; STRIP --&gt; FORK
+    FORK --&gt; RV32 --&gt; RV64 --&gt; LNX
+    FORK --&gt; SLEEP --&gt; WAKE --&gt; R9 --&gt; HENRY
+    LNX -. "ported mechanisms" .-&gt; R9
+    R9 -. "mini-TAGE, FPU fixes" .-&gt; LNX</code></pre>
+<h2 id="era-1-mips-origins-20212023">Era 1: MIPS origins (2021–2023)<a class="headerlink" href="#era-1-mips-origins-20212023" title="Permanent link">&para;</a></h2>
+<p>The first import was already an out-of-order MIPS core. The README added a week later (<code>d1fe341</code>, 2021-12-13) describes a "pedagogical SystemVerilog model for a decoupled MIPS CPU" that "aspires to be used in either a FPGA implementation of a SGI workstation or N64". The tree has <code>decode_mips32.sv</code>, an FPU (<code>fpu.sv</code>, <code>fp_add.sv</code>, <code>fp_mul.sv</code>, <code>fp_div.sv</code>), a TLB (<code>tlb.sv</code>, <code>utlb.sv</code>), L1I/L1D, and a C++ golden ISS (<code>interpret.cc</code>, <code>interpret64.cc</code>). That ISS uses the same <code>execMips</code>/<code>execSpecial</code>/<code>mkMonitorVectors</code> structure as <a href="https://github.com/dsheffie/interp_mips"><code>interp_mips</code></a> (first commit <code>189583a</code>, 2014-05-22). There was a separate C++ out-of-order MIPS model in 2017 (<code>mips-cpp-uarch-model</code>, <code>57442b1</code>, 2017-09-23), but it does not share history with the RTL.</p>
+<table>
+<thead>
+<tr>
+<th>Date</th>
+<th>Commit</th>
+<th>Milestone</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2021-12-06</td>
+<td><code>8401410</code></td>
+<td>Initial import: scalar renamed, decoupled MIPS core with FPU and TLB</td>
+</tr>
+<tr>
+<td>2021-12-29</td>
+<td><code>8753f94</code></td>
+<td>Hit-under-miss L1D</td>
+</tr>
+<tr>
+<td>2022-01-22</td>
+<td><code>0948eac</code></td>
+<td>First superscalar implementation ("with a terrible frontend")</td>
+</tr>
+<tr>
+<td>2022-01-29</td>
+<td><code>30fdef2</code></td>
+<td>Store buffer</td>
+</tr>
+<tr>
+<td>2022-03-16</td>
+<td><code>d90a97a</code></td>
+<td>Out-of-order integer scheduler</td>
+</tr>
+<tr>
+<td>2022-04-22</td>
+<td><code>a16187a</code></td>
+<td>External interrupts</td>
+</tr>
+<tr>
+<td>2023-01-30</td>
+<td><code>0f3305a</code></td>
+<td>"support 32b only": start of a stripped-down 32-bit core</td>
+</tr>
+<tr>
+<td>2023-02-01</td>
+<td><code>eab035c</code></td>
+<td>TLB removed</td>
+</tr>
+<tr>
+<td>2023-02-05</td>
+<td><code>e0bac78</code></td>
+<td>Non-MIPS II instructions removed</td>
+</tr>
+<tr>
+<td>2023-02-16</td>
+<td><code>a886fc8</code></td>
+<td>All FPU source removed</td>
+</tr>
+<tr>
+<td>2023-02-17</td>
+<td><code>edc8db0</code></td>
+<td>Banked allocation of GPRs</td>
+</tr>
+<tr>
+<td>2023-03-17</td>
+<td><code>ebb092c</code></td>
+<td>Store data decoupled from the store address op</td>
+</tr>
+<tr>
+<td>2023-04-15</td>
+<td><code>27752de</code></td>
+<td>Multiplier and adder specialized for FPGA</td>
+</tr>
+<tr>
+<td>2023-04-16</td>
+<td><code>f88ccc6</code></td>
+<td>Age matrix selects the oldest ready uop</td>
+</tr>
+<tr>
+<td>2023-04-24</td>
+<td><code>079adad</code></td>
+<td>First L2 cache (Dhrystone runs with it)</td>
+</tr>
+<tr>
+<td>2023-05-21</td>
+<td><code>7689602</code></td>
+<td>Branch order buffer (BOB)</td>
+</tr>
+</tbody>
+</table>
+<p>The branch names from this period (<code>ss32-mips2-rf-nofpu-l2</code>, and so on) record the direction: a small, 32-bit MIPS II core without FPU or TLB, aimed at the FPGA. That is the core that was converted to RISC-V.</p>
+<h2 id="era-2-rv32-july-2023-february-2024">Era 2: RV32 (July 2023 – February 2024)<a class="headerlink" href="#era-2-rv32-july-2023-february-2024" title="Permanent link">&para;</a></h2>
+<p>The conversion took a few days. <code>dd22a9f</code> (2023-07-22, "very incomplete, can execute auipc and addi") removed <code>decode_mips32.sv</code> and added <code>decode_riscv.sv</code>.</p>
+<p>The same commit ripped the branch delay slot out of the control FSM: 58 of the 59 delay-slot references in <code>core.sv</code> are deleted in <code>dd22a9f</code>. That was the point of no return. A decoder can be swapped back, but the delay slot touches every redirect, squash and exception path (see <a href="../r9999-microarchitecture/#branch-delay-slots-and-the-control-fsm">Branch delay slots and the control FSM</a>), so after this the two lines could only share self-contained structures, never the core's control.</p>
+<table>
+<thead>
+<tr>
+<th>Date</th>
+<th>Commit</th>
+<th>Milestone</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2023-07-22</td>
+<td><code>dd22a9f</code></td>
+<td><code>decode_riscv.sv</code> replaces <code>decode_mips32.sv</code></td>
+</tr>
+<tr>
+<td>2023-07-23</td>
+<td><code>4c0c99a</code></td>
+<td>Multiplier-less RV32I csmith tests run to the final syscall</td>
+</tr>
+<tr>
+<td>2023-07-24</td>
+<td><code>07ddec1</code></td>
+<td>HI/LO removed; RISC-V multiply</td>
+</tr>
+<tr>
+<td>2023-07-31</td>
+<td><code>b113fa5</code></td>
+<td>sv2v flow for yosys</td>
+</tr>
+<tr>
+<td>2023-08-12</td>
+<td><code>c1e3e2e</code></td>
+<td>Second ALU plumbing (enabled with a second scheduler in <code>248ce87</code>, 2023-08-19)</td>
+</tr>
+<tr>
+<td>2023-10-21</td>
+<td><code>1aef96e</code></td>
+<td>Perfect-L1D model for studies</td>
+</tr>
+<tr>
+<td>2024-01-07</td>
+<td><code>718f2cd</code></td>
+<td>16-byte L2 lines</td>
+</tr>
+</tbody>
+</table>
+<h2 id="era-3-rv64-and-the-microarchitecture-work-20242026">Era 3: RV64 and the microarchitecture work (2024–2026)<a class="headerlink" href="#era-3-rv64-and-the-microarchitecture-work-20242026" title="Permanent link">&para;</a></h2>
+<p><code>d466b3f</code> (2024-02-10) is titled "starting plumbing to support 64b again". The core had been 64-bit before the 2023 strip-down. Two months later the commit log reads "boots linux". Most of the core's current structure was built here.</p>
+<table>
+<thead>
+<tr>
+<th>Date</th>
+<th>Commit</th>
+<th>Milestone</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2024-02-10</td>
+<td><code>d466b3f</code></td>
+<td>64-bit datapath work starts</td>
+</tr>
+<tr>
+<td>2024-02-18</td>
+<td><code>25cae6d</code></td>
+<td>Code runs in 64-bit mode</td>
+</tr>
+<tr>
+<td>2024-03-18</td>
+<td><code>5036842</code></td>
+<td>CSRs and system ISA</td>
+</tr>
+<tr>
+<td>2024-03-27</td>
+<td><code>98a4160</code></td>
+<td>Hardware page-table walker</td>
+</tr>
+<tr>
+<td>2024-04-11</td>
+<td><code>b427737</code></td>
+<td>First VIPT L1D scheme</td>
+</tr>
+<tr>
+<td>2024-04-12</td>
+<td><code>223fce6</code></td>
+<td>"boots linux"</td>
+</tr>
+<tr>
+<td>2024-06-29</td>
+<td><code>458a00a</code></td>
+<td>2-way L2</td>
+</tr>
+<tr>
+<td>2024-07-03</td>
+<td><code>80b9ac4</code></td>
+<td>2-way L1I with LRU</td>
+</tr>
+<tr>
+<td>2024-07-14</td>
+<td><code>3048daa</code></td>
+<td>New L1D (<code>nu_l1d.sv</code>) passes Dhrystone</td>
+</tr>
+<tr>
+<td>2024-08-04</td>
+<td><code>7ed5de1</code></td>
+<td>Pipelined L2</td>
+</tr>
+<tr>
+<td>2024-08-14</td>
+<td><code>aace102</code></td>
+<td>Credit-based L1–L2 flow control</td>
+</tr>
+<tr>
+<td>2024-08-25</td>
+<td><code>bfc66d8</code></td>
+<td>Leading-zero count accelerates the divider</td>
+</tr>
+<tr>
+<td>2024-08-28</td>
+<td><code>f04697e</code></td>
+<td>gshare indirect predictor</td>
+</tr>
+<tr>
+<td>2024-09-13</td>
+<td><code>8c0d87d</code></td>
+<td>Front end handles direct branches at several fetch slots</td>
+</tr>
+<tr>
+<td>2024-11-29</td>
+<td><code>4a57d8a</code></td>
+<td>Age-matrix memory scheduler works</td>
+</tr>
+<tr>
+<td>2024-12-01</td>
+<td><code>e53661e</code></td>
+<td>Henry Wong's clustered register file</td>
+</tr>
+<tr>
+<td>2024-12-21</td>
+<td><code>2adba5f</code></td>
+<td>"linux boots" on the Ultra96-v2 board (<a href="https://github.com/dsheffie/naive-driver-for-rv64-on-ultra96v2">naive-driver</a>)</td>
+</tr>
+<tr>
+<td>2024-12-29</td>
+<td><code>f400da9</code></td>
+<td>Non-blocking L1D with alias handling</td>
+</tr>
+<tr>
+<td>2025-01-22</td>
+<td><code>7849a56</code></td>
+<td>64 KB L1D and 512 KB L2 by default</td>
+</tr>
+<tr>
+<td>2025-03</td>
+<td><code>4ae8d3a</code>, <code>89c198c</code></td>
+<td>Zba and Zbb extensions</td>
+</tr>
+<tr>
+<td>2025-05-15</td>
+<td><code>342aaf7</code></td>
+<td>Even/odd banked ROB</td>
+</tr>
+</tbody>
+</table>
+<h2 id="era-4-back-to-mips-as-r9999-2026">Era 4: back to MIPS as r9999 (2026)<a class="headerlink" href="#era-4-back-to-mips-as-r9999-2026" title="Permanent link">&para;</a></h2>
+<p>The MIPS line came back on 2026-04-25 (<code>e46467d</code>), on mipscore's <code>ss32-mips2-rf-nofpu-l2-bob</code> branch. The starting point was the stripped 2023 core: 32-bit, no TLB, no FPU. Much of 2026 put back what 2023 removed, this time for MIPS III and IRIX, and pulled in rv64core mechanisms along the way.</p>
+<table>
+<thead>
+<tr>
+<th>Date</th>
+<th>Commit</th>
+<th>Milestone</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2026-04-25</td>
+<td><code>e46467d</code></td>
+<td>MIPS line revived (sv2v conversion script)</td>
+</tr>
+<tr>
+<td>2026-04-27</td>
+<td><code>6cd6864</code></td>
+<td>BOB removed (rv64core had already removed it in <code>3c2f0f9</code>)</td>
+</tr>
+<tr>
+<td>2026-05-02</td>
+<td><code>0317572</code></td>
+<td>Console putchar copied from the RISC-V designs</td>
+</tr>
+<tr>
+<td>2026-05-16</td>
+<td><code>d0a320d</code></td>
+<td>MIPS kseg segmentation</td>
+</tr>
+<tr>
+<td>2026-05-23</td>
+<td><code>8603e41</code></td>
+<td>SGI emulation code pulled in</td>
+</tr>
+<tr>
+<td>2026-05-24</td>
+<td><code>a412004</code></td>
+<td>AXI shell for the Ultra96-v2</td>
+</tr>
+<tr>
+<td>2026-05-29</td>
+<td><code>e9d83cb</code></td>
+<td>TLB miss exceptions</td>
+</tr>
+<tr>
+<td>2026-05-30</td>
+<td><code>389e634</code></td>
+<td>64-bit plumbing returns</td>
+</tr>
+<tr>
+<td>2026-05-31</td>
+<td><code>532a290</code></td>
+<td>First 64-bit-mode instruction; repo becomes r9999 (<code>5da40e1</code>)</td>
+</tr>
+<tr>
+<td>2026-06-02</td>
+<td><code>21bba0a</code></td>
+<td>RV64 shifter pulled in</td>
+</tr>
+<tr>
+<td>2026-06-07</td>
+<td><code>7bd7e3d</code></td>
+<td>Synthetic ARCS firmware</td>
+</tr>
+<tr>
+<td>2026-06-08</td>
+<td><code>e4a4aa4</code></td>
+<td>Clustered RF, ported from rv64core <code>e53661e</code></td>
+</tr>
+<tr>
+<td>2026-06-12</td>
+<td><code>76c0768</code></td>
+<td>Even/odd ROB banking (the rv64core scheme)</td>
+</tr>
+<tr>
+<td>2026-06-22</td>
+<td><code>01d4e53</code></td>
+<td>FP ALU ported from mipscore</td>
+</tr>
+<tr>
+<td>2026-06-23</td>
+<td><code>229e466</code></td>
+<td>FP exception model; Linux boots to <code>/init</code></td>
+</tr>
+<tr>
+<td>2026-06-26</td>
+<td><code>69a54b4</code></td>
+<td>VIPT alias-safe L1D tag (the rv64core <code>nu_l1d</code> scheme)</td>
+</tr>
+<tr>
+<td>2026-07-03</td>
+<td><code>1fdc585</code></td>
+<td>Translated CACHE hit-ops; IRIX mounts root</td>
+</tr>
+<tr>
+<td>2026-07-29</td>
+<td><code>374bfec</code></td>
+<td>rv64core's CLZ divider ported</td>
+</tr>
+<tr>
+<td>2026-07-29</td>
+<td><code>7586125</code></td>
+<td>Dual retire enabled</td>
+</tr>
+<tr>
+<td>2026-07-31</td>
+<td><code>fb69c23</code></td>
+<td>R4000 variable page sizes (4 KB–16 MB)</td>
+</tr>
+<tr>
+<td>2026-08-21</td>
+<td><code>d311cdb</code></td>
+<td>TIP per-cycle stall attribution, ported from rv64core</td>
+</tr>
+<tr>
+<td>2026-09-21</td>
+<td><code>aab4ac7</code></td>
+<td>One divider for integer and FP divide/sqrt</td>
+</tr>
+<tr>
+<td>2026-09-28</td>
+<td><code>193c324</code></td>
+<td>ROB split into alloc-only and completion storage (rv64core scheme)</td>
+</tr>
+<tr>
+<td>2026-09-29</td>
+<td><code>4c161c7</code></td>
+<td>LSU: store queue with forwarding, non-blocking L1D misses</td>
+</tr>
+<tr>
+<td>2026-10-03</td>
+<td><code>94e5e97</code></td>
+<td>CP0 writes commit at retire</td>
+</tr>
+<tr>
+<td>2026-10-05</td>
+<td><code>9a7e9df</code></td>
+<td>2-wide fetch, 2-table mini-TAGE, 32 KB 2-way L1I</td>
+</tr>
+<tr>
+<td>2026-10-06</td>
+<td><code>6f7b6c8</code></td>
+<td>Mini-ITTAGE indirect predictor</td>
+</tr>
+<tr>
+<td>2026-10-02 – 10-08</td>
+<td><code>1079cf5</code> … <code>3913756</code></td>
+<td>Inclusive L2 with back-invalidate probes; VA-indexed L1D</td>
+</tr>
+<tr>
+<td>2026-10-15</td>
+<td><code>9853346</code></td>
+<td>Murphi cache-protocol models checked in next to the RTL</td>
+</tr>
+<tr>
+<td>2026-10-20</td>
+<td><code>93b1514</code></td>
+<td>Per-line L1I invalidate for I-side CACHE ops</td>
+</tr>
+<tr>
+<td>2026-10-24</td>
+<td><code>cfddb0d</code></td>
+<td>Non-power-of-2 ROB sizes</td>
+</tr>
+</tbody>
+</table>
+<h3 id="the-delay-slots-long-tail">The delay slot's long tail<a class="headerlink" href="#the-delay-slots-long-tail" title="Permanent link">&para;</a></h3>
+<p>Bringing the delay slot back meant re-learning every corner of it. The last MIPS-line commit before the RISC-V split was itself a delay-slot fix (<code>42c35bd</code>, 2023-07-07, "sort of handle a faulting instruction in a delay slot"), and the revived core hit a steady stream of them:</p>
+<table>
+<thead>
+<tr>
+<th>Date</th>
+<th>Commit</th>
+<th>Bug</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2026-06-09</td>
+<td><code>9efd54f</code></td>
+<td>Serializing op in a delay slot restarted wrong (part of the 64-bit mode hazard)</td>
+</tr>
+<tr>
+<td>2026-06-13 / 06-15</td>
+<td><code>b95ca23</code>, <code>701db1e</code></td>
+<td>Golden ISS didn't model delay-slot exceptions; <code>Cause.BD</code> must be gated on <code>EXL</code></td>
+</tr>
+<tr>
+<td>2026-07-06 / 07-07</td>
+<td><code>34c744e</code>, <code>c63636a</code></td>
+<td>A faulting delay slot gave an imprecise exception (<code>go</code> SIGSEGV)</td>
+</tr>
+<tr>
+<td>2026-07-07</td>
+<td><code>9c379e6</code></td>
+<td>An uncached load in a delay slot deadlocked retire (<code>ip22_eeprom_read</code> hang)</td>
+</tr>
+<tr>
+<td>2026-07-08</td>
+<td><code>2ea0ed4</code></td>
+<td>The same fix, again, for oldest-first (<code>mfc0</code>) delay slots</td>
+</tr>
+<tr>
+<td>2026-08-06</td>
+<td><code>58a7679</code></td>
+<td>Predecode missed <code>BLTZAL</code>/<code>BGEZALL</code> as branches, so their delay slots went unmarked: the IRIX <code>be</code> corruption</td>
+</tr>
+<tr>
+<td>2026-09-07</td>
+<td><code>db2d379</code></td>
+<td>Branch-likely <code>BEQZL</code>/<code>BNEZL</code> not decoded as branch-likely</td>
+</tr>
+<tr>
+<td>2026-09-25 / 09-26</td>
+<td><code>381d4b6</code>, <code>68ba36f</code></td>
+<td>An injected IRQ or ARM flush could replace a delay slot</td>
+</tr>
+<tr>
+<td>2026-09-26</td>
+<td><code>9116cbb</code></td>
+<td>A not-taken <code>BNEL</code> didn't nullify its delay slot</td>
+</tr>
+</tbody>
+</table>
+<p>Most of these are not in a single module; they are in the places where the delay slot crosses another mechanism (serialization, uncached accesses, interrupts, predecode, the checker). That is the cost the RISC-V line stopped paying in <code>dd22a9f</code>.</p>
+<h2 id="henry-june-2026-onward">Henry (June 2026 onward)<a class="headerlink" href="#henry-june-2026-onward" title="Permanent link">&para;</a></h2>
+<p>Henry was created on 2026-06-14 (<code>08f41c3</code>, <code>cd2e693</code>) with r9999 as a git submodule. It moves forward by bumping that submodule.</p>
+<table>
+<thead>
+<tr>
+<th>Date</th>
+<th>Commit (henry)</th>
+<th>Milestone</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2026-06-14</td>
+<td><code>cd2e693</code></td>
+<td>Platform docs plus the r9999 submodule</td>
+</tr>
+<tr>
+<td>2026-06-15</td>
+<td><code>4c5304a</code></td>
+<td><code>henry_soc</code> top and Verilator harness</td>
+</tr>
+<tr>
+<td>2026-06-17</td>
+<td><code>fa0c4a5</code>, <code>b35cdaf</code></td>
+<td>One-command IP22 Linux boot in sim; headless Vivado rebuild</td>
+</tr>
+<tr>
+<td>2026-07-13</td>
+<td><code>7f63b7a</code></td>
+<td>Lockstep co-sim checker reaches IRIX userspace</td>
+</tr>
+<tr>
+<td>2026-07-19</td>
+<td><code>d43868c</code></td>
+<td>Docs record IRIX 6.5.22 booting on FPGA silicon</td>
+</tr>
+<tr>
+<td>2026-07-21</td>
+<td><code>10449a1</code></td>
+<td>IP22 Ethernet (Seeq 8003 + HPC3)</td>
+</tr>
+<tr>
+<td>2026-10-01</td>
+<td><code>217db98</code></td>
+<td>Pins r9999 with the non-blocking L1D and LSU</td>
+</tr>
+<tr>
+<td>2026-10-18</td>
+<td><code>0dba89a</code></td>
+<td>Newport graphics working on silicon</td>
+</tr>
+</tbody>
+</table>
+<h2 id="what-flows-between-rv64core-and-r9999-today">What flows between rv64core and r9999 today<a class="headerlink" href="#what-flows-between-rv64core-and-r9999-today" title="Permanent link">&para;</a></h2>
+<p>The two cores are separate repositories with no shared commits after 2023. Code moves by hand-backporting, in both directions.</p>
+<table>
+<thead>
+<tr>
+<th>Mechanism</th>
+<th>From → to</th>
+<th>Evidence</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Clustered register file</td>
+<td>rv64core → r9999</td>
+<td><code>e53661e</code> → <code>e4a4aa4</code></td>
+</tr>
+<tr>
+<td>Even/odd banked ROB</td>
+<td>rv64core → r9999</td>
+<td><code>342aaf7</code> → <code>76c0768</code></td>
+</tr>
+<tr>
+<td>Alloc-only / completion ROB split</td>
+<td>rv64core → r9999</td>
+<td><code>193c324</code> ("rv64core's scheme")</td>
+</tr>
+<tr>
+<td>VIPT alias-safe L1D tag</td>
+<td>rv64core → r9999</td>
+<td><code>69a54b4</code></td>
+</tr>
+<tr>
+<td>CLZ-accelerated divider</td>
+<td>rv64core → r9999</td>
+<td><code>bfc66d8</code> → <code>374bfec</code></td>
+</tr>
+<tr>
+<td>Age-matrix scheduler for the LSU</td>
+<td>rv64core → r9999</td>
+<td><code>4c161c7</code> ("rv64core scheduler")</td>
+</tr>
+<tr>
+<td>TIP stall attribution, co-sim store check</td>
+<td>rv64core → r9999</td>
+<td><code>d311cdb</code>, <code>8355f83</code></td>
+</tr>
+<tr>
+<td>FPU accuracy fixes</td>
+<td>r9999 → rv64core</td>
+<td>rv64core <code>4b4a3f4</code> (2026-06-22, branch <code>hacky_fp32_for_quake</code>)</td>
+</tr>
+<tr>
+<td>Mini-TAGE + mini-ITTAGE</td>
+<td>r9999 → rv64core</td>
+<td>rv64core <code>cdd43ea</code> (2026-10-26, local branch <code>tage</code>, not yet pushed)</td>
+</tr>
+</tbody>
+</table>
+<p>Some ideas show up in both cores but were built separately rather than ported. One example is the non-power-of-2 sizing knobs: rv64core has non-power-of-2 TLBs (<code>4e0b3ed</code>, 2025-02-24), and r9999 has non-power-of-2 LSU, scheduler and ROB sizes (<code>52ba22e</code>, <code>63ba829</code>, <code>cfddb0d</code>).</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "navigation.indexes", "navigation.tracking", "toc.follow", "content.code.copy"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.c21346df.min.js"></script>
+      
+    
+  </body>
+</html>

@@ -397,6 +397,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../r9999-lineage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    r9999 lineage (MIPS -> RISC-V -> MIPS)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../firmware-arcs/" class="md-nav__link">
         
   
@@ -825,10 +852,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_12" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13" >
         
           
-          <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="">
+          <label class="md-nav__link" for="__nav_13" id="__nav_13_label" tabindex="">
             
   
   
@@ -846,8 +873,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_12">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_13">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1177,7 +1204,7 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_14" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -1206,14 +1233,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_13" id="__nav_13_label" tabindex="">
+              <label class="md-nav__link " for="__nav_14" id="__nav_14_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_13">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_14_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_14">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1858,7 +1885,10 @@ problems were all in the split between the engines and the ARM:</p>
 <code>mem_arbiter</code>. <strong>Guest side</strong> accesses go through <code>dma_snoop_shim</code>: PRE-WBINV, then the
 access, then POST-WBINV for writes. <strong>Host side</strong> accesses target staging PAs, which the
 shim passes straight through (<code>dma_snoop_shim.sv:76-79</code>). That is safe because the core can never cache PA 0x1e000000–0x1effffff: it is
-reserved GIO space on IP22 and IRIX never maps it.</p>
+reserved on IP22, and <code>henry_soc</code> decodes CPU accesses to 0x18000000–0x1effffff as
+no memory (<code>w_is_nomap</code>: an uncached load bus-errors, an uncached store is absorbed, and cached
+traffic reads zeros or is dropped), so the core cannot
+reach the staging area at all.</p>
 <p><strong>Placement.</strong> The kmod reserves <code>REGION_SZ = 496 MB</code>, so window offsets end at
 0x1effffff. <code>M00_AXI</code> folds guest RAM (PA 0x08000000–0x17ffffff) to offsets
 0–0x0fffffff, and PA 0x1f000000+ to 0x10000000+. Every other PA, including the reserved

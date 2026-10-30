@@ -397,6 +397,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../../r9999-lineage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    r9999 lineage (MIPS -> RISC-V -> MIPS)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../firmware-arcs/" class="md-nav__link">
         
   
@@ -620,10 +647,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_12" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13" checked>
         
           
-          <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="">
+          <label class="md-nav__link" for="__nav_13" id="__nav_13_label" tabindex="">
             
   
   
@@ -641,8 +668,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_12">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_13">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1092,7 +1119,7 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_14" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -1121,14 +1148,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_13" id="__nav_13_label" tabindex="">
+              <label class="md-nav__link " for="__nav_14" id="__nav_14_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_13">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_14_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_14">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1744,8 +1771,8 @@ with <code>slvdly</code> when DMUX's GIO write/read FIFOs back up.</p>
      alias note in <code>mc.md</code> — same theme: get the lanes right.)</li>
 <li><strong>Parity</strong> can be ignored. DMUX parity exists to <em>detect DRAM faults</em>; on simulated/SoC memory there are no
      bit flips, and the parity-error interrupt path is maskable. henry models no parity, so no parity error is
-     ever reported. The MC error registers exist, but only GIO time-outs set them (<code>GIO_ERROR_ADDR/STAT</code>;
-     <code>CPU_ERROR_STAT</code> is never set), and the INT3 MC bus-error input carries only those time-outs.</li>
+     ever reported. The MC error registers are set only by GIO time-outs (<code>GIO_ERROR_ADDR/STAT</code>) and uncached CPU
+     accesses to reserved PAs (<code>CPU_ERROR_STAT.ADDR</code>), and the INT3 MC bus-error input carries those.</li>
 <li>The known DMUX silicon bug (bad-parity-on-<code>par_flush</code> corrupting the GIO FIFO, IDE-then-SCSI failure, p.37) is
   a hardware erratum with no bearing on a clean Henry datapath — do not replicate it.</li>
 </ul>
