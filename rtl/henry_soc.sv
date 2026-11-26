@@ -45,6 +45,9 @@ module henry_soc
    // debug control (wired from the AXI control reg; previously stubbed off)
    input  logic                  single_step,
    input  logic                  step,
+   // HW_TOPDOWN counters (r9999 core_l1d_l1i): pmu_value follows pmu_sel two cycles later
+   input  logic [4:0]            pmu_sel,
+   output logic [47:0]           pmu_value,
    input  logic                  bp_enable,     // arms the resettable fault-trap
    input  logic                  fault_clear,   // clear fault-trap latch + re-arm + un-freeze
    input  logic [31:0]           bp_pc,         // driver-programmable breakpoint PC
@@ -506,6 +509,8 @@ module henry_soc
       .ip6(w_int3_ip6),
       .single_step(single_step),
       .step(step),
+      .pmu_sel(pmu_sel),
+      .pmu_value(pmu_value),
       .bp_enable(bp_enable),
       .fault_clear(fault_clear),
       .bp_pc(bp_pc),

@@ -374,6 +374,28 @@ module axi_is_the_worst_v1_0 #
    wire [31:0]  w_vdma_stat0, w_vdma_stat1;   // MC VDMA usage counters (read 0x22/0x23)
    wire [4:0]   w_gfx_perf_sel;               // graphics-path counter select (write 0x24 [4:0])
    wire [31:0]  w_gfx_perf_data;              // selected counter half (read 0x02)
+   /* HW_TOPDOWN counters: write 0x25 = {high half, counter}, read 0x2C = that half.
+    * Both directions go through two forced-flop stages (cnt_pipe) and the half is
+    * picked in a third, so nothing long reaches the AXI read mux; the ARM's write
+    * then read is far slower than the ~6 cycles this adds. */
+   wire [5:0]   w_pmu_sel;
+   wire [4:0]   w_pmu_sel_q;
+   wire [47:0]  w_pmu_value, w_pmu_value_q;
+   reg [31:0] 	r_pmu_data;
+   cnt_pipe #(.W(5), .N(2)) pipe_pmu_sel (
+	.clk(s00_axi_aclk),
+	.in(w_pmu_sel[4:0]),
+	.out(w_pmu_sel_q)
+	);
+   cnt_pipe #(.W(48), .N(2)) pipe_pmu_value (
+	.clk(s00_axi_aclk),
+	.in(w_pmu_value),
+	.out(w_pmu_value_q)
+	);
+   always @(posedge s00_axi_aclk)
+     begin
+	r_pmu_data <= w_pmu_sel[5] ? {16'd0, w_pmu_value_q[47:32]} : w_pmu_value_q[31:0];
+     end
    wire [15:0]  w_gio_irq;
    wire         w_gio_pend;
    // ext flush page list: S00_AXI (ARM writes 0x3C/0x3D) -> henry_soc
@@ -497,6 +519,8 @@ module axi_is_the_worst_v1_0 #
 				       .vdma_stat1(w_vdma_stat1),
 				       .gfx_perf_sel(w_gfx_perf_sel),
 				       .gfx_perf_data(w_gfx_perf_data),
+				       .pmu_sel(w_pmu_sel),
+				       .pmu_data(r_pmu_data),
 				       .gio_pend(w_gio_pend),
 				       .gio_pend_seq(w_gio_pend_seq),
 				       .ext_flush_stat(w_ext_flush_stat),
@@ -664,6 +688,8 @@ module axi_is_the_worst_v1_0 #
 	   // [18]=fault_clear(clear latch + re-arm + un-freeze).  Previously stubbed in henry_soc.
 	   .single_step(w_rvcontrol[31]),
 	   .step(w_rvcontrol[30]),
+	   .pmu_sel(w_pmu_sel_q),
+	   .pmu_value(w_pmu_value),
 	   .bp_enable(w_rvcontrol[17]),
 	   .fault_clear(w_rvcontrol[18]),
 	   .bp_pc(w_bp_pc),

@@ -138,6 +138,8 @@ module axi_is_the_worst_v1_0_S00_AXI #
     input  wire [31:0]			      vdma_stat1,        // read 0x23: MC VDMA {fill starts[15:0], other DMA reg writes[15:0]}
     output wire [4:0]			      gfx_perf_sel,      // write 0x24 [4:0]: graphics-path counter select
     input  wire [31:0]			      gfx_perf_data,     // read 0x02: selected graphics-path counter half
+    output wire [5:0]			      pmu_sel,           // write 0x25 [5:0]: HW_TOPDOWN counter [4:0], high half [5]
+    input  wire [31:0]			      pmu_data,          // read 0x2C: the selected counter half
     input  wire				      gio_pend,          // read 0x21 [31]
     input  wire [31:0]			      gio_pend_seq,      // read 0x21 [30:0]
     input  wire [31:0]			      ext_flush_stat,    // {completed[15:0], dirty[13:0], 1'b0, busy}
@@ -484,6 +486,7 @@ module axi_is_the_worst_v1_0_S00_AXI #
    assign gio_ans_seq = slv_reg34;
    assign gio_cons    = slv_reg35;
    assign gfx_perf_sel = slv_reg36[4:0];
+   assign pmu_sel = slv_reg37[5:0];
    assign gio_irq     = slv_reg42[15:0];
 
    
@@ -1416,7 +1419,7 @@ module axi_is_the_worst_v1_0_S00_AXI #
 	  6'h29   : reg_data_out <= r_insn_cnt[63:32];
 	  6'h2A   : reg_data_out <= r_cycle[31:0];
 	  6'h2B   : reg_data_out <= r_cycle[63:32];
-	  6'h2C   : reg_data_out <= l1i_cache_accesses[31:0];
+	  6'h2C   : reg_data_out <= pmu_data;                  // HW_TOPDOWN counter half (select = write 0x25); was l1i_cache_accesses[31:0], tied 0
 	  /* REPURPOSED: all 64 read regs were allocated, and the UPPER half of these
 	   * counters is dead weight -- we measure RATES over ~30s windows and a 32-bit
 	   * counter at ~4M events/s wraps in ~1000s.  Trading three unused high halves
@@ -1469,7 +1472,8 @@ module axi_is_the_worst_v1_0_S00_AXI #
 	  //              MC DMA fill, running ds1386 clock, SCC WR8, WD reg 2.
 	  // 0x20261018 = + MC VDMA memory -> GIO through the gio ring: record types
 	  //              2 (VDMA store) and 3 (BEGIN/END marker); VDMA counters 0x22/0x23.
-	  6'h3F   : reg_data_out <= 32'h20261018;   // RTL revision
+	  // 0x20261126 = + HW_TOPDOWN counters: write 0x25 {high half, sel}, read 0x2C.
+	  6'h3F   : reg_data_out <= 32'h20261126;   // RTL revision
 	  default : reg_data_out <= 0;
 	endcase
      end
